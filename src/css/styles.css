@@ -1,0 +1,795 @@
+/* Variables CSS */
+:root {
+    --color-primario: #2563eb;
+    --color-secundario: #64748b;
+    --color-exito: #10b981;
+    --color-peligro: #ef4444;
+    --color-advertencia: #f59e0b;
+    --color-fondo: #f8fafc;
+    --color-texto: #1e293b;
+    --color-borde: #e2e8f0;
+    --sombra: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    --sombra-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* Reset y estilos base */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: var(--color-fondo);
+    color: var(--color-texto);
+    line-height: 1.6;
+}
+
+/* Navegación */
+.navbar {
+    background: white;
+    box-shadow: var(--sombra);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 4rem;
+}
+.nav-container > h1 {
+    flex-shrink: 0; /* Evita que el título se encoja */
+}
+.nav-container > .nav-menu {
+    flex-grow: 1; /* Permite que el menú ocupe el espacio sobrante */
+}
+
+.navbar h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-primario);
+}
+
+.nav-menu {
+    display: flex;
+    list-style: none;
+    justify-content: center; /* Centra los elementos del menú */
+    gap: 2rem;
+}
+
+.nav-link {
+    text-decoration: none;
+    color: var(--color-secundario);
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    transition: all 0.2s;
+}
+
+.nav-link:hover {
+    color: var(--color-primario);
+    background-color: #eff6ff;
+}
+
+.nav-link.activo {
+    color: var(--color-primario);
+    background-color: #eff6ff;
+}
+
+/* Contenedor principal */
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 2rem 1rem;
+}
+
+/* Secciones */
+.seccion {
+    display: none;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.seccion.activa {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.seccion h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 2rem;
+    color: var(--color-texto);
+}
+
+/* Formularios */
+.formulario-arqueo,
+.formulario-gastos {
+    background: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    box-shadow: var(--sombra);
+    margin-bottom: 2rem;
+}
+
+.form-grupo {
+    margin-bottom: 1.5rem;
+}
+
+.form-grupo label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--color-texto);
+}
+
+.form-grupo input,
+.form-grupo select,
+.form-grupo textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--color-borde);
+    border-radius: 0.375rem;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-grupo input:focus,
+.form-grupo select:focus,
+.form-grupo textarea:focus {
+    outline: none;
+    border-color: var(--color-primario);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.formulario-gastos input[inputmode="numeric"] {
+    text-align: right;
+}
+
+
+.form-grupo textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+/* Grids y layouts */
+.cotizacion-grid,
+.servicio-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+}
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+.layout-grid-columnas {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 2rem;
+    align-items: start;
+    margin-bottom: 2rem;
+}
+
+
+/* Tablas */
+.tabla-conteo {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    background: white;
+    border-radius: 0.375rem;
+    overflow: hidden;
+    box-shadow: var(--sombra);
+}
+
+.tabla-conteo th,
+.tabla-conteo td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--color-borde);
+}
+
+.tabla-conteo th {
+    background-color: #f1f5f9;
+    font-weight: 600;
+    color: var(--color-texto);
+}
+
+.tabla-conteo input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--color-borde);
+    border-radius: 0.25rem;
+    text-align: right;
+}
+
+.tabla-conteo .monto-parcial {
+    text-align: right;
+    font-weight: 500;
+}
+
+/* Totales */
+.total-efectivo {
+    text-align: right;
+    margin-top: 1rem;
+    padding: 1rem;
+    background-color: #f1f5f9;
+    border-radius: 0.375rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.total-efectivo.resta {
+    background-color: transparent;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--color-secundario);
+    display: flex;
+    justify-content: space-between;
+}
+
+.total-efectivo.final {
+    background-color: #e0e7ff;
+    color: var(--color-primario);
+}
+
+.total-moneda-extranjera {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    background-color: #f8fafc;
+    border-top: 1px solid var(--color-borde);
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-secundario);
+}
+
+/* Secciones de formulario */
+.cotizaciones,
+.conteo-efectivo,
+.ingresos-no-efectivo,
+.servicios {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background-color: #f8fafc;
+    border-radius: 0.5rem;
+    border: 1px solid var(--color-borde);
+}
+
+/* Tabla de servicios */
+.tabla-servicios {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    background: white;
+    border-radius: 0.375rem;
+    overflow: hidden;
+    box-shadow: var(--sombra);
+}
+
+.tabla-servicios th,
+.tabla-servicios td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--color-borde);
+}
+
+.tabla-servicios th {
+    background-color: #f1f5f9;
+    font-weight: 600;
+    color: var(--color-texto);
+    text-align: center;
+}
+
+.tabla-servicios td:first-child {
+    font-weight: 500;
+    color: var(--color-texto);
+}
+
+.tabla-servicios td:nth-child(2),
+.tabla-servicios td:nth-child(3) {
+    text-align: center;
+}
+
+.tabla-servicios input {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--color-borde);
+    border-radius: 0.25rem;
+    text-align: center;
+}
+
+.tabla-servicios td:nth-child(2) {
+    width: 30%;
+}
+
+.tabla-servicios td:nth-child(3) {
+    width: 30%;
+}
+
+/* Botones */
+.form-botones {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+}
+
+.btn {
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: 0.375rem;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-primario {
+    background-color: var(--color-primario);
+    color: white;
+}
+
+.btn-primario:hover {
+    background-color: #1d4ed8;
+    transform: translateY(-1px);
+    box-shadow: var(--sombra-lg);
+}
+
+.btn-secundario {
+    background-color: var(--color-secundario);
+    color: white;
+}
+
+.btn-secundario:hover {
+    background-color: #475569;
+}
+
+.btn-excel {
+    background-color: var(--color-exito);
+    color: white;
+}
+
+.btn-excel:hover {
+    background-color: #059669;
+}
+
+.btn-adicional {
+    background-color: transparent;
+    color: var(--color-primario);
+    border: 1px solid var(--color-primario);
+}
+.btn-adicional:hover {
+    background-color: #eff6ff;
+}
+
+/* Resumen de tesorería */
+.resumen-filtros {
+    display: flex;
+    gap: 1rem;
+    align-items: end;
+    margin-bottom: 2rem;
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: var(--sombra);
+}
+
+.resumen-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+}
+
+.resumen-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: var(--sombra);
+}
+
+.resumen-card h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: var(--color-texto);
+}
+
+.resumen-datos {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.resumen-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--color-borde);
+}
+
+.resumen-item:last-child {
+    border-bottom: none;
+    font-weight: 600;
+    font-size: 1.125rem;
+}
+
+.resumen-totales {
+    display: grid;
+    gap: 1rem;
+}
+
+.total-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem;
+    background-color: #f8fafc;
+    border-radius: 0.375rem;
+    font-weight: 500;
+}
+
+.total-item.positivo {
+    color: var(--color-exito);
+}
+
+.total-item.negativo {
+    color: var(--color-peligro);
+}
+
+/* Lista de movimientos */
+.movimientos-lista {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.movimiento-item {
+    padding: 1rem;
+    border: 1px solid var(--color-borde);
+    border-radius: 0.375rem;
+    margin-bottom: 0.75rem;
+    background: white;
+}
+
+.movimiento-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.movimiento-tipo {
+    font-weight: 600;
+    color: var(--color-primario);
+}
+
+.movimiento-monto {
+    font-weight: 600;
+    font-size: 1.125rem;
+}
+
+.movimiento-monto.positivo {
+    color: var(--color-exito);
+}
+
+.movimiento-monto.negativo {
+    color: var(--color-peligro);
+}
+
+.movimiento-detalles {
+    font-size: 0.875rem;
+    color: var(--color-secundario);
+}
+
+.movimiento-acciones {
+    margin-top: 0.75rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-accion {
+    background: none;
+    border: 1px solid var(--color-borde);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background-color 0.2s;
+}
+
+.btn-accion.editar:hover { background-color: #eff6ff; color: var(--color-primario); }
+.btn-accion.eliminar:hover { background-color: #fee2e2; color: var(--color-peligro); }
+
+.movimiento-item.arqueo-item {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.movimiento-item.arqueo-item:hover {
+    background-color: #f8fafc;
+}
+
+/* Historial de gastos */
+.historial-gastos {
+    background: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    box-shadow: var(--sombra);
+    margin-top: 2rem;
+}
+
+.historial-gastos h3 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    color: var(--color-texto);
+}
+
+.filtros-historial {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.lista-movimientos {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+/* --- Diseño Responsivo --- */
+
+/* Para tablets y pantallas medianas (hasta 992px) */
+@media (max-width: 992px) {
+    .nav-menu {
+        gap: 1rem; /* Reducimos el espacio entre elementos para que quepan más */
+    }
+    .navbar h1 {
+        font-size: 1.3rem; /* Hacemos el título un poco más pequeño */
+    }
+}
+
+/* Para celulares (hasta 768px) */
+@media (max-width: 768px) {
+    /* Ajustes generales para pantallas pequeñas */
+    .container {
+        padding: 1rem;
+    }
+
+    .seccion h2 {
+        font-size: 1.5rem; /* Títulos más pequeños */
+        margin-bottom: 1.5rem;
+    }
+
+    /* --- Navegación --- */
+    .nav-container {
+        flex-direction: column;
+        height: auto;
+        padding: 1rem;
+    }
+
+    .nav-menu {
+        margin-top: 1rem;
+        flex-wrap: wrap; /* Permite que los elementos del menú pasen a la siguiente línea */
+        justify-content: center;
+        gap: 1rem;
+    }
+
+    .nav-usuario {
+        margin-top: 1rem;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    /* --- Formularios y Filtros --- */
+    .formulario-arqueo,
+    .formulario-gastos {
+        padding: 1rem;
+    }
+
+    .resumen-filtros {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filtros-historial {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    /* --- Botones --- */
+    .form-botones,
+    .form-botones-modales {
+        flex-direction: column;
+    }
+
+    /* --- Grids --- */
+    .cotizacion-grid,
+    .servicio-grid,
+    .resumen-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* --- Tablas Responsivas --- */
+    /* Hacemos que las tablas tengan desplazamiento horizontal si no caben */
+    .tabla-conteo,
+    .tabla-servicios,
+    .lista-movimientos {
+        display: block;
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch; /* Scroll suave en iOS */
+    }
+}
+
+/* Utilidades */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-left { text-align: left; }
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-4 { margin-top: 1rem; }
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.p-2 { padding: 0.5rem; }
+.p-4 { padding: 1rem; }
+
+/* Animaciones de carga */
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid var(--color-primario);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.form-botones-modales {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    justify-content: center;
+}
+
+/* Estilos para el Modal */
+.modal {
+    display: none; /* Oculto por defecto */
+    position: fixed;
+    z-index: 1001;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.5);
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-contenido {
+    background-color: #fff;
+    margin: auto;
+    border-radius: 0.5rem;
+    box-shadow: var(--sombra-lg);
+    width: 90%;
+    max-width: 600px;
+    animation: fadeIn 0.3s;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--color-borde);
+}
+
+.modal-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.modal-cerrar {
+    color: var(--color-secundario);
+    font-size: 2rem;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.modal-cerrar:hover {
+    color: var(--color-texto);
+}
+
+.modal-body {
+    padding: 1.5rem;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* Estilos para el detalle del arqueo en el modal */
+.detalle-arqueo .detalle-seccion {
+    margin-bottom: 1.5rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--color-borde);
+}
+.detalle-arqueo .detalle-seccion:last-child {
+    border-bottom: none;
+}
+.detalle-arqueo h5 {
+    font-size: 1.1rem;
+    color: var(--color-primario);
+    margin-bottom: 0.75rem;
+}
+.detalle-arqueo p {
+    display: flex;
+    justify-content: space-between;
+}
+.detalle-arqueo .tabla-detalle {
+    width: 100%;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+    border-collapse: collapse;
+}
+.detalle-arqueo .tabla-detalle th, .detalle-arqueo .tabla-detalle td { padding: 0.5rem; border: 1px solid var(--color-borde); text-align: right; }
+.detalle-arqueo .tabla-detalle th { background-color: #f1f5f9; text-align: center; }
+.detalle-arqueo .tabla-detalle td:first-child { text-align: left; }
+.detalle-arqueo .total-final p { font-size: 1.2rem; font-weight: bold; }
+
+/* Estilos para el resumen de arqueo guardado */
+#resumenArqueoGuardado {
+    margin-top: 2rem;
+}
+.resumen-guardado-card {
+    background: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    box-shadow: var(--sombra);
+}
+.resumen-guardado-card h3 {
+    text-align: center;
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+/* Estilos de impresión */
+@media print {
+    body {
+        background-color: white;
+    }
+    .navbar, .formulario-arqueo, .seccion:not(.activa), .no-imprimir, .historial-gastos, .movimiento-acciones, .modal {
+        display: none !important;
+    }
+    main.container {
+        max-width: 100%;
+        padding: 0;
+        margin: 0;
+    }
+    .resumen-guardado-card {
+        box-shadow: none;
+        border: 1px solid #ccc;
+        padding: 1rem;
+    }
+    #resumenArqueoGuardado {
+        display: block !important;
+    }
+}

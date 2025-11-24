@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BenMark - Iniciar Sesión</title>
+    <link rel="stylesheet" href="../css/login.css">
+    <style>
+        /* Estilos para el contenedor del campo de contraseña */
+        .password-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        /* Aseguramos que el input ocupe todo el ancho disponible */
+        .password-wrapper input {
+            width: 100%;
+            padding-right: 45px;
+            /* Dejar espacio para el botón */
+        }
+
+        /* Estilos para el botón de mostrar/ocultar */
+        .toggle-password {
+            position: absolute;
+            right: 1px;
+            /* Posicionarlo a la derecha dentro del campo */
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            /* Tamaño del ícono */
+            padding: 10px;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <form id="loginForm">
+            <h2>BenMarket Tesorería</h2>
+            <p>Inicia sesión para continuar</p>
+            <div class="form-grupo">
+                <label for="username">Usuario</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-grupo">
+                <label for="password">Contraseña</label>
+                <div class="password-wrapper">
+                    <input type="password" id="password" name="password" required>
+                    <button type="button" id="togglePassword" class="toggle-password">👁️</button>
+                </div>
+            </div>
+            <div class="form-grupo">
+                <label for="userRole">Rol</label>
+                <select id="userRole" name="userRole" required>
+                    <option value="cajero">Cajero</option>
+                    <option value="tesoreria">Tesorería</option>
+                    <option value="admin">Administrador</option>
+                </select>
+            </div>
+            <div class="form-grupo" id="caja-login-container">
+                <label for="cajaLogin">Seleccionar Caja</label>
+                <select id="cajaLogin" name="cajaLogin" required>
+                    <option value="" disabled selected>-- Elija una caja --</option>
+                    <option value="Caja 1">Caja 1</option>
+                    <option value="Caja 2">Caja 2</option>
+                    <option value="Caja 3">Caja 3</option>
+                    <option value="Caja Tesoreria">Caja Tesoreria</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-login">Ingresar</button>
+            <p id="error-message" class="error-message"></p>
+        </form>
+    </div>
+    <script src="../js/login.js"></script>
+</body>
+
+</html>

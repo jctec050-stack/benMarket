@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BenMark - Tesorería</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1>BenMarket</h1>
+            <ul class="nav-menu">
+                <li><a href="index.html" class="nav-link activo">Ingresos</a></li>
+                <li><a href="egresosCaja.html" class="nav-link">Egresos</a></li>
+                <li><a href="operaciones.html" class="nav-link">Operaciones</a></li>
+                <li><a href="arqueo.html" class="nav-link">Arqueo de Caja</a></li>
+                <li><a href="resumen.html" class="nav-link">Resumen</a></li>
+                <li id="nav-usuarios"><a href="usuarios.html" class="nav-link">Usuarios</a></li>
+            </ul>
+            <div class="nav-usuario">
+                <span id="nombreUsuarioNav"></span>
+                <a href="#" onclick="cerrarSesion()" class="nav-link-logout">Cerrar Sesión</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <!-- Sección para Ingresar Movimientos Individuales -->
+        <section id="ingreso-movimiento" class="seccion activa">
+            <div id="header-ingresos"
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h2>Ingresos</h2>
+                <div
+                    style="background: var(--color-primario); color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold;">
+                    <span>📦 Caja: </span><span id="cajaActivaIngresos">-</span>
+                </div>
+            </div>
+            <form id="formularioMovimiento" class="formulario-arqueo">
+                <!-- Cotizaciones -->
+                <div class="cotizaciones">
+                    <h3>Cotizaciones del Movimiento</h3>
+                    <!-- Campo oculto para saber si estamos editando un movimiento -->
+                    <input type="hidden" id="indiceMovimientoEditar" value="">
+
+                    <div class="cotizacion-grid">
+                        <div class="form-grupo">
+                            <label for="cotDolarMovimiento">Dólar (G$):</label>
+                            <input type="text" inputmode="numeric" id="cotDolarMovimiento" value="7.000">
+                        </div>
+                        <div class="form-grupo">
+                            <label for="cotRealMovimiento">Real (G$):</label>
+                            <input type="text" inputmode="numeric" id="cotRealMovimiento" value="1.250">
+                        </div>
+                        <div class="form-grupo">
+                            <label for="cotPesoMovimiento">Peso (G$):</label>
+                            <input type="text" inputmode="numeric" id="cotPesoMovimiento" value="0">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fecha y Descripción -->
+                <div class="form-grid">
+                    <div class="form-grupo">
+                        <label for="fechaMovimiento">Fecha y Hora:</label>
+                        <input type="datetime-local" id="fechaMovimiento" required>
+                    </div>
+                    <div class="form-grupo">
+                        <label for="descripcionMovimiento">Descripción:</label>
+                        <input type="text" id="descripcionMovimiento"
+                            placeholder="Información sobre la venta o movimiento" required>
+                    </div>
+                </div>
+
+                <!-- Botones para abrir modales -->
+                <div class="form-botones-modales">
+                    <button type="button" class="btn btn-secundario"
+                        onclick="abrirModal('contenido-efectivo', 'Conteo de Efectivo')">Registrar Efectivo</button>
+                    <button type="button" class="btn btn-secundario"
+                        onclick="abrirModal('contenido-no-efectivo', 'Ingresos No Efectivo')">Registrar No
+                        Efectivo</button>
+                    <button type="button" class="btn btn-secundario"
+                        onclick="abrirModal('contenido-servicios', 'Servicios')">Registrar Servicios</button>
+                </div>
+
+                <!-- Contenido oculto para los modales -->
+                <div id="contenedores-modales" style="display: none;">
+                    <div id="contenido-efectivo">
+                        <!-- **NUEVO:** Sección para cálculo de vuelto -->
+                        <div class="vuelto-seccion">
+                            <div class="form-grupo">
+                                <label for="totalVentaEfectivo">Total Venta (G$):</label>
+                                <input type="text" id="totalVentaEfectivo" placeholder="Monto total de la venta">
+                            </div>
+                            <div class="form-grupo">
+                                <label for="montoRecibidoCliente">Monto Recibido (G$):</label>
+                                <input type="text" id="montoRecibidoCliente"
+                                    placeholder="Dinero entregado por el cliente">
+                            </div>
+                            <div class="vuelto-display">
+                                <span>Vuelto a Entregar:</span>
+                                <strong id="vueltoCalculado">G$ 0</strong>
+                            </div>
+                        </div>
+
+                        <!-- **NUEVO:** Sección para registrar el vuelto entregado -->
+                        <div id="registroVueltoSeccion"
+                            style="display: none; margin-top: 1rem; border-top: 2px dashed var(--color-borde); padding-top: 1rem;">
+                            <h4>Registrar Billetes del Vuelto</h4>
+                            <table class="tabla-conteo">
+                                <thead>
+                                    <tr>
+                                        <th>Denominación</th>
+                                        <th>Cantidad</th>
+                                        <th>Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaVueltoMovimiento">
+                                    <!-- Se llenará dinámicamente -->
+                                </tbody>
+                            </table>
+                            <div class="total-efectivo"><strong id="totalVueltoVerificacion">Total Vuelto Registrado: G$
+                                    0</strong></div>
+                        </div>
+
+                        <!-- **NUEVO:** Tabla para el conteo de efectivo del movimiento -->
+                        <div id="contenido-efectivo-movimiento">
+                            <table class="tabla-conteo">
+                                <thead>
+                                    <tr>
+                                        <th>Denominación</th>
+                                        <th>Cantidad</th>
+                                        <th>Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaDenominacionesMovimiento">
+                                    <!-- Se llenará dinámicamente -->
+                                </tbody>
+                            </table>
+                            <div class="total-efectivo"><strong>Total Efectivo del Movimiento: <span
+                                        id="totalEfectivoMovimiento">G$ 0</span></strong></div>
+                        </div>
+                        <div class="form-botones" style="text-align: right; margin-top: 1rem;">
+                            <button type="button" class="btn btn-primario" onclick="agregarMovimiento()">Agregar
+                                Movimiento</button>
+                        </div>
+                    </div>
+
+                    <div id="contenido-no-efectivo">
+                        <div class="form-grupo">
+                            <label for="pagosTarjetaMovimiento">Pagos con Tarjeta (G$):</label>
+                            <input type="text" inputmode="numeric" id="pagosTarjetaMovimiento" value="0">
+                        </div>
+                        <div class="form-grupo">
+                            <label for="ventasCreditoMovimiento">Ventas a Crédito (G$):</label>
+                            <input type="text" inputmode="numeric" id="ventasCreditoMovimiento" value="0">
+                        </div>
+                        <div class="form-grupo">
+                            <label for="pedidosYaMovimiento">Pedidos YA (G$):</label>
+                            <input type="text" inputmode="numeric" id="pedidosYaMovimiento" value="0">
+                        </div>
+                        <div class="form-grupo">
+                            <label for="ventasTransfMovimiento">Ventas a Transferencia (G$):</label>
+                            <input type="text" inputmode="numeric" id="ventasTransfMovimiento" value="0">
+                        </div>
+                        <div class="form-botones" style="text-align: right; margin-top: 1rem;">
+                            <button type="button" class="btn btn-primario" onclick="agregarMovimiento()">Agregar
+                                Movimiento</button>
+                        </div>
+                    </div>
+
+                    <div id="contenido-servicios">
+                        <table class="tabla-servicios">
+                            <thead>
+                                <tr>
+                                    <th>Servicio</th>
+                                    <th>Lote/Fecha</th>
+                                    <th>Efectivo(G$)</th>
+                                    <th>Tarjeta (G$)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyServiciosMovimiento">
+                                <tr>
+                                    <td><strong>ACA PUEDO</strong></td>
+                                    <td><input type="text" id="apLoteCantMovimiento" placeholder="Número de lote"></td>
+                                    <td><input type="text" inputmode="numeric" id="apLoteMontoMovimiento" value="0">
+                                    </td>
+                                    <td><input type="text" inputmode="numeric" id="apLoteTarjetaMovimiento" value="0">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Aquí Pago</strong></td>
+                                    <td><input type="text" id="aquiPagoLoteMovimiento" placeholder="Número de lote">
+                                    </td>
+                                    <td><input type="text" inputmode="numeric" id="aquiPagoMontoMovimiento" value="0">
+                                    </td>
+                                    <td><input type="text" inputmode="numeric" id="aquiPagoTarjetaMovimiento" value="0">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Pago Express</strong></td>
+                                    <td><input type="text" id="expressCantMovimiento" placeholder="Número de lote"></td>
+                                    <td><input type="text" inputmode="numeric" id="expressMontoMovimiento" value="0">
+                                    </td>
+                                    <td><input type="text" inputmode="numeric" id="expressTarjetaMovimiento" value="0">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>WEPA</strong></td>
+                                    <td><input type="text" id="wepaFechaMovimiento" placeholder="Ej: 07 04"></td>
+                                    <td><input type="text" inputmode="numeric" id="wepaMontoMovimiento" value="0"></td>
+                                    <td><input type="text" inputmode="numeric" id="wepaTarjetaMovimiento" value="0">
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Pasaje NSA</strong></td>
+                                    <td><input type="text" id="pasajeNsaLoteMovimiento" placeholder="Número de lote">
+                                    </td>
+                                    <td><input type="text" inputmode="numeric" id="pasajeNsaMovimiento" value="0"></td>
+                                    <td><input type="text" inputmode="numeric" id="pasajeNsaTarjetaMovimiento"
+                                            value="0"></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Encomienda NSA</strong></td>
+                                    <td><input type="text" id="encomiendaNsaLoteMovimiento"
+                                            placeholder="Número de lote"></td>
+                                    <td><input type="text" inputmode="numeric" id="encomiendaNsaMovimiento" value="0">
+                                    </td>
+                                    <td><input type="text" inputmode="numeric" id="encomiendaNsaTarjetaMovimiento"
+                                            value="0"></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Apostala</strong></td>
+                                    <td><input type="text" id="apostalaLoteMovimiento" placeholder="Número de lote">
+                                    </td>
+                                    <td><input type="text" inputmode="numeric" id="apostalaMontoMovimiento" value="0">
+                                    </td>
+                                    <td><input type="text" inputmode="numeric" id="apostalaTarjetaMovimiento" value="0">
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="form-botones" style="text-align: right; margin-top: 0.5rem;">
+                            <button type="button" class="btn btn-adicional" onclick="agregarFilaServicio()">+ Agregar
+                                Servicio</button>
+                        </div>
+                        <div class="form-botones" style="text-align: right; margin-top: 1rem;">
+                            <button type="button" class="btn btn-primario" onclick="agregarMovimiento()">Agregar
+                                Movimiento</button>
+                        </div>
+                    </div>
+
+
+                    <!-- Contenido para Modal de Egresos de Caja -->
+                    <div id="contenido-egreso-caja">
+                        <table class="tabla-conteo">
+                            <thead>
+                                <tr>
+                                    <th>Denominación</th>
+                                    <th>Cantidad</th>
+                                    <th>Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaDenominacionesEgresoCaja">
+                                <!-- Se llenará dinámicamente desde app.js -->
+                            </tbody>
+                        </table>
+                        <div class="total-efectivo">
+                            <strong>Total a Egresar: <span id="totalEgresoCajaDisplay">G$ 0</span></strong>
+                        </div>
+                        <div class="form-botones" style="text-align: right; margin-top: 1rem;">
+                            <button type="button" class="btn btn-primario" onclick="cerrarModal()">Confirmar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contenido para Modal de Egresos de Caja -->
+
+
+            </form>
+
+            <!-- Historial de Ingresos Agregados -->
+            <div class="historial-gastos" style="margin-top: 2rem;">
+                <h3>Historial de Ingresos Agregados</h3>
+                <div class="filtros-historial">
+                    <input type="date" id="filtroFechaIngresos" onchange="renderizarIngresosAgregados()">
+                    <select id="filtroCajaIngresos" onchange="renderizarIngresosAgregados()">
+                        <option value="">Todas las cajas</option>
+                        <option value="Caja 1">Caja 1</option>
+                        <option value="Caja 2">Caja 2</option>
+                        <option value="Caja 3">Caja 3</option>
+                        <option value="Caja Tesoreria">Caja Tesoreria</option>
+                    </select>
+                    <input type="text" id="filtroDescripcionIngresos" placeholder="Filtrar por descripción..."
+                        oninput="renderizarIngresosAgregados()">
+                </div>
+                <div id="listaIngresosAgregados" class="lista-movimientos">
+                    <p class="text-center" style="color: var(--color-secundario);">Aún no se han agregado movimientos.
+                    </p>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Estructura del Modal -->
+    <div id="modal" class="modal">
+        <div class="modal-contenido">
+            <div class="modal-header">
+                <h3 id="modal-titulo"></h3>
+                <span class="modal-cerrar" onclick="cerrarModal()">&times;</span>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- El contenido se insertará aquí -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Librerías para exportar PDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <script src="../js/app.js"></script>
+</body>
+
+</html>

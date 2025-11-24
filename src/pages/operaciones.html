@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BenMark - Operaciones</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1>BenMarket</h1>
+            <ul class="nav-menu">
+                <li><a href="index.html" class="nav-link">Ingresos</a></li>
+                <li><a href="egresosCaja.html" class="nav-link">Egresos</a></li>
+                <li><a href="operaciones.html" class="nav-link activo">Operaciones</a></li>
+                <li><a href="arqueo.html" class="nav-link">Arqueo de Caja</a></li>
+                <li><a href="resumen.html" class="nav-link">Resumen</a></li>
+                <li id="nav-usuarios"><a href="usuarios.html" class="nav-link">Usuarios</a></li>
+            </ul>
+            <div class="nav-usuario">
+                <span id="nombreUsuarioNav"></span>
+                <a href="#" onclick="cerrarSesion()" class="nav-link-logout">Cerrar Sesión</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <!-- Sección de Operaciones/Gastos -->
+        <section id="gastos" class="seccion activa">
+            <h2>Operaciones de Tesorería</h2>
+            <form id="formularioGastos" class="formulario-gastos">
+                <input type="hidden" id="idGastoEditar">
+                <div class="form-grid">
+                    <div class="form-grupo">
+                        <label for="fechaGasto">Fecha y Hora:</label>
+                        <input type="datetime-local" id="fechaGasto" required>
+                    </div>
+                    <div class="form-grupo">
+                        <label for="tipoGasto">Tipo de Movimiento:</label>
+                        <select id="tipoGasto" required>
+                            <option value="gasto">Gasto General</option>
+                            <option value="egreso">Pago a Proveedor</option>
+                            <option value="transferencia">Transferencia entre Cajas</option>
+                            <option value="operacion">Depósito/Retiro Bancario</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-grupo" id="receptor-gasto-container" style="display: none;">
+                        <label for="receptorGasto">Recibido por:</label>
+                        <input type="text" id="receptorGasto" placeholder="Nombre de quien recibe el dinero">
+                    </div>
+                    <div class="form-grupo">
+                        <label for="descripcionGasto">Descripción:</label>
+                        <input type="text" id="descripcionGasto" placeholder="Descripción detallada del movimiento"
+                            required>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-grupo">
+                        <label for="montoGasto">Monto:</label>
+                        <input type="text" inputmode="numeric" id="montoGasto" required>
+                    </div>
+                    <div class="form-grupo">
+                        <label for="monedaGasto">Moneda:</label>
+                        <select id="monedaGasto" required>
+                            <option value="gs">Guaraníes (PYG)</option>
+                            <option value="usd">Dólares (USD)</option>
+                            <option value="brl">Reales (BRL)</option>
+                            <option value="ars">Pesos (ARS)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-botones">
+                    <button type="submit" class="btn btn-primario">Guardar Movimiento</button>
+                    <button type="button" class="btn btn-secundario"
+                        onclick="limpiarFormularioGastos()">Limpiar</button>
+                </div>
+            </form>
+
+            <div class="historial-gastos">
+                <h3>Historial de Operaciones</h3>
+                <div id="listaGastos" class="lista-movimientos"></div>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="../js/app.js"></script>
+</body>
+
+</html>
