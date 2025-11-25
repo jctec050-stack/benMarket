@@ -83,7 +83,7 @@
                         onclick="abrirModal('contenido-no-efectivo', 'Ingresos No Efectivo')">Registrar No
                         Efectivo</button>
                     <button type="button" class="btn btn-secundario"
-                        onclick="abrirModal('contenido-servicios', 'Servicios')">Registrar Servicios</button>
+                        onclick="abrirModal('contenido-servicios', 'Servicios')">Servicios c/ Tarjeta</button>
                 </div>
 
                 <!-- Contenido oculto para los modales -->
@@ -177,84 +177,66 @@
                             <thead>
                                 <tr>
                                     <th>Servicio</th>
-                                    <th>Lote/Fecha</th>
-                                    <th>Efectivo(G$)</th>
+                                    <th>Ref/Lote</th>
                                     <th>Tarjeta (G$)</th>
                                 </tr>
                             </thead>
-                            <tbody id="tbodyServiciosMovimiento">
+                            <tbody>
                                 <tr>
-                                    <td><strong>ACA PUEDO</strong></td>
-                                    <td><input type="text" id="apLoteCantMovimiento" placeholder="Número de lote"></td>
-                                    <td><input type="text" inputmode="numeric" id="apLoteMontoMovimiento" value="0">
-                                    </td>
+                                    <td>AP Lote</td>
+                                    <td><input type="text" id="apLoteCantMovimiento"></td>
                                     <td><input type="text" inputmode="numeric" id="apLoteTarjetaMovimiento" value="0">
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Aquí Pago</strong></td>
-                                    <td><input type="text" id="aquiPagoLoteMovimiento" placeholder="Número de lote">
-                                    </td>
-                                    <td><input type="text" inputmode="numeric" id="aquiPagoMontoMovimiento" value="0">
-                                    </td>
+                                    <td>Aqui Pago</td>
+                                    <td><input type="text" id="aquiPagoLoteMovimiento"></td>
                                     <td><input type="text" inputmode="numeric" id="aquiPagoTarjetaMovimiento" value="0">
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Pago Express</strong></td>
-                                    <td><input type="text" id="expressCantMovimiento" placeholder="Número de lote"></td>
-                                    <td><input type="text" inputmode="numeric" id="expressMontoMovimiento" value="0">
-                                    </td>
+                                    <td>Express Lote</td>
+                                    <td><input type="text" id="expressCantMovimiento"></td>
                                     <td><input type="text" inputmode="numeric" id="expressTarjetaMovimiento" value="0">
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>WEPA</strong></td>
-                                    <td><input type="text" id="wepaFechaMovimiento" placeholder="Ej: 07 04"></td>
-                                    <td><input type="text" inputmode="numeric" id="wepaMontoMovimiento" value="0"></td>
+                                    <td>Wepa</td>
+                                    <td><input type="text" id="wepaFechaMovimiento"></td>
                                     <td><input type="text" inputmode="numeric" id="wepaTarjetaMovimiento" value="0">
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Pasaje NSA</strong></td>
-                                    <td><input type="text" id="pasajeNsaLoteMovimiento" placeholder="Número de lote">
-                                    </td>
-                                    <td><input type="text" inputmode="numeric" id="pasajeNsaMovimiento" value="0"></td>
+                                    <td>Pasaje NSA</td>
+                                    <td><input type="text" id="pasajeNsaLoteMovimiento"></td>
                                     <td><input type="text" inputmode="numeric" id="pasajeNsaTarjetaMovimiento"
                                             value="0"></td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Encomienda NSA</strong></td>
-                                    <td><input type="text" id="encomiendaNsaLoteMovimiento"
-                                            placeholder="Número de lote"></td>
-                                    <td><input type="text" inputmode="numeric" id="encomiendaNsaMovimiento" value="0">
-                                    </td>
+                                    <td>Encomienda NSA</td>
+                                    <td><input type="text" id="encomiendaNsaLoteMovimiento"></td>
                                     <td><input type="text" inputmode="numeric" id="encomiendaNsaTarjetaMovimiento"
                                             value="0"></td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Apostala</strong></td>
-                                    <td><input type="text" id="apostalaLoteMovimiento" placeholder="Número de lote">
-                                    </td>
-                                    <td><input type="text" inputmode="numeric" id="apostalaMontoMovimiento" value="0">
-                                    </td>
+                                    <td>Apostala</td>
+                                    <td><input type="text" id="apostalaLoteMovimiento"></td>
                                     <td><input type="text" inputmode="numeric" id="apostalaTarjetaMovimiento" value="0">
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
-                        <div class="form-botones" style="text-align: right; margin-top: 0.5rem;">
-                            <button type="button" class="btn btn-adicional" onclick="agregarFilaServicio()">+ Agregar
-                                Servicio</button>
-                        </div>
+
+                        <div id="listaServiciosDinamicos"></div>
+                        <button type="button" class="btn btn-secundario btn-sm"
+                            onclick="agregarFilaServicioDinamico()">+ Agregar Servicio</button>
+
                         <div class="form-botones" style="text-align: right; margin-top: 1rem;">
                             <button type="button" class="btn btn-primario" onclick="agregarMovimiento()">Agregar
                                 Movimiento</button>
                         </div>
                     </div>
 
-
-                    <!-- Contenido para Modal de Egresos de Caja -->
                     <div id="contenido-egreso-caja">
                         <table class="tabla-conteo">
                             <thead>
@@ -276,10 +258,6 @@
                         </div>
                     </div>
                 </div>
-
-                <!-- Contenido para Modal de Egresos de Caja -->
-
-
             </form>
 
             <!-- Historial de Ingresos Agregados -->

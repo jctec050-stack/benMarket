@@ -137,10 +137,25 @@ function inicializarFormularioArqueo() {
         });
     }
 
+
+
     // Establecer fecha y hora actual
     const fechaArqueoInput = document.getElementById('fecha');
     if (fechaArqueoInput) {
         fechaArqueoInput.value = obtenerFechaHoraLocalISO().split('T')[0];
+    }
+
+    // Formatear input de Fondo Fijo
+    const fondoFijoInput = document.getElementById('fondoFijo');
+    if (fondoFijoInput) {
+        fondoFijoInput.addEventListener('input', function (e) {
+            let value = e.target.value.replace(/\D/g, '');
+            if (value) {
+                value = value.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            }
+            e.target.value = value;
+            actualizarArqueoFinal(); // Recalcular al cambiar el fondo fijo
+        });
     }
 }
 
@@ -364,13 +379,13 @@ function agregarMovimiento() {
         pedidosYa: obtenerValorParseado('pedidosYaMovimiento'),
         ventasTransferencia: obtenerValorParseado('ventasTransfMovimiento'),
         servicios: {
-            apLote: { lote: document.getElementById('apLoteCantMovimiento').value, monto: obtenerValorParseado('apLoteMontoMovimiento'), tarjeta: obtenerValorParseado('apLoteTarjetaMovimiento') },
-            aquiPago: { lote: document.getElementById('aquiPagoLoteMovimiento').value, monto: obtenerValorParseado('aquiPagoMontoMovimiento'), tarjeta: obtenerValorParseado('aquiPagoTarjetaMovimiento') },
-            expressLote: { lote: document.getElementById('expressCantMovimiento').value, monto: obtenerValorParseado('expressMontoMovimiento'), tarjeta: obtenerValorParseado('expressTarjetaMovimiento') },
-            wepa: { lote: document.getElementById('wepaFechaMovimiento').value, monto: obtenerValorParseado('wepaMontoMovimiento'), tarjeta: obtenerValorParseado('wepaTarjetaMovimiento') },
-            pasajeNsa: { lote: document.getElementById('pasajeNsaLoteMovimiento').value, monto: obtenerValorParseado('pasajeNsaMovimiento'), tarjeta: obtenerValorParseado('pasajeNsaTarjetaMovimiento') },
-            encomiendaNsa: { lote: document.getElementById('encomiendaNsaLoteMovimiento').value, monto: obtenerValorParseado('encomiendaNsaMovimiento'), tarjeta: obtenerValorParseado('encomiendaNsaTarjetaMovimiento') },
-            apostala: { lote: document.getElementById('apostalaLoteMovimiento').value, monto: obtenerValorParseado('apostalaMontoMovimiento'), tarjeta: obtenerValorParseado('apostalaTarjetaMovimiento') },
+            apLote: { lote: document.getElementById('apLoteCantMovimiento').value, monto: 0, tarjeta: obtenerValorParseado('apLoteTarjetaMovimiento') },
+            aquiPago: { lote: document.getElementById('aquiPagoLoteMovimiento').value, monto: 0, tarjeta: obtenerValorParseado('aquiPagoTarjetaMovimiento') },
+            expressLote: { lote: document.getElementById('expressCantMovimiento').value, monto: 0, tarjeta: obtenerValorParseado('expressTarjetaMovimiento') },
+            wepa: { lote: document.getElementById('wepaFechaMovimiento').value, monto: 0, tarjeta: obtenerValorParseado('wepaTarjetaMovimiento') },
+            pasajeNsa: { lote: document.getElementById('pasajeNsaLoteMovimiento').value, monto: 0, tarjeta: obtenerValorParseado('pasajeNsaTarjetaMovimiento') },
+            encomiendaNsa: { lote: document.getElementById('encomiendaNsaLoteMovimiento').value, monto: 0, tarjeta: obtenerValorParseado('encomiendaNsaTarjetaMovimiento') },
+            apostala: { lote: document.getElementById('apostalaLoteMovimiento').value, monto: 0, tarjeta: obtenerValorParseado('apostalaTarjetaMovimiento') }
         },
         otrosServicios: []
     };
@@ -882,9 +897,10 @@ function renderizarVistaArqueoFinal(totales) {
         totalServiciosArqueo += totales.servicios.otros[nombre].monto + totales.servicios.otros[nombre].tarjeta;
     }
 
-    const totalEfectivoBruto = totalEfectivoFinal + totalMonedasExtranjerasGs;
+    const totalEfectivoBruto = totalEfectivoFinal; // Solo efectivo en Gs
     const totalAEntregar = totalEfectivoBruto - fondoFijo;
-    const totalIngresosArqueo = totalEfectivoBruto + totales.pagosTarjeta + totales.ventasCredito + totales.pedidosYa + totales.ventasTransferencia + totalServiciosArqueo;
+    // El total de ingresos SÍ debe incluir el valor de las monedas extranjeras
+    const totalIngresosArqueo = totalEfectivoBruto + totalMonedasExtranjerasGs + totales.pagosTarjeta + totales.ventasCredito + totales.pedidosYa + totales.ventasTransferencia + totalServiciosArqueo;
 
     // **CORRECCIÓN DEFINITIVA:** Calcular el total de egresos a partir de los movimientos ya filtrados.
     const egresosDeCajaFiltrados = estado.egresosCaja.filter(e => e.fecha.startsWith(document.getElementById('fecha').value.split('T')[0]) && e.caja === cajaFiltro);
@@ -899,6 +915,18 @@ function renderizarVistaArqueoFinal(totales) {
     // --- FIN DE LA CORRECCIÓN ---
 
     const totalNeto = totalIngresosArqueo - totalEgresosCaja;
+
+    // Preparar HTML para totales de monedas extranjeras
+    let totalesMonedasHTML = '';
+    if (totales.monedasExtranjeras.usd.cantidad > 0) {
+        totalesMonedasHTML += `<div class="total-item final" style="margin-top: 0.5rem;"><strong>Total a Entregar (USD):</strong><strong>${totales.monedasExtranjeras.usd.cantidad.toFixed(2)}</strong></div>`;
+    }
+    if (totales.monedasExtranjeras.brl.cantidad > 0) {
+        totalesMonedasHTML += `<div class="total-item final" style="margin-top: 0.5rem;"><strong>Total a Entregar (R$):</strong><strong>${totales.monedasExtranjeras.brl.cantidad.toFixed(2)}</strong></div>`;
+    }
+    if (totales.monedasExtranjeras.ars.cantidad > 0) {
+        totalesMonedasHTML += `<div class="total-item final" style="margin-top: 0.5rem;"><strong>Total a Entregar (ARS):</strong><strong>${totales.monedasExtranjeras.ars.cantidad.toFixed(0)}</strong></div>`;
+    }
 
     // Construir el HTML final para la vista
     contenedorVista.innerHTML = `
@@ -930,6 +958,7 @@ function renderizarVistaArqueoFinal(totales) {
                     <div class="total-item"><span>Total Efectivo Bruto:</span><span>${formatearMoneda(totalEfectivoBruto, 'gs')}</span></div>
                     <div class="total-item negativo"><span>- Fondo Fijo:</span><span>${formatearMoneda(fondoFijo, 'gs')}</span></div>
                     <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalAEntregar, 'gs')}</strong></div>
+                    ${totalesMonedasHTML}
                 </div>
             </div>
 
@@ -1009,6 +1038,88 @@ function actualizarArqueoFinal() {
 
     const totales = calcularTotalesArqueo(movimientosParaArqueo);
     renderizarVistaArqueoFinal(totales);
+    cargarHistorialMovimientosDia(); // Actualizar el historial visual
+}
+
+function cargarHistorialMovimientosDia() {
+    const contenedor = document.getElementById('historialMovimientosDia');
+    if (!contenedor) return;
+
+    const fechaInput = document.getElementById('fecha');
+    const cajaInput = document.getElementById('caja');
+    if (!fechaInput || !cajaInput) return;
+
+    const fechaFiltro = fechaInput.value.split('T')[0];
+    const cajaFiltro = cajaInput.value;
+
+    // Obtener movimientos
+    const ingresos = estado.movimientosTemporales.filter(m =>
+        m.fecha.startsWith(fechaFiltro) && (!cajaFiltro || m.caja === cajaFiltro)
+    ).map(m => ({ ...m, tipoMovimiento: 'ingreso' }));
+
+    const egresosCaja = estado.egresosCaja.filter(e =>
+        e.fecha.startsWith(fechaFiltro) && (!cajaFiltro || e.caja === cajaFiltro)
+    ).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
+
+    const egresosOperaciones = estado.movimientos.filter(m =>
+        m.fecha.startsWith(fechaFiltro) &&
+        (m.tipo === 'gasto' || m.tipo === 'egreso') &&
+        (!cajaFiltro || m.caja === cajaFiltro)
+    ).map(m => ({ ...m, tipoMovimiento: 'egreso' }));
+
+    const todosLosMovimientos = [...ingresos, ...egresosCaja, ...egresosOperaciones]
+        .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    contenedor.innerHTML = '<h3>Historial de Movimientos</h3>';
+
+    if (todosLosMovimientos.length === 0) {
+        contenedor.innerHTML += '<p class="text-center" style="color: var(--color-secundario);">No hay movimientos registrados para este día y caja.</p>';
+        return;
+    }
+
+    todosLosMovimientos.forEach(mov => {
+        const esIngreso = mov.tipoMovimiento === 'ingreso';
+        const colorMonto = esIngreso ? 'var(--color-exito)' : 'var(--color-peligro)';
+        const signo = esIngreso ? '+' : '-';
+
+        // Calcular monto total para mostrar
+        let montoMostrar = 0;
+        if (mov.monto) {
+            montoMostrar = mov.monto;
+        } else if (mov.valorVenta > 0) {
+            montoMostrar = mov.valorVenta;
+        } else {
+            // Calcular total para ingresos complejos (mismo cálculo que en renderizarIngresosAgregados)
+            let totalEfectivo = 0;
+            if (mov.efectivo) {
+                for (const denom in mov.efectivo) totalEfectivo += mov.efectivo[denom] * parseInt(denom);
+            }
+            if (mov.monedasExtranjeras) {
+                for (const moneda in mov.monedasExtranjeras) totalEfectivo += mov.monedasExtranjeras[moneda].cantidad * mov.monedasExtranjeras[moneda].cotizacion;
+            }
+            let totalServicios = 0;
+            if (mov.servicios) {
+                for (const servicio in mov.servicios) totalServicios += mov.servicios[servicio].monto + mov.servicios[servicio].tarjeta;
+            }
+            if (mov.otrosServicios) {
+                mov.otrosServicios.forEach(s => totalServicios += s.monto + s.tarjeta);
+            }
+            montoMostrar = totalEfectivo + (mov.pagosTarjeta || 0) + (mov.ventasCredito || 0) + (mov.pedidosYa || 0) + (mov.ventasTransferencia || 0) + totalServicios;
+        }
+
+        const div = document.createElement('div');
+        div.className = 'movimiento-item';
+        div.innerHTML = `
+            <div class="movimiento-header">
+                <span class="movimiento-tipo">${mov.descripcion || 'Movimiento'}</span>
+                <span class="movimiento-monto" style="color: ${colorMonto};">${signo}${formatearMoneda(montoMostrar, 'gs')}</span>
+            </div>
+            <div class="movimiento-detalles">
+                <small>${formatearFecha(mov.fecha)} - ${mov.caja || 'Sin caja'}</small>
+            </div>
+        `;
+        contenedor.appendChild(div);
+    });
 }
 // Guardar arqueo
 function guardarArqueo() {
@@ -1122,9 +1233,9 @@ function guardarArqueo() {
 }
 
 // Funciones de Modal
-function abrirModal(contenidoId, titulo, noReiniciar = false) {
+function abrirModal(contenidoId, titulo) {
     // Asegurarse de que el contenido del modal de efectivo esté generado
-    if (contenidoId === 'contenido-efectivo' && !noReiniciar) {
+    if (contenidoId === 'contenido-efectivo') {
         inicializarModalEfectivo();
     }
     const modal = document.getElementById('modal');
@@ -1171,6 +1282,10 @@ function abrirModal(contenidoId, titulo, noReiniciar = false) {
         if (input) input.addEventListener('input', calcularVuelto);
     });
 }
+
+
+
+
 
 function cerrarModal() {
     const modal = document.getElementById('modal');
