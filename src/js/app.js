@@ -87,7 +87,10 @@ function inicializarFormularioArqueo() {
             <td><input type="number" class="cantidad-denominacion-egreso" data-denominacion="${denom.valor}" min="0" value="0"></td>
             <td class="monto-parcial-egreso" data-denominacion="${denom.valor}">0</td>
         `;
-        tablaEgreso.appendChild(filaEgreso);
+        // **CORRECCIÓN:** Solo añadir si la tabla de egreso existe en la página actual.
+        if (tablaEgreso) {
+            tablaEgreso.appendChild(filaEgreso);
+        }
     });
 
     // Agregar filas para monedas extranjeras
@@ -113,17 +116,23 @@ function inicializarFormularioArqueo() {
         tabla.addEventListener('input', function (e) { });
     }
 
-    tablaEgreso.addEventListener('input', function (e) {
-        if (e.target.classList.contains('cantidad-denominacion-egreso')) {
-            const input = e.target;
-            const monto = (parseInt(input.value) || 0) * parseInt(input.dataset.denominacion);
-            input.closest('tr').querySelector('.monto-parcial-egreso').textContent = formatearMoneda(monto, 'gs');
-            calcularTotalEgresoCaja();
-        }
-    });
+    // **CORRECCIÓN:** Solo añadir el listener si la tabla de egreso existe.
+    if (tablaEgreso) {
+        tablaEgreso.addEventListener('input', function (e) {
+            if (e.target.classList.contains('cantidad-denominacion-egreso')) {
+                const input = e.target;
+                const monto = (parseInt(input.value) || 0) * parseInt(input.dataset.denominacion);
+                input.closest('tr').querySelector('.monto-parcial-egreso').textContent = formatearMoneda(monto, 'gs');
+                calcularTotalEgresoCaja();
+            }
+        });
+    }
 
     // Establecer fecha y hora actual
-    document.getElementById('fecha').value = obtenerFechaHoraLocalISO();
+    const fechaArqueoInput = document.getElementById('fecha');
+    if (fechaArqueoInput) {
+        fechaArqueoInput.value = obtenerFechaHoraLocalISO();
+    }
 }
 
 function inicializarModalEfectivo() {
@@ -716,24 +725,32 @@ function calcularTotalesArqueo(movimientosParaArqueo) {
         }
     };
 
+    // Inicializar estructura de efectivo
+    CONFIG.denominaciones.forEach(denom => {
+        totales.efectivo[denom.valor] = { ingreso: 0, egreso: 0, neto: 0 };
+    });
+
     movimientosParaArqueo.forEach(mov => {
         // Sumar/Restar efectivo por denominación
         if (mov.efectivo) {
             for (const [denominacion, cantidad] of Object.entries(mov.efectivo)) {
-                if (!totales.efectivo[denominacion]) totales.efectivo[denominacion] = 0;
+                if (!totales.efectivo[denominacion]) totales.efectivo[denominacion] = { ingreso: 0, egreso: 0, neto: 0 };
 
-                // **MODIFICADO:** Si es egreso, restamos; si es ingreso, sumamos.
                 if (mov.tipoMovimiento === 'egreso') {
-                    totales.efectivo[denominacion] -= cantidad;
+                    totales.efectivo[denominacion].egreso += cantidad;
+                    totales.efectivo[denominacion].neto -= cantidad;
                 } else {
-                    totales.efectivo[denominacion] += cantidad;
+                    totales.efectivo[denominacion].ingreso += cantidad;
+                    totales.efectivo[denominacion].neto += cantidad;
                 }
             }
         }
-        // Restar efectivo por vuelto
+        // Restar efectivo por vuelto (siempre es egreso)
         if (mov.efectivoVuelto) {
             for (const denom in mov.efectivoVuelto) {
-                totales.efectivo[denom] = (totales.efectivo[denom] || 0) - mov.efectivoVuelto[denom];
+                if (!totales.efectivo[denom]) totales.efectivo[denom] = { ingreso: 0, egreso: 0, neto: 0 };
+                totales.efectivo[denom].egreso += mov.efectivoVuelto[denom];
+                totales.efectivo[denom].neto -= mov.efectivoVuelto[denom];
             }
         }
         for (const moneda in mov.monedasExtranjeras) {
@@ -796,13 +813,23 @@ function renderizarVistaArqueoFinal(totales) {
     let totalEfectivoFinal = 0;
 
     CONFIG.denominaciones.forEach(denom => {
-        const cantidad = totales.efectivo[denom.valor] || 0;
-        // Solo mostrar si hay una cantidad neta de ese billete.
-        if (cantidad === 0) return;
+        const data = totales.efectivo[denom.valor];
+        const cantidad = data ? data.neto : 0;
+        const ingreso = data ? data.ingreso : 0;
+        const egreso = data ? data.egreso : 0;
+
+        // Mostrar si hay movimiento (ingreso o egreso) o si hay cantidad neta
+        if (ingreso === 0 && egreso === 0 && cantidad === 0) return;
 
         const monto = cantidad * denom.valor;
         totalEfectivoFinal += monto;
-        efectivoHTML += `<tr><td>${denom.nombre}</td><td>${cantidad}</td><td>${formatearMoneda(monto, 'gs')}</td></tr>`;
+        efectivoHTML += `<tr>
+            <td>${denom.nombre}</td>
+            <td style="color: var(--color-exito);">${ingreso}</td>
+            <td style="color: var(--color-peligro);">${egreso}</td>
+            <td><strong>${cantidad}</strong></td>
+            <td>${formatearMoneda(monto, 'gs')}</td>
+        </tr>`;
     });
 
     let totalMonedasExtranjerasGs = 0;
@@ -810,7 +837,11 @@ function renderizarVistaArqueoFinal(totales) {
         const { cantidad, montoGs } = totales.monedasExtranjeras[moneda];
         if (cantidad > 0) {
             totalMonedasExtranjerasGs += montoGs;
-            efectivoHTML += `<tr><td>${moneda.toUpperCase()}</td><td>${cantidad.toFixed(2)}</td><td>${formatearMoneda(montoGs, 'gs')}</td></tr>`;
+            efectivoHTML += `<tr>
+                <td>${moneda.toUpperCase()}</td>
+                <td colspan="3" style="text-align: center;">${cantidad.toFixed(2)}</td>
+                <td>${formatearMoneda(montoGs, 'gs')}</td>
+            </tr>`;
         }
     });
 
@@ -875,8 +906,16 @@ function renderizarVistaArqueoFinal(totales) {
             <div class="detalle-seccion">
                 <h5>Conteo de Efectivo</h5>
                 <table class="tabla-detalle">
-                    <thead><tr><th>Denominación/Moneda</th><th>Cantidad</th><th>Monto (G$)</th></tr></thead>
-                    <tbody>${efectivoHTML || '<tr><td colspan="3">No hay movimientos en efectivo.</td></tr>'}</tbody>
+                    <thead>
+                        <tr>
+                            <th>Denominación</th>
+                            <th>Ingresos</th>
+                            <th>Egresos</th>
+                            <th>Existencia</th>
+                            <th>Monto (G$)</th>
+                        </tr>
+                    </thead>
+                    <tbody>${efectivoHTML || '<tr><td colspan="5">No hay movimientos en efectivo.</td></tr>'}</tbody>
                 </table>
                 <div class="resumen-totales" style="margin-top: 1rem;">
                     <div class="total-item"><span>Total Efectivo Bruto:</span><span>${formatearMoneda(totalEfectivoBruto, 'gs')}</span></div>
@@ -1141,26 +1180,33 @@ function guardarGasto(event) {
     event.preventDefault();
     const idEditar = document.getElementById('idGastoEditar').value;
 
+    // **CORRECCIÓN DEFINITIVA:** Obtener el campo receptor y su valor de forma segura.
+    const receptorInput = document.getElementById('receptorGasto');
+    const receptorValue = (receptorInput && receptorInput.style.display !== 'none') ? receptorInput.value : '';
+
     if (idEditar) {
         // Modo Edición
         const movimientoIndex = estado.movimientos.findIndex(m => m.id === idEditar);
         if (movimientoIndex > -1) {
-            const movimientoAEditar = estado.movimientos[movimientoIndex];
-            if (!registrarEdicion(movimientoAEditar)) {
+            // **CORRECCIÓN:** Primero, registrar la edición.
+            if (!registrarEdicion(estado.movimientos[movimientoIndex])) {
                 return;
             }
+            // Luego, actualizar los datos.
             estado.movimientos[movimientoIndex].fecha = document.getElementById('fechaGasto').value;
             estado.movimientos[movimientoIndex].tipo = document.getElementById('tipoGasto').value;
-            estado.movimientos[movimientoIndex].receptor = document.getElementById('receptorGasto').value;
+            estado.movimientos[movimientoIndex].receptor = receptorValue;
             estado.movimientos[movimientoIndex].descripcion = document.getElementById('descripcionGasto').value;
             estado.movimientos[movimientoIndex].monto = parsearMoneda(document.getElementById('montoGasto').value);
             estado.movimientos[movimientoIndex].moneda = document.getElementById('monedaGasto').value;
             estado.movimientos[movimientoIndex].caja = document.getElementById('cajaGasto').value;
             estado.movimientos[movimientoIndex].referencia = document.getElementById('referenciaGasto').value;
-        }
-        const movimientoActualizado = estado.movimientos[movimientoIndex];
-        if (movimientoActualizado.tipo !== 'gasto' && movimientoActualizado.tipo !== 'transferencia') {
-            imprimirReciboGasto(movimientoActualizado);
+
+            // **CORRECCIÓN FINAL:** Usar el objeto ya actualizado para la impresión.
+            const movimientoActualizado = estado.movimientos[movimientoIndex]; // Este objeto ya tiene todos los datos.
+            if (movimientoActualizado.tipo === 'egreso' || movimientoActualizado.tipo === 'operacion') {
+                imprimirReciboGasto(movimientoActualizado);
+            }
         }
         mostrarMensaje('Movimiento actualizado con éxito.', 'exito');
     } else {
@@ -1171,7 +1217,7 @@ function guardarGasto(event) {
             fecha: document.getElementById('fechaGasto').value,
             tipo: document.getElementById('tipoGasto').value,
             historialEdiciones: [], // Inicializar historial
-            receptor: document.getElementById('receptorGasto').value,
+            receptor: receptorValue,
             descripcion: document.getElementById('descripcionGasto').value,
             numeroRecibo: estado.ultimoNumeroRecibo,
             monto: parsearMoneda(document.getElementById('montoGasto').value),
@@ -1194,18 +1240,27 @@ function guardarGasto(event) {
 }
 
 function cargarHistorialGastos() {
-    const fechaFiltro = document.getElementById('fechaFiltroGastos').value;
+    // **CORRECCIÓN:** Solo ejecutar si estamos en la página de operaciones/gastos.
+    const listaGastos = document.getElementById('listaGastos');
+    if (!listaGastos) return;
+
+    const fechaFiltroInput = document.getElementById('fechaFiltroGastos');
     const tipoFiltroSelect = document.getElementById('tipoFiltroGastos');
-    const cajaFiltro = document.getElementById('filtroCajaGastos').value;
-    const tipoFiltro = tipoFiltroSelect.value;
+    const cajaFiltroInput = document.getElementById('filtroCajaGastos');
+    const tituloHistorial = document.querySelector('#gastos .historial-gastos h3');
+
+    const fechaFiltro = fechaFiltroInput ? fechaFiltroInput.value : '';
+    const tipoFiltro = tipoFiltroSelect ? tipoFiltroSelect.value : '';
+    const cajaFiltro = cajaFiltroInput ? cajaFiltroInput.value : '';
 
     // Actualizar el título del historial
-    const tituloHistorial = document.querySelector('#gastos .historial-gastos h3');
-    if (tipoFiltro) {
-        const textoSeleccionado = tipoFiltroSelect.options[tipoFiltroSelect.selectedIndex].text;
-        tituloHistorial.textContent = `Historial de ${textoSeleccionado}`;
-    } else {
-        tituloHistorial.textContent = 'Historial de Movimientos';
+    if (tituloHistorial) {
+        if (tipoFiltro && tipoFiltroSelect) {
+            const textoSeleccionado = tipoFiltroSelect.options[tipoFiltroSelect.selectedIndex].text;
+            tituloHistorial.textContent = `Historial de ${textoSeleccionado}`;
+        } else {
+            tituloHistorial.textContent = 'Historial de Movimientos';
+        }
     }
 
     let movimientosFiltrados = estado.movimientos;
@@ -1221,16 +1276,28 @@ function cargarHistorialGastos() {
             m.tipo === tipoFiltro
         );
     }
-    if (cajaFiltro && sessionStorage.getItem('userRole') === 'admin') {
-        movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaFiltro
-        );
+
+    // **NUEVO:** Lógica de filtrado por caja y rol, copiada de la sección de Egresos.
+    const userRole = sessionStorage.getItem('userRole');
+    if (userRole === 'cajero') {
+        const cajaAsignada = sessionStorage.getItem('cajaSeleccionada');
+        movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaAsignada);
+    } else if (userRole === 'tesoreria') {
+        // Tesorería solo ve los movimientos de su propia caja.
+        movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === 'Caja Tesoreria');
+    } else if (userRole === 'admin') {
+        // El admin puede filtrar por cualquier caja usando el selector.
+        if (cajaFiltro) {
+            movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaFiltro);
+        }
     }
+
 
     // Ordenar por fecha descendente
     movimientosFiltrados.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-    const lista = document.getElementById('listaGastos');
-    lista.innerHTML = '';
+    const lista = listaGastos; // Ya lo obtuvimos antes
+    if (lista) lista.innerHTML = '';
 
     if (movimientosFiltrados.length === 0) {
         lista.innerHTML = '<p class="text-center" style="color: var(--color-secundario);">No hay movimientos registrados para esta fecha.</p>';
@@ -1297,11 +1364,12 @@ function iniciarEdicionGasto(id) {
     document.getElementById('cajaGasto').value = movimiento.caja;
     document.getElementById('referenciaGasto').value = movimiento.referencia;
 
-    document.querySelector('#formularioGastos button[type="submit"]').textContent = 'Actualizar Movimiento';
-    toggleReceptorField(); // Asegurarse de que el campo se muestre si es necesario
-    // Formatear el monto al cargar para edición
+    // **CORRECCIÓN:** Formatear el monto al cargar para edición.
     const montoInput = document.getElementById('montoGasto');
     montoInput.value = new Intl.NumberFormat('es-PY').format(movimiento.monto);
+
+    document.querySelector('#formularioGastos button[type="submit"]').textContent = 'Actualizar Movimiento';
+    toggleReceptorField(); // Asegurarse de que el campo se muestre si es necesario
     document.getElementById('gastos').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -1415,6 +1483,7 @@ function cargarHistorialEgresosCaja() {
 
     // Obtener filtros
     const fechaFiltro = document.getElementById('fechaFiltroEgresos')?.value;
+    const cajaFiltro = document.getElementById('filtroCajaEgresos')?.value;
 
     // --- LÓGICA DE FILTRADO REVISADA ---
     const userRole = sessionStorage.getItem('userRole');
@@ -1426,15 +1495,17 @@ function cargarHistorialEgresosCaja() {
         egresosFiltrados = egresosFiltrados.filter(e => e.caja === 'Caja Tesoreria');
     } else if (userRole === 'admin') {
         // Para el admin, el filtro del <select> es el que manda.
-        const cajaFiltroAdmin = document.getElementById('filtroCajaEgresos')?.value;
-        if (cajaFiltroAdmin) {
-            egresosFiltrados = egresosFiltrados.filter(e => e.caja === cajaFiltroAdmin);
+        if (cajaFiltro) {
+            egresosFiltrados = egresosFiltrados.filter(e => e.caja === cajaFiltro);
         }
     }
 
     if (fechaFiltro) {
         egresosFiltrados = egresosFiltrados.filter(e => e.fecha.startsWith(fechaFiltro));
     }
+
+    // Ordenar por fecha descendente
+    egresosFiltrados.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
     // Limpiar lista
     listaEgresosCaja.innerHTML = '';
@@ -1520,7 +1591,16 @@ function eliminarEgresoCaja(id) {
  * Limpia el formulario de egresos de caja
  */
 function limpiarFormularioEgresoCaja() {
+    // **CORRECCIÓN:** Guardar la caja seleccionada antes de resetear
+    const cajaSeleccionada = document.getElementById('cajaEgreso').value;
+
     document.getElementById('formularioEgresoCaja').reset();
+
+    // **CORRECCIÓN:** Restaurar la caja seleccionada
+    if (cajaSeleccionada) {
+        document.getElementById('cajaEgreso').value = cajaSeleccionada;
+    }
+    
     document.getElementById('idEgresoCajaEditar').value = '';
     document.getElementById('montoEgresoCaja').value = '0';
 
@@ -2174,25 +2254,47 @@ document.addEventListener('DOMContentLoaded', function () {
         return; // Si la configuración falla (no autenticado), no continuar.
     }
 
+    // **CORRECCIÓN:** Inicializar la gestión de usuarios si estamos en la página correcta.
+    // Esto soluciona el error en la línea 2259.
+    if (window.location.pathname.includes('usuarios.html')) {
+        inicializarGestionUsuarios();
+    }
+
     initializeDateTimeFields();
 
     // El resto de tu lógica de inicialización específica de la página...
     // (Esta parte se ha simplificado, ya que la inicialización de fechas ya está hecha)
     if (document.getElementById('formularioMovimiento')) {
         inicializarModalEfectivo();
-        document.getElementById('filtroFechaIngresos').value = new Date().toISOString().split('T')[0];
+        const filtroFechaIngresos = document.getElementById('filtroFechaIngresos');
+        if (filtroFechaIngresos) {
+            filtroFechaIngresos.value = obtenerFechaHoraLocalISO().split('T')[0];
+        }
         renderizarIngresosAgregados();
     }
     if (document.getElementById('formularioEgresoCaja')) {
         inicializarFormularioArqueo();
         document.getElementById('formularioEgresoCaja').addEventListener('submit', guardarEgresoCaja);
-        document.getElementById('fechaFiltroEgresos').value = new Date().toISOString().split('T')[0];
+        const fechaFiltroEgresos = document.getElementById('fechaFiltroEgresos');
+        if (fechaFiltroEgresos) {
+            fechaFiltroEgresos.value = obtenerFechaHoraLocalISO().split('T')[0];
+        }
         cargarHistorialEgresosCaja();
     }
     if (document.getElementById('formularioGastos')) {
         document.getElementById('formularioGastos').addEventListener('submit', guardarGasto);
         document.getElementById('tipoGasto').addEventListener('change', toggleReceptorField);
-        document.getElementById('fechaFiltroGastos').value = new Date().toISOString().split('T')[0];
+
+        // **NUEVO:** Aplicar formato de separador de miles al campo de monto.
+        const montoGastoInput = document.getElementById('montoGasto');
+        aplicarFormatoMiles(montoGastoInput);
+        
+        // **CORRECCIÓN:** Verificar que el elemento de filtro de fecha exista antes de asignarle un valor.
+        const fechaFiltroGastos = document.getElementById('fechaFiltroGastos');
+        if (fechaFiltroGastos) {
+            fechaFiltroGastos.value = obtenerFechaHoraLocalISO().split('T')[0];
+        }
+
         cargarHistorialGastos();
     }
     if (document.getElementById('controlesArqueo')) {
@@ -2283,16 +2385,18 @@ function cerrarSesion() {
 function toggleReceptorField() {
     const tipoGasto = document.getElementById('tipoGasto').value;
     const receptorContainer = document.getElementById('receptor-gasto-container');
-    const receptorInput = document.getElementById('receptorGasto');
+    if (receptorContainer) { // **CORRECCIÓN:** Solo ejecutar si el contenedor existe
+        const receptorInput = document.getElementById('receptorGasto');
 
-    // 'egreso' es Pago a proveedor, 'operacion' es Deposito
-    if (tipoGasto === 'egreso' || tipoGasto === 'operacion') {
-        receptorContainer.style.display = 'block';
-        receptorInput.required = true;
-    } else {
-        receptorContainer.style.display = 'none';
-        receptorInput.required = false;
-        receptorInput.value = ''; // Limpiar el valor si se oculta
+        // 'egreso' es Pago a proveedor, 'operacion' es Deposito
+        if (tipoGasto === 'egreso' || tipoGasto === 'operacion') {
+            receptorContainer.style.display = 'block';
+            receptorInput.required = true;
+        } else {
+            receptorContainer.style.display = 'none';
+            receptorInput.required = false;
+            receptorInput.value = ''; // Limpiar el valor si se oculta
+        }
     }
 }
 
@@ -2428,13 +2532,19 @@ function exportarArqueoActualPDF() {
 
     const totales = calcularTotalesArqueo(movimientosParaArqueo);
 
+    // Aplanar la estructura de efectivo para el PDF (usar solo el neto)
+    const efectivoPlano = {};
+    for (const denom in totales.efectivo) {
+        efectivoPlano[denom] = totales.efectivo[denom].neto;
+    }
+
     // Construir un objeto 'arqueo' temporal para la función de exportación
     const arqueoTemporal = {
         fecha: document.getElementById('fecha').value,
         cajero: document.getElementById('cajero').value,
         caja: document.getElementById('caja').value,
         fondoFijo: parsearMoneda(document.getElementById('fondoFijo').value),
-        efectivo: totales.efectivo,
+        efectivo: efectivoPlano,
         monedasExtranjeras: totales.monedasExtranjeras,
         pagosTarjeta: totales.pagosTarjeta,
         ventasCredito: totales.ventasCredito,
@@ -2779,115 +2889,13 @@ function renderizarListaUsuarios() {
 // INICIALIZACIÓN AUTOMÁTICA
 // ============================================
 
-// Detectar si estamos en la página de usuarios y ejecutar la inicialización
-if (window.location.pathname.includes('usuarios.html')) {
-    // Esperar a que el DOM esté completamente cargado
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', inicializarGestionUsuarios);
-    } else {
-        // El DOM ya está cargado
-        inicializarGestionUsuarios();
-    }
+function guardarEnLocalStorage() {
+    localStorage.setItem('arqueos', JSON.stringify(estado.arqueos));
+    localStorage.setItem('movimientos', JSON.stringify(estado.movimientos));
+    localStorage.setItem('egresosCaja', JSON.stringify(estado.egresosCaja));
+    localStorage.setItem('movimientosTemporales', JSON.stringify(estado.movimientosTemporales));
+    localStorage.setItem('ultimoNumeroRecibo', JSON.stringify(estado.ultimoNumeroRecibo));
 }
-
-// Detectar si estamos en la página de egresos de caja y ejecutar la inicialización
-if (window.location.pathname.includes('egresosCaja.html')) {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-            // Inicializar la tabla de denominaciones
-            inicializarFormularioArqueo();
-
-            // Configurar event listener para el formulario
-            const formularioEgresoCaja = document.getElementById('formularioEgresoCaja');
-            if (formularioEgresoCaja) {
-                formularioEgresoCaja.addEventListener('submit', guardarEgresoCaja);
-            }
-
-            // Cargar historial inicial
-            cargarHistorialEgresosCaja();
-
-            // Establecer fecha actual con un pequeño delay para asegurar que el elemento esté listo
-            setTimeout(function () {
-                const fechaEgresoCaja = document.getElementById('fechaEgresoCaja');
-                if (fechaEgresoCaja && !fechaEgresoCaja.value) {
-                    fechaEgresoCaja.value = obtenerFechaHoraLocalISO();
-                }
-            }, 100);
-        });
-    } else {
-        // El DOM ya está cargado
-        inicializarFormularioArqueo();
-
-        const formularioEgresoCaja = document.getElementById('formularioEgresoCaja');
-        if (formularioEgresoCaja) {
-            formularioEgresoCaja.addEventListener('submit', guardarEgresoCaja);
-        }
-
-        cargarHistorialEgresosCaja();
-
-        // Establecer fecha actual con un pequeño delay
-        setTimeout(function () {
-            const fechaEgresoCaja = document.getElementById('fechaEgresoCaja');
-            if (fechaEgresoCaja && !fechaEgresoCaja.value) {
-                fechaEgresoCaja.value = obtenerFechaHoraLocalISO();
-            }
-        }, 100);
-    }
-}
-
-
-// Detectar si estamos en la página de ingresos y establecer fecha automática
-if (window.location.pathname.includes('index.html') || window.location.pathname.endsWith('/pages/')) {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-            const fechaMovimiento = document.getElementById('fechaMovimiento');
-            if (fechaMovimiento) {
-                fechaMovimiento.value = obtenerFechaHoraLocalISO();
-            }
-        });
-    } else {
-        const fechaMovimiento = document.getElementById('fechaMovimiento');
-        if (fechaMovimiento) {
-            fechaMovimiento.value = obtenerFechaHoraLocalISO();
-        }
-    }
-}
-
-// Detectar si estamos en la página de operaciones y establecer fecha automática
-if (window.location.pathname.includes('operaciones.html')) {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-            const fechaGasto = document.getElementById('fechaGasto');
-            if (fechaGasto) {
-                fechaGasto.value = obtenerFechaHoraLocalISO();
-            }
-        });
-    } else {
-        const fechaGasto = document.getElementById('fechaGasto');
-        if (fechaGasto) {
-            fechaGasto.value = obtenerFechaHoraLocalISO();
-        }
-    }
-}
-
-// Detectar si estamos en la página de arqueo y establecer fecha automática
-if (window.location.pathname.includes('arqueo.html')) {
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-            const fecha = document.getElementById('fecha');
-            if (fecha) {
-                fecha.value = obtenerFechaHoraLocalISO();
-            }
-        });
-    } else {
-        const fecha = document.getElementById('fecha');
-        if (fecha) {
-            fecha.value = obtenerFechaHoraLocalISO();
-        }
-    }
-}
-
-
 
 const style = document.createElement('style');
 style.textContent = `
