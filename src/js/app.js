@@ -1034,7 +1034,6 @@ function renderizarVistaArqueoFinal(totales) {
                     <tbody>${efectivoHTML || '<tr><td colspan="5">No hay movimientos en efectivo.</td></tr>'}</tbody>
                 </table>
                 <div class="resumen-totales" style="margin-top: 1rem;">
-                    <div class="total-item"><span>Total Efectivo Bruto:</span><span>${formatearMoneda(totalEfectivoBruto, 'gs')}</span></div>
                     <div class="total-item" style="color: var(--color-info);"><span>Total Efectivo Bruto + Fondo Fijo:</span><span>${formatearMoneda(totalEfectivoBruto + fondoFijo, 'gs')}</span></div>
                     <div class="total-item negativo"><span>- Fondo Fijo:</span><span>${formatearMoneda(fondoFijo, 'gs')}</span></div>
                     <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalAEntregar, 'gs')}</strong></div>
