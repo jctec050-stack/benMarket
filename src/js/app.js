@@ -939,8 +939,8 @@ function renderizarVistaArqueoFinal(totales) {
         totalEfectivoFinal += monto;
         efectivoHTML += `<tr>
             <td>${denom.nombre}</td>
-            <td style="color: var(--color-exito);">${ingreso}</td>
-            <td style="color: var(--color-peligro);">${egreso}</td>
+            <td style="color: var(--color-exito);">${ingreso || 0}</td>
+            <td style="color: var(--color-peligro);">${egreso || 0}</td>
             <td><strong>${cantidad}</strong></td>
             <td>${formatearMoneda(monto, 'gs')}</td>
         </tr>`;
@@ -992,7 +992,9 @@ function renderizarVistaArqueoFinal(totales) {
     }
 
     const totalEfectivoBruto = totalEfectivoFinal; // Solo efectivo en Gs
-    const totalAEntregar = totalEfectivoBruto - fondoFijo;
+    // **CORRECCIÓN:** El total a entregar debe ser el resultado de (Total Efectivo Bruto + Fondo Fijo) - Fondo Fijo,
+    // lo que es igual al Total Efectivo Bruto. La variable 'totalAEntregar' ahora contendrá este valor.
+    const totalAEntregar = totalEfectivoBruto;
     const totalIngresoEfectivo = totalServiciosEfectivo; // **NUEVA LÓGICA:** El total de ingreso efectivo es solo el efectivo de servicios.
 
     const egresosDeCajaFiltrados = estado.egresosCaja.filter(e => e.fecha.startsWith(document.getElementById('fecha').value.split('T')[0]) && e.caja === cajaFiltro);
@@ -1023,7 +1025,7 @@ function renderizarVistaArqueoFinal(totales) {
     contenedorVista.innerHTML = `
         <!-- **NUEVO:** Información General del Arqueo -->
         <div class="detalle-seccion" style="border-bottom: 1px solid var(--color-borde); padding-bottom: 1rem; margin-bottom: 1rem;">
-            <h5>Información General</h5>
+            <h5>Información General del Arqueo</h5>
             <p><strong>Fecha y Hora:</strong> ${formatearFecha(document.getElementById('fecha').value)}</p>
             <p><strong>Cajero:</strong> ${document.getElementById('cajero').value || 'No especificado'}</p>
             <p><strong>Caja:</strong> ${document.getElementById('caja').value}</p>
@@ -1048,7 +1050,7 @@ function renderizarVistaArqueoFinal(totales) {
                 <div class="resumen-totales" style="margin-top: 1rem;">
                     <div class="total-item" style="color: var(--color-info);"><span>Total Efectivo Bruto + Fondo Fijo:</span><span>${formatearMoneda(totalEfectivoBruto + fondoFijo, 'gs')}</span></div>
                     <div class="total-item negativo"><span>- Fondo Fijo:</span><span>${formatearMoneda(fondoFijo, 'gs')}</span></div>
-                    <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalAEntregar, 'gs')}</strong></div>
+                    <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalEfectivoBruto, 'gs')}</strong></div>
                     ${totalesMonedasHTML}
                 </div>
             </div>
@@ -1079,7 +1081,7 @@ function renderizarVistaArqueoFinal(totales) {
 
         <!-- **NUEVO:** Botón para exportar el arqueo actual a PDF -->
         <div class="acciones-arqueo" style="text-align: center; margin-top: 2rem;">
-            <button class="btn" onclick="exportarArqueoActualPDF()">Exportar a PDF</button>
+            <button class="btn" onclick="exportarArqueoActualPDF()">📄 Exportar Vista a PDF</button>
         </div>
     `;
 }
@@ -1092,7 +1094,8 @@ function renderizarVistaArqueoFinal(totales) {
  */
 function actualizarArqueoFinal() {
     const fechaInput = document.getElementById('fecha');
-    const cajaInput = document.getElementById('caja');
+    // **CORRECCIÓN:** Usar el mismo ID de caja que en el resto de la página para consistencia.
+    const cajaInput = document.getElementById('caja'); 
 
     if (!fechaInput || !cajaInput) return;
 
@@ -1100,7 +1103,8 @@ function actualizarArqueoFinal() {
     const cajaFiltro = cajaInput.value;
 
     // 1. Obtener ingresos del día
-    let ingresosParaArqueo = estado.movimientosTemporales;
+    // **CORRECCIÓN:** Filtrar también los ingresos por la fecha seleccionada.
+    let ingresosParaArqueo = estado.movimientosTemporales.filter(m => m.fecha.split('T')[0] === fechaArqueo);
 
     // 2. Obtener egresos de la sección "Egresos"
     let egresosDeCaja = estado.egresosCaja.filter(e => {
@@ -1221,11 +1225,11 @@ function guardarArqueo() {
     }
 
     const arqueo = {
-        id: generarId(),
         fecha: document.getElementById('fecha').value,
         cajero: document.getElementById('cajero').value,
         caja: document.getElementById('caja').value,
         fondoFijo: parsearMoneda(document.getElementById('fondoFijo').value),
+        // Los siguientes campos se llenarán con los datos ya calculados para la vista
         reales: {
             cantidad: 0, monto: 0
         },
@@ -1235,6 +1239,7 @@ function guardarArqueo() {
         dolares: {
             cantidad: 0, monto: 0
         },
+        id: generarId(),
         totalEfectivo: 0,
         pagosTarjeta: 0,
         ventasCredito: 0,
@@ -1252,57 +1257,45 @@ function guardarArqueo() {
         }
     };
 
-    // Re-calcular y poblar el objeto arqueo a partir de los movimientos temporales
-    estado.movimientosTemporales.forEach(mov => {
-        for (const denom in mov.efectivo) {
-            arqueo.efectivo[denom] = (arqueo.efectivo[denom] || 0) + mov.efectivo[denom];
+    // **REFACTORIZADO:** Usar los totales ya calculados para la vista en pantalla.
+    const fechaArqueo = arqueo.fecha.split('T')[0];
+    const cajaFiltro = arqueo.caja;
+
+    const ingresosParaArqueo = estado.movimientosTemporales.filter(m => m.caja === cajaFiltro);
+    const egresosDeCaja = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro);
+    const egresosDeOperaciones = estado.movimientos.filter(m => m.fecha.startsWith(fechaArqueo) && (m.tipo === 'gasto' || m.tipo === 'egreso') && m.caja === cajaFiltro);
+    const todosLosEgresos = [...egresosDeCaja, ...egresosDeOperaciones];
+
+    const movimientosParaArqueo = [
+        ...ingresosParaArqueo.map(m => ({ ...m, tipoMovimiento: 'ingreso' })),
+        ...todosLosEgresos.map(e => ({ ...e, tipoMovimiento: 'egreso' }))
+    ];
+
+    const totales = calcularTotalesArqueo(movimientosParaArqueo);
+
+    // Poblar el objeto 'arqueo' con los datos correctos y consistentes
+    arqueo.efectivo = {};
+    for (const denom in totales.efectivo) {
+        if (totales.efectivo[denom].neto > 0) {
+            arqueo.efectivo[denom] = totales.efectivo[denom].neto;
         }
-        for (const moneda in mov.monedasExtranjeras) {
-            if (mov.monedasExtranjeras[moneda]) {
-                // Mantener compatibilidad con estructura antigua
-                if (arqueo[moneda + 's']) {
-                    arqueo[moneda + 's'].cantidad += mov.monedasExtranjeras[moneda].cantidad || 0;
-                    arqueo[moneda + 's'].monto += (mov.monedasExtranjeras[moneda].cantidad || 0) * (mov.monedasExtranjeras[moneda].cotizacion || 0);
-                }
-
-                // **NUEVO:** Poblar también la estructura monedasExtranjeras para el PDF
-                if (arqueo.monedasExtranjeras[moneda]) {
-                    arqueo.monedasExtranjeras[moneda].cantidad += mov.monedasExtranjeras[moneda].cantidad || 0;
-                    arqueo.monedasExtranjeras[moneda].monto += (mov.monedasExtranjeras[moneda].cantidad || 0) * (mov.monedasExtranjeras[moneda].cotizacion || 0);
-                }
-            }
-        }
-        arqueo.pagosTarjeta += mov.pagosTarjeta;
-        arqueo.ventasCredito += mov.ventasCredito;
-        arqueo.pedidosYa += mov.pedidosYa;
-        arqueo.ventasTransferencia += mov.ventasTransferencia;
-
-        // Sumar servicios fijos y dinámicos
-        Object.assign(arqueo.servicios, mov.servicios);
-        arqueo.otrosServicios.push(...mov.otrosServicios);
-    });
-
-    // Calcular totales finales
-    let totalEfectivoFinal = 0;
-    for (const denom in arqueo.efectivo) {
-        totalEfectivoFinal += arqueo.efectivo[denom] * parseInt(denom);
     }
-    arqueo.totalEfectivo = totalEfectivoFinal + arqueo.dolares.monto + arqueo.reales.monto + arqueo.pesos.monto;
+    arqueo.monedasExtranjeras = totales.monedasExtranjeras;
+    arqueo.pagosTarjeta = totales.pagosTarjeta;
+    arqueo.ventasCredito = totales.ventasCredito;
+    arqueo.pedidosYa = totales.pedidosYa;
+    arqueo.ventasTransferencia = totales.ventasTransferencia;
+    arqueo.servicios = totales.servicios;
 
-    let totalServiciosMonto = 0, totalServiciosTarjeta = 0;
-    Object.values(arqueo.servicios).forEach(s => { totalServiciosMonto += s.monto; totalServiciosTarjeta += s.tarjeta; });
-    arqueo.otrosServicios.forEach(s => { totalServiciosMonto += s.monto; totalServiciosTarjeta += s.tarjeta; });
-    arqueo.totalServicios = totalServiciosMonto + totalServiciosTarjeta;
-    // **CORRECCIÓN:** Calcular el total de ingresos usando el valor de la venta.
-    const totalIngresosNoEfectivo = arqueo.pagosTarjeta + arqueo.ventasCredito + arqueo.pedidosYa + arqueo.ventasTransferencia;
-    const totalIngresosVentasConVuelto = estado.movimientosTemporales
-        .filter(m => m.valorVenta > 0)
-        .reduce((sum, m) => sum + m.valorVenta, 0);
-    const totalIngresosOtrasVentas = arqueo.totalEfectivo - estado.movimientosTemporales.filter(m => m.valorVenta > 0).reduce((sum, m) => sum + m.efectivo[Object.keys(m.efectivo)[0]] * Object.keys(m.efectivo)[0], 0);
+    // Calcular totales para el objeto guardado (esto es para la data cruda)
+    const totalEfectivoBruto = Object.entries(arqueo.efectivo).reduce((sum, [denom, cant]) => sum + (parseInt(denom) * cant), 0) + totales.monedasExtranjeras.usd.montoGs + totales.monedasExtranjeras.brl.montoGs + totales.monedasExtranjeras.ars.montoGs;
+    arqueo.totalEfectivo = totalEfectivoBruto;
 
-    // **MODIFICADO:** El usuario solicitó que el Total de Ingresos del Arqueo solo sume Ingresos no Efectivo y Servicios (SOLO EFECTIVO).
-    // Como el efectivo de servicios ya está en totalEfectivo, NO sumamos totalServiciosTarjeta.
-    arqueo.totalIngresos = arqueo.totalEfectivo + arqueo.pagosTarjeta + arqueo.ventasCredito + arqueo.pedidosYa + arqueo.ventasTransferencia;
+    const totalServicios = Object.values(totales.servicios).flat().reduce((sum, s) => sum + (s.monto || 0) + (s.tarjeta || 0), 0);
+    arqueo.totalServicios = totalServicios;
+
+    // El total de ingresos es la suma de todo lo que entró
+    arqueo.totalIngresos = totalEfectivoBruto + totales.pagosTarjeta + totales.ventasCredito + totales.pedidosYa + totales.ventasTransferencia + totalServicios;
 
     // **NUEVA VALIDACIÓN:** No guardar si el total de ingresos es cero.
     if (arqueo.totalIngresos <= 0) {
@@ -1317,8 +1310,8 @@ function guardarArqueo() {
     // Mostrar mensaje de éxito
     mostrarMensaje('Arqueo guardado exitosamente', 'exito');
 
-    // **NUEVO:** Exportar automáticamente el arqueo a PDF
-    exportarArqueoPDF(arqueo, false);
+    // **MODIFICADO:** Exportar el PDF con los datos consistentes de la pantalla
+    exportarArqueoActualPDF(true); // true indica que es un guardado final
 
     // Limpiar formulario
     limpiarMovimientos();
@@ -2539,8 +2532,13 @@ document.addEventListener('DOMContentLoaded', function () {
     if (document.getElementById('controlesArqueo')) {
         inicializarFormularioArqueo();
         document.getElementById('caja').addEventListener('change', actualizarArqueoFinal);
+        document.getElementById('fecha').addEventListener('change', actualizarArqueoFinal); // **CORRECCIÓN:** Añadir listener para la fecha.
         document.getElementById('fondoFijo').addEventListener('input', actualizarArqueoFinal);
         actualizarArqueoFinal();
+        // **NUEVO:** Asegurar que la fecha y hora se establezcan al cargar la página de arqueo.
+        const fechaArqueoInput = document.getElementById('fecha');
+        if (fechaArqueoInput) fechaArqueoInput.value = obtenerFechaHoraLocalISO();
+
     }
     // ... y así sucesivamente para las otras páginas.
 });
@@ -2752,9 +2750,10 @@ function mostrarDetallesArqueo(arqueoId) {
 }
 
 // **NUEVA FUNCIÓN PARA EXPORTAR ARQUEO ACTUAL A PDF**
-function exportarArqueoActualPDF() {
+function exportarArqueoActualPDF(esGuardadoFinal = false) {
     const fechaArqueo = document.getElementById('fecha').value.split('T')[0];
-    const cajaFiltro = document.getElementById('filtroCajaIngresos').value;
+    // **CORRECCIÓN:** Usar el filtro de la página de arqueo, no de ingresos.
+    const cajaFiltro = document.getElementById('caja').value;
 
     let ingresosParaArqueo = estado.movimientosTemporales;
     let egresosParaArqueo = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo));
@@ -2770,6 +2769,22 @@ function exportarArqueoActualPDF() {
     ];
 
     const totales = calcularTotalesArqueo(movimientosParaArqueo);
+
+    // **NUEVO:** Recalcular los totales del resumen final para pasarlos al PDF
+    let totalServiciosEfectivo = 0;
+    ['apLote', 'aquiPago', 'expressLote', 'wepa', 'pasajeNsa', 'encomiendaNsa', 'apostala'].forEach(key => {
+        if (totales.servicios[key]) totalServiciosEfectivo += totales.servicios[key].monto;
+    });
+    for (const nombre in totales.servicios.otros) {
+        totalServiciosEfectivo += totales.servicios.otros[nombre].monto;
+    }
+
+    const egresosDeCajaFiltrados = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro);
+    const egresosDeOperacionesFiltrados = estado.movimientos.filter(m => m.fecha.startsWith(fechaArqueo) && (m.tipo === 'gasto' || m.tipo === 'egreso') && m.caja === cajaFiltro);
+    const totalEgresosCaja = egresosDeCajaFiltrados.reduce((sum, e) => sum + e.monto, 0) + egresosDeOperacionesFiltrados.reduce((sum, m) => sum + m.monto, 0);
+
+    const totalNeto = (totales.totalIngresosTienda + totalServiciosEfectivo) - totalEgresosCaja;
+
 
     // Aplanar la estructura de efectivo para el PDF (usar solo el neto)
     const efectivoPlano = {};
@@ -2791,21 +2806,30 @@ function exportarArqueoActualPDF() {
         ventasTransferencia: totales.ventasTransferencia,
         servicios: totales.servicios,
         // No necesitamos otrosServicios aquí porque ya están agregados en totales.servicios.otros
+
+        // **NUEVO:** Pasar los datos del resumen final al PDF
+        resumen: {
+            totalIngresosTienda: totales.totalIngresosTienda,
+            totalEfectivoServicios: totalServiciosEfectivo,
+            totalEgresosCaja: totalEgresosCaja,
+            totalNeto: totalNeto
+        }
     };
 
-    exportarArqueoPDF(arqueoTemporal, true); // El 'true' indica que es un arqueo actual/temporal
+    exportarArqueoPDF(arqueoTemporal, esGuardadoFinal);
 }
 
 // **NUEVA FUNCIÓN PRINCIPAL PARA GENERAR EL PDF**
-function exportarArqueoPDF(arqueo, esTemporal = false) {
+function exportarArqueoPDF(arqueo, esGuardadoFinal = false) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
+    const titulo = esGuardadoFinal ? 'Arqueo de Caja Guardado' : 'Vista Previa de Arqueo';
 
     doc.setFontSize(18);
     doc.text('Detalle de Arqueo de Caja', 14, 22);
 
     doc.setFontSize(11);
-    doc.text(`Fecha: ${formatearFecha(arqueo.fecha)}`, 14, 32);
+    doc.text(`Fecha y Hora: ${formatearFecha(arqueo.fecha)}`, 14, 32);
     doc.text(`Cajero: ${arqueo.cajero || 'N/A'}`, 14, 38);
     doc.text(`Caja: ${arqueo.caja || 'N/A'}`, 14, 44);
 
@@ -2813,7 +2837,7 @@ function exportarArqueoPDF(arqueo, esTemporal = false) {
 
     // --- Tabla de Efectivo ---
     const efectivoBody = [];
-    let totalEfectivoBruto = 0;
+    let totalEfectivoBruto = 0; // Este es el total de la existencia neta en efectivo
     if (arqueo.efectivo) {
         CONFIG.denominaciones.forEach(denom => {
             const cantidad = arqueo.efectivo[denom.valor] || 0;
@@ -2826,8 +2850,8 @@ function exportarArqueoPDF(arqueo, esTemporal = false) {
     }
     if (arqueo.monedasExtranjeras) {
         Object.entries(arqueo.monedasExtranjeras).forEach(([moneda, data]) => {
-            if (data.cantidad > 0) {
-                totalEfectivoBruto += data.montoGs;
+            if (data.cantidad > 0) { // data.montoGs ya está calculado
+                totalEfectivoBruto += data.montoGs || 0;
                 efectivoBody.push([moneda.toUpperCase(), data.cantidad.toFixed(2), formatearMoneda(data.montoGs, 'gs')]);
             }
         });
@@ -2844,9 +2868,9 @@ function exportarArqueoPDF(arqueo, esTemporal = false) {
     const totalAEntregar = totalEfectivoBruto - (arqueo.fondoFijo || 0);
     doc.autoTable({
         startY: finalY + 2,
+        theme: 'plain',
         body: [
-            ['Total Efectivo Bruto:', formatearMoneda(totalEfectivoBruto, 'gs')],
-            ['- Fondo Fijo:', formatearMoneda(arqueo.fondoFijo || 0, 'gs')],
+            ['Total Efectivo Bruto (Existencia):', formatearMoneda(totalEfectivoBruto, 'gs')],
             ['Total a Entregar:', formatearMoneda(totalAEntregar, 'gs')]
         ],
         theme: 'plain',
@@ -2882,55 +2906,24 @@ function exportarArqueoPDF(arqueo, esTemporal = false) {
         doc.autoTable({ startY: finalY + 2, head: [['Servicio', 'Lote/Fecha', 'Efectivo (Gs)', 'Tarjeta (Gs)']], body: serviciosBody, didDrawPage: (data) => { finalY = data.cursor.y; } });
     }
 
-    // --- Resumen Final del Arqueo ---
-    let totalServiciosArqueo = 0;
-    ['apLote', 'aquiPago', 'expressLote', 'wepa', 'pasajeNsa', 'encomiendaNsa', 'apostala'].forEach(key => {
-        const servicio = arqueo.servicios[key];
-        if (servicio) totalServiciosArqueo += (servicio.monto || 0) + (servicio.tarjeta || 0);
-    });
-    if (arqueo.servicios.otros) {
-        for (const nombre in arqueo.servicios.otros) {
-            totalServiciosArqueo += (arqueo.servicios.otros[nombre].monto || 0) + (arqueo.servicios.otros[nombre].tarjeta || 0);
-        }
-    }
-
-    const totalIngresosArqueo = totalEfectivoBruto + (arqueo.pagosTarjeta || 0) + (arqueo.ventasCredito || 0) + (arqueo.pedidosYa || 0) + (arqueo.ventasTransferencia || 0) + totalServiciosArqueo;
-
-    const egresosDeCajaFiltrados = estado.egresosCaja.filter(e => e.fecha.startsWith(arqueo.fecha.split('T')[0]) && e.caja === arqueo.caja);
-    const egresosDeOperacionesFiltrados = estado.movimientos.filter(m => m.fecha.startsWith(arqueo.fecha.split('T')[0]) && (m.tipo === 'gasto' || m.tipo === 'egreso') && m.caja === arqueo.caja);
-    const totalEgresosCaja = egresosDeCajaFiltrados.reduce((sum, e) => sum + e.monto, 0) + egresosDeOperacionesFiltrados.reduce((sum, m) => sum + m.monto, 0);
-
-    const totalNeto = totalIngresosArqueo - totalEgresosCaja;
+    // --- Resumen Final del Arqueo (idéntico a la pantalla) ---
+    doc.setFontSize(14);
+    doc.text('Resumen Final del Arqueo', 14, finalY + 10);
+    finalY += 12;
 
     doc.autoTable({
-        startY: finalY + 5,
+        startY: finalY,
+        theme: 'plain',
         body: [
-            ['Total Ingresos del Arqueo:', formatearMoneda(totalIngresosArqueo, 'gs')],
-            ['- Total Egresos de Caja:', formatearMoneda(totalEgresosCaja, 'gs')],
-            ['Total Neto del Arqueo:', formatearMoneda(totalNeto, 'gs')]
+            ['Total Ingresos Tienda:', formatearMoneda(arqueo.resumen.totalIngresosTienda, 'gs')],
+            ['Total Efectivo Servicios:', formatearMoneda(arqueo.resumen.totalEfectivoServicios, 'gs')],
+            ['- Total Egresos de Caja:', formatearMoneda(arqueo.resumen.totalEgresosCaja, 'gs')],
+            ['Total Neto del Arqueo:', formatearMoneda(arqueo.resumen.totalNeto, 'gs')]
         ],
         theme: 'plain',
         styles: { fontStyle: 'bold' },
         didDrawPage: (data) => { finalY = data.cursor.y; }
     });
-
-    // --- Firmas ---
-    // Añadir un espacio prudencial antes de las firmas.
-    // Si el espacio no es suficiente, autoTable lo gestionará, pero un salto manual es más limpio.
-    if (finalY > 240) { // Si queda poco espacio en la página
-        doc.addPage();
-        finalY = 20; // Reiniciar Y en la nueva página
-    } else {
-        finalY += 25; // Dejar espacio después de la última tabla
-    }
-
-    const firmaCajeroX = 35;
-    const firmaTesoreroX = 140;
-
-    doc.line(firmaCajeroX, finalY, firmaCajeroX + 40, finalY); // Línea para firma del cajero
-    doc.text('Firma del Cajero', firmaCajeroX + 20, finalY + 5, { align: 'center' });
-    doc.line(firmaTesoreroX, finalY, firmaTesoreroX + 40, finalY); // Línea para firma del tesorero
-    doc.text('Firma del Tesorero', firmaTesoreroX + 20, finalY + 5, { align: 'center' });
 
     // --- Guardar el archivo ---
     const fechaArchivo = arqueo.fecha.split('T')[0].replace(/-/g, '_');
