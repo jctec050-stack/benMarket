@@ -1313,10 +1313,13 @@ function guardarArqueo() {
     // **MODIFICADO:** Exportar el PDF con los datos consistentes de la pantalla
     exportarArqueoActualPDF(true); // true indica que es un guardado final
 
-    // Limpiar formulario
-    limpiarMovimientos();
+    // **CORRECCIÓN:** Limpiar solo los movimientos temporales de la caja que se está arqueando.
+    estado.movimientosTemporales = estado.movimientosTemporales.filter(m => m.caja !== cajaFiltro);
+    guardarEnLocalStorage(); // Guardar el estado actualizado de los movimientos temporales.
 
+    // Actualizar las vistas
     cargarHistorialMovimientosDia();
+    renderizarIngresosAgregados();
 }
 
 // Funciones de Modal
@@ -1438,6 +1441,7 @@ function guardarGasto(event) {
         const gasto = {
             id: generarId(),
             fecha: document.getElementById('fechaGasto').value,
+            cajero: sessionStorage.getItem('usuarioActual'), // **NUEVO:** Guardar el usuario que realiza la operación.
             tipo: tipoGasto,
             historialEdiciones: [], // Inicializar historial
             receptor: receptorValue,
@@ -2110,95 +2114,253 @@ function cargarResumenDiario() {
     const fechaDesdeInput = document.getElementById('fechaResumenDesde');
     if (!fechaDesdeInput) return;
 
+    // --- CAPTURA DE FILTROS ---
     const fechaDesde = fechaDesdeInput.value;
     const fechaHasta = document.getElementById('fechaResumenHasta').value;
 
-    // Obtener los contenedores del DOM
-    const ingresosDiv = document.getElementById('resumenIngresos');
-    const egresosTesoreriaDiv = document.getElementById('resumenEgresosTesoreria');
-    const egresosCajaDiv = document.getElementById('resumenEgresosCaja');
-    const resumenGeneralDiv = document.getElementById('resumenGeneral');
-    const historialArqueosDiv = document.getElementById('historialArqueosGuardados');
+    // Filtros de Ingresos Tienda
+    const filtroCajaTienda = document.getElementById('filtroCajaIngresosTienda').value;
+    const filtroDescTienda = document.getElementById('filtroDescIngresosTienda').value.toLowerCase();
+
+    // Filtros de Servicios
+    const filtroCajaServiciosEfectivo = document.getElementById('filtroCajaServiciosEfectivo').value;
+    const filtroNombreServicioEfectivo = document.getElementById('filtroNombreServicioEfectivo').value.toLowerCase();
+
+    // **NUEVO:** Filtros de Servicios (Tarjeta)
+    const filtroCajaServiciosTarjeta = document.getElementById('filtroCajaServiciosTarjeta').value;
+    const filtroNombreServicioTarjeta = document.getElementById('filtroNombreServicioTarjeta').value.toLowerCase();
+
+    // **NUEVO:** Filtros de Ingresos No Efectivo
+    const filtroCajaNoEfectivo = document.getElementById('filtroCajaNoEfectivo').value;
+    const filtroDescNoEfectivo = document.getElementById('filtroDescNoEfectivo').value.toLowerCase();
+
+    // Filtros de Egresos
+    const filtroCajaEgresos = document.getElementById('filtroCajaEgresos').value;
+    const filtroDescEgresos = document.getElementById('filtroDescEgresos').value.toLowerCase();
+
+    // --- OBTENCIÓN DE DATOS ---
+    // **CORRECCIÓN:** Usar tanto los movimientos guardados (operaciones) como los temporales (ingresos del día).
+    const movimientosOperaciones = estado.movimientos.filter(m => {
+        const fechaMov = m.fecha.split('T')[0];
+        return (!fechaDesde || fechaMov >= fechaDesde) && (!fechaHasta || fechaMov <= fechaHasta);
+    });
+    const movimientosIngresos = estado.movimientosTemporales.filter(m => {
+        const fechaMov = m.fecha.split('T')[0];
+        return (!fechaDesde || fechaMov >= fechaDesde) && (!fechaHasta || fechaMov <= fechaHasta);
+    });
+
+    const movimientosDelPeriodo = [...movimientosOperaciones, ...movimientosIngresos];
+
+    const egresosCajaDelPeriodo = estado.egresosCaja.filter(e => {
+        const fechaEgreso = e.fecha.split('T')[0];
+        return (!fechaDesde || fechaEgreso >= fechaDesde) && (!fechaHasta || fechaEgreso <= fechaHasta);
+    });
+
+    // --- RENDERIZADO DE LISTAS ---
+
+    // 1. Ingresos de Tienda (movimientos de ingreso que no son servicios)
+    const esIngresoNoServicio = (m) => {
+        const esIngresoGeneral = m.tipo !== 'gasto' && m.tipo !== 'egreso';
+        const esServicio = (m.servicios && Object.values(m.servicios).some(s => s.monto > 0 || s.tarjeta > 0)) || (m.otrosServicios && m.otrosServicios.length > 0);
+        return esIngresoGeneral && !esServicio;
+    };
+
+    const listaIngresosTienda = document.getElementById('listaIngresosTienda');
+    let ingresosTiendaFiltrados = movimientosDelPeriodo.filter(m => {
+        return esIngresoNoServicio(m) &&
+            (!filtroCajaTienda || m.caja === filtroCajaTienda) &&
+            // **CORRECCIÓN:** Mostrar solo los que tienen un componente de efectivo
+            ((m.efectivo && Object.keys(m.efectivo).length > 0) || m.valorVenta > 0) &&
+            (!filtroDescTienda || m.descripcion.toLowerCase().includes(filtroDescTienda));
+    });
+    const totalTienda = renderizarLista(listaIngresosTienda, ingresosTiendaFiltrados, 'IngresosTienda');
+
+    // 2. Ingresos por Servicios (Efectivo)
+    const listaIngresosServiciosEfectivo = document.getElementById('listaIngresosServiciosEfectivo');
+    let ingresosServiciosEfectivo = movimientosDelPeriodo.filter(m => {
+        const esServicioEfectivo = (m.servicios && Object.values(m.servicios).some(s => s.monto > 0)) || (m.otrosServicios && m.otrosServicios.some(s => s.monto > 0));
+        if (!esServicioEfectivo) return false;
+
+        const coincideCaja = !filtroCajaServiciosEfectivo || m.caja === filtroCajaServiciosEfectivo;
+        if (!coincideCaja) return false;
+
+        if (filtroNombreServicioEfectivo) {
+            const nombresServicios = [
+                ...Object.keys(m.servicios || {}).filter(k => m.servicios[k].monto > 0),
+                ...(m.otrosServicios || []).filter(s => s.monto > 0).map(s => s.nombre)
+            ];
+            return nombresServicios.some(nombre => nombre.toLowerCase().includes(filtroNombreServicioEfectivo));
+        }
+        return true;
+    });
+    const totalServiciosEfectivo = renderizarLista(listaIngresosServiciosEfectivo, ingresosServiciosEfectivo, 'IngresosServiciosEfectivo');
+
+    // **NUEVO:** 3. Ingresos por Servicios (Tarjeta)
+    const listaIngresosServiciosTarjeta = document.getElementById('listaIngresosServiciosTarjeta');
+    let ingresosServiciosTarjeta = movimientosDelPeriodo.filter(m => {
+        const esServicioTarjeta = (m.servicios && Object.values(m.servicios).some(s => s.tarjeta > 0)) || (m.otrosServicios && m.otrosServicios.some(s => s.tarjeta > 0));
+        if (!esServicioTarjeta) return false;
+
+        const coincideCaja = !filtroCajaServiciosTarjeta || m.caja === filtroCajaServiciosTarjeta;
+        if (!coincideCaja) return false;
+
+        if (filtroNombreServicioTarjeta) {
+            const nombresServicios = [
+                ...Object.keys(m.servicios || {}).filter(k => m.servicios[k].tarjeta > 0),
+                ...(m.otrosServicios || []).filter(s => s.tarjeta > 0).map(s => s.nombre)
+            ];
+            return nombresServicios.some(nombre => nombre.toLowerCase().includes(filtroNombreServicioTarjeta));
+        }
+        return true;
+    });
+    const totalServiciosTarjeta = renderizarLista(listaIngresosServiciosTarjeta, ingresosServiciosTarjeta, 'IngresosServiciosTarjeta');
+
+    // **NUEVO:** 3. Ingresos No Efectivo
+    const listaIngresosNoEfectivo = document.getElementById('listaIngresosNoEfectivo');
+    let ingresosNoEfectivoFiltrados = movimientosDelPeriodo.filter(m => {
+        const tieneNoEfectivo = (m.pagosTarjeta > 0 || m.ventasCredito > 0 || m.pedidosYa > 0 || m.ventasTransferencia > 0);
+        return esIngresoNoServicio(m) && tieneNoEfectivo &&
+            (!filtroCajaNoEfectivo || m.caja === filtroCajaNoEfectivo) &&
+            (!filtroDescNoEfectivo || m.descripcion.toLowerCase().includes(filtroDescNoEfectivo));
+    });
+    const totalNoEfectivo = renderizarLista(listaIngresosNoEfectivo, ingresosNoEfectivoFiltrados, 'IngresosNoEfectivo');
+
+    // 4. Egresos de Caja
+    const listaEgresos = document.getElementById('listaEgresos');
+    const todosLosEgresos = [
+        ...egresosCajaDelPeriodo.map(e => ({ ...e, tipoMovimiento: 'EGRESO DIRECTO' })),
+        ...movimientosDelPeriodo.filter(m => m.tipo === 'gasto' || m.tipo === 'egreso').map(m => ({ ...m, tipoMovimiento: m.tipo.toUpperCase() }))
+    ];
+    let egresosFiltrados = todosLosEgresos.filter(e =>
+        (!filtroCajaEgresos || e.caja === filtroCajaEgresos) &&
+        (!filtroDescEgresos || e.descripcion.toLowerCase().includes(filtroDescEgresos) || (e.categoria && e.categoria.toLowerCase().includes(filtroDescEgresos)))
+    );
+    const totalEgresos = renderizarLista(listaEgresos, egresosFiltrados, 'Egresos');
+
+    // **NUEVO:** Calcular y mostrar totales generales
+    const granTotalIngresos = totalTienda + totalServiciosEfectivo + totalServiciosTarjeta + totalNoEfectivo;
+    const granTotalEgresos = totalEgresos;
+    const diferenciaNeta = granTotalIngresos - granTotalEgresos;
+
+    // **NUEVO:** Calcular y mostrar subtotales de ingresos
+    const subTotalEfectivo = totalTienda + totalServiciosEfectivo;
+    const subTotalNoEfectivo = totalServiciosTarjeta + totalNoEfectivo;
+
+    document.getElementById('totalIngresosEfectivo').innerHTML = `<strong>${formatearMoneda(subTotalEfectivo, 'gs')}</strong>`;
+    document.getElementById('totalIngresosNoEfectivoGeneral').innerHTML = `<strong>${formatearMoneda(subTotalNoEfectivo, 'gs')}</strong>`;
+
+    // Mostrar totales generales
+    document.getElementById('totalGeneralIngresos').innerHTML = `<strong>${formatearMoneda(granTotalIngresos, 'gs')}</strong>`;
+    document.getElementById('totalGeneralEgresos').innerHTML = `<strong>${formatearMoneda(granTotalEgresos, 'gs')}</strong>`;
+
+    const diferenciaSpan = document.getElementById('totalDiferencia');
+    diferenciaSpan.innerHTML = `<strong>${formatearMoneda(diferenciaNeta, 'gs')}</strong>`;
+    diferenciaSpan.className = 'reporte-total-principal'; // Reset class
+    diferenciaSpan.classList.add(diferenciaNeta >= 0 ? 'positivo' : 'negativo');
+
+    // **NUEVO:** Calcular y mostrar la diferencia de efectivo
+    const diferenciaEfectivo = subTotalEfectivo - granTotalEgresos;
+    const diferenciaEfectivoStrong = document.getElementById('diferenciaEfectivo');
+    const diferenciaEfectivoItem = document.getElementById('itemDiferenciaEfectivo');
+    diferenciaEfectivoStrong.textContent = formatearMoneda(diferenciaEfectivo, 'gs');
+    diferenciaEfectivoItem.classList.remove('positivo', 'negativo');
+    diferenciaEfectivoItem.classList.add(diferenciaEfectivo >= 0 ? 'positivo' : 'negativo');
 
 
-    // Limpiar contenedores
-    ingresosDiv.innerHTML = '<p>No hay datos de arqueo para la fecha seleccionada.</p>';
-    egresosTesoreriaDiv.innerHTML = '<p>No hay egresos de tesorería.</p>';
-    egresosCajaDiv.innerHTML = '<p>No hay egresos de caja.</p>';
-    resumenGeneralDiv.innerHTML = '';
+    // **NUEVO:** Función para desplegar/colapsar los reportes
+    window.toggleReporte = function (headerElement) {
+        const contenido = headerElement.nextElementSibling;
+        const estaVisible = contenido.style.display === 'block';
+        contenido.style.display = estaVisible ? 'none' : 'block';
+        headerElement.classList.toggle('activo', !estaVisible);
+    }
+}
 
-    // 1. Filtrar datos por fecha
-    const arqueosDelPeriodo = estado.arqueos.filter(a => {
-        const fechaArqueo = a.fecha.split('T')[0];
-        return (!fechaDesde || fechaArqueo >= fechaDesde) && (!fechaHasta || fechaArqueo <= fechaHasta);
-    }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-
-    const egresosTesoreriaDelDia = estado.movimientos.filter(m => m.fecha.split('T')[0] >= fechaDesde && m.fecha.split('T')[0] <= fechaHasta);
-    const egresosCajaDelDia = estado.egresosCaja.filter(e => e.fecha.split('T')[0] >= fechaDesde && e.fecha.split('T')[0] <= fechaHasta);
-
-    // 2. Procesar y mostrar Ingresos (basado en Arqueos)
-    let totalIngresosDia = 0;
-    if (arqueosDelPeriodo.length > 0) {
-        ingresosDiv.innerHTML = '';
-        arqueosDelPeriodo.forEach(arqueo => {
-            totalIngresosDia += arqueo.totalIngresos;
-            ingresosDiv.innerHTML += `
-                <div class="resumen-item">
-                    <span>Arqueo ${arqueo.caja} (${arqueo.cajero})</span>
-                    <span class="positivo">${formatearMoneda(arqueo.totalIngresos, 'gs')}</span>
-                </div>
-            `;
-        });
+/**
+ * Función auxiliar para renderizar una lista de movimientos en el DOM.
+ * @param {HTMLElement} contenedor - El elemento del DOM donde se renderizará la lista.
+ * @param {Array} items - El array de movimientos a renderizar.
+ * @param {String} tipo - El tipo de movimiento (para la cabecera).
+ */
+function renderizarLista(contenedor, items, tipo) {
+    contenedor.innerHTML = '';
+    if (items.length === 0) {
+        contenedor.innerHTML = '<p class="text-center" style="color: var(--color-secundario);">No hay movimientos para los filtros seleccionados.</p>';
+        // **MODIFICADO:** Limpiar el total si no hay items
+        const totalizadorSpan = document.getElementById(`total${tipo.replace(/\s/g, '')}`);
+        if (totalizadorSpan) {
+            totalizadorSpan.innerHTML = '';
+        }
+        return 0; // **MODIFICADO:** Devolver 0 si no hay items.
     }
 
-    // 3. Procesar y mostrar Egresos de Tesorería
-    let totalEgresosTesoreria = 0;
-    if (egresosTesoreriaDelDia.length > 0) {
-        egresosTesoreriaDiv.innerHTML = '';
-        egresosTesoreriaDelDia.forEach(mov => {
-            totalEgresosTesoreria += mov.monto;
-            egresosTesoreriaDiv.innerHTML += `
-                <div class="resumen-item">
-                    <span>${mov.descripcion}</span>
-                    <span class="negativo">-${formatearMoneda(mov.monto, mov.moneda)}</span>
-                </div>
-            `;
-        });
+    items.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    let granTotal = 0; // **NUEVO:** Para calcular el total de la lista.
+
+    items.forEach(item => {
+        const esEgreso = tipo.toLowerCase().includes('egreso');
+        const claseMonto = esEgreso ? 'negativo' : 'positivo';
+        const signo = esEgreso ? '-' : '+';
+
+        // Calcular el monto total del ítem
+        let montoTotal = item.monto || 0;
+        let montoParcial = 0; // Para casos específicos
+        if (!montoTotal) {
+            // **MODIFICADO:** Ajustar el cálculo del monto según el tipo de lista
+            if (tipo === 'IngresosTienda' && item.valorVenta > 0) {
+                montoTotal = item.valorVenta;
+            } else if (tipo === 'IngresosTienda') {
+                montoTotal = Object.entries(item.efectivo || {}).reduce((sum, [d, c]) => sum + (parseInt(d) * c), 0);
+            } else if (tipo === 'Ingreso No Efectivo') {
+                montoTotal = (item.pagosTarjeta || 0) + (item.ventasCredito || 0) + (item.pedidosYa || 0) + (item.ventasTransferencia || 0);
+            } else if (tipo === 'IngresosServiciosEfectivo') {
+                Object.values(item.servicios || {}).forEach(s => montoTotal += (s.monto || 0));
+                (item.otrosServicios || []).forEach(s => montoTotal += (s.monto || 0));
+            } else if (tipo === 'IngresosServiciosTarjeta') {
+                Object.values(item.servicios || {}).forEach(s => montoTotal += (s.tarjeta || 0));
+                (item.otrosServicios || []).forEach(s => montoTotal += (s.tarjeta || 0));
+            } else {
+                // Lógica original para servicios y egresos
+                montoTotal += Object.entries(item.efectivo || {}).reduce((sum, [d, c]) => sum + (parseInt(d) * c), 0);
+                montoTotal += (item.pagosTarjeta || 0) + (item.ventasCredito || 0) + (item.pedidosYa || 0) + (item.ventasTransferencia || 0);
+                Object.values(item.servicios || {}).forEach(s => montoTotal += (s.monto || 0) + (s.tarjeta || 0));
+                (item.otrosServicios || []).forEach(s => montoTotal += (s.monto || 0) + (s.tarjeta || 0));
+            }
+        }
+
+        granTotal += montoTotal; // **NUEVO:** Sumar al total de la lista.
+
+        const div = document.createElement('div');
+        div.className = 'movimiento-item';
+        div.innerHTML = `
+            <div class="movimiento-header">
+                <span class="movimiento-tipo">${item.descripcion || item.categoria || 'Movimiento'}</span>
+                <span class="movimiento-monto ${claseMonto}">${signo}${formatearMoneda(montoTotal, item.moneda || 'gs')}</span>
+            </div>
+            <div class="movimiento-detalles">
+                <small>${formatearFecha(item.fecha)} | ${item.caja || 'N/A'} | <strong>${item.cajero || 'N/A'}</strong></small>
+            </div>
+        `;
+        contenedor.appendChild(div);
+    });
+
+    // **MODIFICADO:** Colocar el totalizador en el span de la cabecera.
+    if (items.length > 0) {
+        const esEgreso = tipo.toLowerCase().includes('egreso');
+        const claseTotal = esEgreso ? 'negativo' : 'positivo';
+
+        // **CORRECCIÓN:** Construir el ID del span del totalizador. Ej: 'IngresosTienda' -> 'totalIngresosTienda'
+        const idTotalizador = `total${tipo}`;
+        const totalizadorSpan = document.getElementById(idTotalizador);
+
+        if (totalizadorSpan) {
+            totalizadorSpan.className = `reporte-total ${claseTotal}`;
+            totalizadorSpan.innerHTML = `<strong>${formatearMoneda(granTotal, 'gs')}</strong>`;
+        }
     }
 
-    // 4. Procesar y mostrar Egresos de Caja
-    let totalEgresosCaja = 0;
-    if (egresosCajaDelDia.length > 0) {
-        egresosCajaDiv.innerHTML = '';
-        egresosCajaDelDia.forEach(egreso => {
-            totalEgresosCaja += egreso.monto;
-            egresosCajaDiv.innerHTML += `
-                <div class="resumen-item">
-                    <span>${egreso.descripcion} (${egreso.caja})</span>
-                    <span class="negativo">-${formatearMoneda(egreso.monto, 'gs')}</span>
-                </div>
-            `;
-        });
-    }
-
-    // 5. Calcular y mostrar el Resumen General
-    const totalEgresosDia = totalEgresosTesoreria + totalEgresosCaja;
-    const saldoNeto = totalIngresosDia - totalEgresosDia;
-
-    resumenGeneralDiv.innerHTML = `
-        <div class="total-item positivo">
-            <span>Total Ingresos:</span>
-            <span>${formatearMoneda(totalIngresosDia, 'gs')}</span>
-        </div>
-        <div class="total-item negativo">
-            <span>Total Egresos:</span>
-            <span>-${formatearMoneda(totalEgresosDia, 'gs')}</span>
-        </div>
-        <div class="total-item ${saldoNeto >= 0 ? 'positivo' : 'negativo'}">
-            <span><strong>Saldo Neto:</strong></span>
-            <span><strong>${formatearMoneda(saldoNeto, 'gs')}</strong></span>
-        </div>
-    `;
+    return granTotal; // **MODIFICADO:** Devolver el total calculado.
 }
 
 // Función para descargar Excel
@@ -2539,6 +2701,17 @@ document.addEventListener('DOMContentLoaded', function () {
         const fechaArqueoInput = document.getElementById('fecha');
         if (fechaArqueoInput) fechaArqueoInput.value = obtenerFechaHoraLocalISO();
 
+    }
+    // **NUEVO:** Inicializar la página de Resumen
+    if (document.getElementById('resumen')) {
+        const fechaDesdeInput = document.getElementById('fechaResumenDesde');
+        const fechaHastaInput = document.getElementById('fechaResumenHasta');
+        const hoy = obtenerFechaHoraLocalISO().split('T')[0];
+
+        fechaDesdeInput.value = hoy;
+        fechaHastaInput.value = hoy;
+
+        cargarResumenDiario(); // Cargar el resumen del día actual al entrar a la página
     }
     // ... y así sucesivamente para las otras páginas.
 });
@@ -3184,6 +3357,55 @@ style.textContent = `
         display: flex;
         gap: 10px; /* Espacio entre los botones de Excel */
         align-items: center;
+    }
+    .resumen-columnas {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 2rem;
+        margin-top: 2rem;
+    }
+    .resumen-card-principal {
+        background-color: var(--color-fondo);
+        border: 1px solid var(--color-borde);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .reporte-header-principal {
+        cursor: pointer;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--color-borde);
+    }
+    .reporte-header-principal.no-hover {
+        cursor: default;
+    }
+    .reporte-total-principal {
+        display: block;
+        font-size: 2rem;
+        font-weight: bold;
+        text-align: center;
+        margin-top: 0.5rem;
+    }
+    .titulo-columna {
+        text-align: center;
+        margin: 0;
+        font-size: 1.5rem;
+        letter-spacing: 1px;
+        color: var(--color-primario);
+    }
+    .reporte-header-principal.no-hover:hover {
+        background-color: transparent; /* Evita el cambio de color en la tarjeta de diferencia */
+        cursor: default;
+    }
+    .sub-seccion {
+        margin-left: 1rem;
+        margin-top: 1rem;
+    }
+    /* Para pantallas más pequeñas, las columnas se apilan */
+    @media (max-width: 992px) {
+        .resumen-columnas {
+            grid-template-columns: 1fr;
+        }
     }
 `;
 document.head.appendChild(style);
