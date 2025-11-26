@@ -1218,7 +1218,7 @@ function cargarHistorialMovimientosDia() {
     });
 }
 // Guardar arqueo
-function guardarArqueo() {
+async function guardarArqueo() {
     if (estado.movimientosTemporales.length === 0) {
         mostrarMensaje('No hay movimientos para guardar en el arqueo.', 'peligro');
         return;
@@ -1303,6 +1303,9 @@ function guardarArqueo() {
         return; // Detener la ejecución de la función
     }
 
+    if (window.db && window.db.guardarArqueo) {
+        await window.db.guardarArqueo(arqueo);
+    }
     // Guardar en el estado
     estado.arqueos.push(arqueo);
     guardarEnLocalStorage();
@@ -1395,7 +1398,7 @@ function cerrarModal() {
 }
 
 // Funciones para gastos y operaciones
-function guardarGasto(event) {
+async function guardarGasto(event) {
     event.preventDefault();
     const idEditar = document.getElementById('idGastoEditar').value;
 
@@ -1426,6 +1429,9 @@ function guardarGasto(event) {
             if (movimientoActualizado.tipo === 'egreso' || movimientoActualizado.tipo === 'operacion') {
                 imprimirReciboGasto(movimientoActualizado);
             }
+            if (window.db && window.db.guardarMovimiento) {
+                await window.db.guardarMovimiento(movimientoActualizado);
+            }
         }
         mostrarMensaje('Movimiento actualizado con éxito.', 'exito');
     } else {
@@ -1454,6 +1460,9 @@ function guardarGasto(event) {
             referencia: document.getElementById('referenciaGasto').value
         };
         estado.movimientos.push(gasto);
+        if (window.db && window.db.guardarMovimiento) {
+            await window.db.guardarMovimiento(gasto);
+        }
         if (gasto.tipo === 'egreso' || gasto.tipo === 'operacion') {
             imprimirReciboGasto(gasto);
         }
@@ -1627,7 +1636,7 @@ function limpiarFormularioGastos() {
 /**
  * Guarda un egreso de caja en localStorage
  */
-function guardarEgresoCaja(event) {
+async function guardarEgresoCaja(event) {
     event.preventDefault();
 
     const idEditar = document.getElementById('idEgresoCajaEditar').value;
@@ -1687,6 +1696,10 @@ function guardarEgresoCaja(event) {
         // Agregar nuevo egreso
         estado.egresosCaja.push(egreso);
         mostrarMensaje('Egreso guardado con éxito.', 'exito');
+    }
+
+    if (window.db && window.db.guardarEgresoCaja) {
+        await window.db.guardarEgresoCaja(egreso);
     }
 
     // Guardar en localStorage

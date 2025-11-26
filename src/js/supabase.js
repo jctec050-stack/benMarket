@@ -1,8 +1,6 @@
-// Configuración de Supabase
-// Reemplaza estos valores con los de tu proyecto de Supabase
 const SUPABASE_CONFIG = {
-    URL: 'https://tuproyecto.supabase.co',
-    ANON_KEY: 'tu-anon-key-aqui'
+    URL: 'https://grfyzwfinmowqqxfegsx.supabase.co',
+    ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyZnl6d2Zpbm1vd3FxeGZlZ3N4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MTY3ODMsImV4cCI6MjA3ODM5Mjc4M30.PSr-D8iyMv0ccLUhlFy5Vi6QO12VVWQVDFubmsrotT8'
 };
 
 // Cliente de Supabase (se inicializará cuando esté disponible)
@@ -27,17 +25,47 @@ const db = {
             try {
                 const { data, error } = await supabaseClient
                     .from('arqueos')
-                    .insert([arqueo]);
-                
+                    .upsert([arqueo]);
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {
-                console.error('Error guardando arqueo:', error);
                 return { success: false, error };
             }
         } else {
-            // Usar localStorage como respaldo
             return this.guardarEnLocalStorage('arqueos', arqueo);
+        }
+    },
+    async guardarEgresoCaja(egreso) {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('egresos_caja')
+                    .upsert([egreso]);
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return this.guardarEnLocalStorage('egresosCaja', egreso);
+        }
+    },
+    async obtenerEgresosCajaPorFecha(fecha) {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('egresos_caja')
+                    .select('*')
+                    .gte('fecha', fecha)
+                    .lt('fecha', fecha + 'T23:59:59')
+                    .order('fecha', { ascending: false });
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return this.obtenerDeLocalStorage('egresosCaja', fecha);
         }
     },
     
@@ -69,12 +97,10 @@ const db = {
             try {
                 const { data, error } = await supabaseClient
                     .from('movimientos')
-                    .insert([movimiento]);
-                
+                    .upsert([movimiento]);
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {
-                console.error('Error guardando movimiento:', error);
                 return { success: false, error };
             }
         } else {
