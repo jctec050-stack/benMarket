@@ -152,6 +152,62 @@ const db = {
         } catch (error) {
             return { success: false, error };
         }
+    },
+    async guardarMovimientoTemporal(item) {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('movimientos_temporales')
+                    .upsert([item]);
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return this.guardarEnLocalStorage('movimientosTemporales', item);
+        }
+    },
+    async obtenerMovimientosTemporalesPorFechaCaja(fecha, caja) {
+        if (supabaseClient) {
+            try {
+                let query = supabaseClient
+                    .from('movimientos_temporales')
+                    .select('*')
+                    .gte('fecha', fecha)
+                    .lt('fecha', fecha + 'T23:59:59')
+                    .order('fecha', { ascending: false });
+                if (caja) query = query.eq('caja', caja);
+                const { data, error } = await query;
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            const all = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
+            const data = all.filter(m => m.fecha && m.fecha.startsWith(fecha) && (!caja || m.caja === caja));
+            return { success: true, data };
+        }
+    },
+    async eliminarMovimientoTemporal(id) {
+        if (supabaseClient) {
+            try {
+                const { error } = await supabaseClient
+                    .from('movimientos_temporales')
+                    .delete()
+                    .eq('id', id);
+                if (error) throw error;
+                return { success: true };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            const items = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
+            const next = items.filter(i => i.id !== id);
+            localStorage.setItem('movimientosTemporales', JSON.stringify(next));
+            return { success: true };
+        }
     }
 };
 

@@ -95,12 +95,35 @@ window.agregarNuevoServicio = function () {
 
 // Estado de la aplicación
 let estado = {
-    arqueos: JSON.parse(localStorage.getItem('arqueos')) || [],
-    movimientos: JSON.parse(localStorage.getItem('movimientos')) || [],
-    egresosCaja: JSON.parse(localStorage.getItem('egresosCaja')) || [],
-    movimientosTemporales: JSON.parse(localStorage.getItem('movimientosTemporales')) || [], // Para los ingresos de caja del día seccionActiva: 'ingreso-movimiento',
+    arqueos: [],
+    movimientos: [],
+    egresosCaja: [],
+    movimientosTemporales: [],
     ultimoNumeroRecibo: JSON.parse(localStorage.getItem('ultimoNumeroRecibo')) || 0,
 };
+
+async function initSupabaseData() {
+    const fechaInput = document.getElementById('fecha') || document.getElementById('fechaEgresoCaja') || document.getElementById('fechaGasto');
+    const fechaBase = fechaInput ? (fechaInput.value.split('T')[0] || new Date().toISOString().slice(0,10)) : new Date().toISOString().slice(0,10);
+    const rol = sessionStorage.getItem('userRole');
+    const caja = rol === 'tesoreria' ? 'Caja Tesoreria' : (sessionStorage.getItem('cajaSeleccionada') || '');
+    const a = await window.db.obtenerArqueosPorFecha(fechaBase);
+    const m = await window.db.obtenerMovimientosPorFecha(fechaBase);
+    const e = await window.db.obtenerEgresosCajaPorFecha(fechaBase);
+    const t = await window.db.obtenerMovimientosTemporalesPorFechaCaja(fechaBase, caja);
+    estado.arqueos = (a && a.data) || [];
+    estado.movimientos = (m && m.data) || [];
+    estado.egresosCaja = (e && e.data) || [];
+    estado.movimientosTemporales = (t && t.data) || [];
+    actualizarArqueoFinal();
+    cargarHistorialMovimientosDia();
+    cargarHistorialEgresosCaja();
+    cargarHistorialGastos();
+    renderizarIngresosAgregados();
+    cargarResumenDiario();
+}
+
+window.initSupabaseData = initSupabaseData;
 
 // Funciones de utilidad
 function formatearMoneda(monto, moneda = 'gs') {
@@ -445,6 +468,7 @@ function agregarMovimiento() {
     };
 
     const movimiento = {
+        id: generarId(),
         fecha: document.getElementById('fechaMovimiento').value,
         cajero: sessionStorage.getItem('usuarioActual'),
         // **CORREGIDO:** Asegurar que la caja sea la correcta para cada rol.
@@ -511,12 +535,14 @@ function agregarMovimiento() {
         if (!registrarEdicion(movimiento)) {
             return; // Si el usuario canceló, no continuar
         }
-        estado.movimientosTemporales[indiceEditar] = { ...estado.movimientosTemporales[indiceEditar], ...movimiento };
-        localStorage.setItem('movimientosTemporales', JSON.stringify(estado.movimientosTemporales));
+        const original = estado.movimientosTemporales[indiceEditar];
+        const actualizado = { ...original, ...movimiento };
+        await window.db.guardarMovimientoTemporal(actualizado);
+        estado.movimientosTemporales[indiceEditar] = actualizado;
         mostrarMensaje('Movimiento actualizado con éxito.', 'exito');
     } else {
+        await window.db.guardarMovimientoTemporal(movimiento);
         estado.movimientosTemporales.push(movimiento);
-        localStorage.setItem('movimientosTemporales', JSON.stringify(estado.movimientosTemporales));
         mostrarMensaje('Movimiento agregado. ' + `Total: ${estado.movimientosTemporales.length}`, 'exito');
     }
 
@@ -779,11 +805,14 @@ function iniciarEdicionMovimiento(index) {
     mostrarMensaje('Editando movimiento. Realice los cambios y presione "Agregar Movimiento" para guardar.', 'info');
 }
 
-function eliminarIngresoAgregado(index) {
+async function eliminarIngresoAgregado(index) {
     // **MEJORA UX:** Añadir confirmación antes de eliminar.
     if (confirm('¿Está seguro de que desea eliminar este movimiento?')) {
+        const mov = estado.movimientosTemporales[index];
+        if (mov && mov.id && window.db && window.db.eliminarMovimientoTemporal) {
+            await window.db.eliminarMovimientoTemporal(mov.id);
+        }
         estado.movimientosTemporales.splice(index, 1);
-        localStorage.setItem('movimientosTemporales', JSON.stringify(estado.movimientosTemporales));
         actualizarArqueoFinal();
         renderizarIngresosAgregados();
         mostrarMensaje('Movimiento eliminado', 'info');
@@ -1317,8 +1346,14 @@ async function guardarArqueo() {
     exportarArqueoActualPDF(true); // true indica que es un guardado final
 
     // **CORRECCIÓN:** Limpiar solo los movimientos temporales de la caja que se está arqueando.
-    estado.movimientosTemporales = estado.movimientosTemporales.filter(m => m.caja !== cajaFiltro);
-    guardarEnLocalStorage(); // Guardar el estado actualizado de los movimientos temporales.
+    const restantes = estado.movimientosTemporales.filter(m => m.caja !== cajaFiltro);
+    const aBorrar = estado.movimientosTemporales.filter(m => m.caja === cajaFiltro);
+    for (const mov of aBorrar) {
+        if (mov.id && window.db && window.db.eliminarMovimientoTemporal) {
+            await window.db.eliminarMovimientoTemporal(mov.id);
+        }
+    }
+    estado.movimientosTemporales = restantes;
 
     // Actualizar las vistas
     cargarHistorialMovimientosDia();
