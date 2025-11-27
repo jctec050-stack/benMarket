@@ -5,12 +5,27 @@ const SUPABASE_CONFIG = {
 
 // Cliente de Supabase (se inicializará cuando esté disponible)
 let supabaseClient = null;
+let usuarioActual = null;
 
 // Función para inicializar Supabase cuando esté disponible
 function inicializarSupabase() {
     if (typeof supabase !== 'undefined') {
         supabaseClient = supabase.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY);
         console.log('Supabase inicializado correctamente');
+        
+        // Escuchar cambios en autenticación
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (session) {
+                usuarioActual = session.user;
+                console.log('Usuario autenticado:', usuarioActual.email);
+                localStorage.setItem('usuario_actual', JSON.stringify(usuarioActual));
+            } else {
+                usuarioActual = null;
+                localStorage.removeItem('usuario_actual');
+                console.log('Usuario desautenticado');
+            }
+        });
+        
         return true;
     }
     console.warn('Supabase no está disponible. Usando localStorage.');
@@ -19,6 +34,142 @@ function inicializarSupabase() {
 
 // Funciones de base de datos (se usarán cuando Supabase esté configurado)
 const db = {
+    // ===== AUTENTICACIÓN =====
+    async registrarUsuario(email, password, username, rol = 'cajero') {
+        if (supabaseClient) {
+            try {
+                // Registrar con Supabase Auth
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            username
+                        }
+                    }
+                });
+                
+                if (error) throw error;
+                
+                // El perfil se crea automáticamente por el trigger
+                // Pero podemos asignar el rol específico
+                const { error: perfilError } = await supabaseClient
+                    .from('perfiles_usuarios')
+                    .update({ rol })
+                    .eq('id', data.user.id);
+                
+                if (perfilError) console.warn('Error asignando rol:', perfilError);
+                
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return { success: false, error: 'Supabase no disponible' };
+        }
+    },
+    
+    async iniciarSesion(email, password) {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
+                    email,
+                    password
+                });
+                
+                if (error) throw error;
+                usuarioActual = data.user;
+                localStorage.setItem('usuario_actual', JSON.stringify(usuarioActual));
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return { success: false, error: 'Supabase no disponible' };
+        }
+    },
+    
+    async cerrarSesion() {
+        if (supabaseClient) {
+            try {
+                const { error } = await supabaseClient.auth.signOut();
+                if (error) throw error;
+                usuarioActual = null;
+                localStorage.removeItem('usuario_actual');
+                return { success: true };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            localStorage.removeItem('usuario_actual');
+            return { success: true };
+        }
+    },
+    
+    async obtenerSesionActual() {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient.auth.getSession();
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return { success: false, error: 'Supabase no disponible' };
+        }
+    },
+    
+    async obtenerPerfilActual() {
+        if (supabaseClient && usuarioActual) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('perfiles_usuarios')
+                    .select('*')
+                    .eq('id', usuarioActual.id)
+                    .single();
+                
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return { success: false, error: 'No hay sesión activa' };
+        }
+    },
+    
+    async restablecerContraseña(email) {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient.auth.resetPasswordForEmail(email);
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return { success: false, error: 'Supabase no disponible' };
+        }
+    },
+    
+    async actualizarContraseña(nuevoPassword) {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient.auth.updateUser({
+                    password: nuevoPassword
+                });
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return { success: false, error: 'Supabase no disponible' };
+        }
+    },
+    
+    // ===== GESTIÓN DE USUARIOS =====
     // Guardar arqueo
     async guardarArqueo(arqueo) {
         if (supabaseClient) {
@@ -133,7 +284,7 @@ const db = {
         if (supabaseClient) {
             try {
                 const { data, error } = await supabaseClient
-                    .from('usuarios')
+                    .from('perfiles_usuarios')
                     .select('*')
                     .eq('activo', true)
                     .order('username');
@@ -151,7 +302,7 @@ const db = {
         if (supabaseClient) {
             try {
                 const { data, error } = await supabaseClient
-                    .from('usuarios')
+                    .from('perfiles_usuarios')
                     .insert([usuario]);
                 if (error) throw error;
                 return { success: true, data };
@@ -169,7 +320,7 @@ const db = {
         if (supabaseClient) {
             try {
                 const { error } = await supabaseClient
-                    .from('usuarios')
+                    .from('perfiles_usuarios')
                     .delete()
                     .or(`id.eq.${idOrUsername},username.eq.${idOrUsername}`);
                 if (error) throw error;
@@ -188,7 +339,7 @@ const db = {
         if (supabaseClient) {
             try {
                 const { data, error } = await supabaseClient
-                    .from('usuarios')
+                    .from('perfiles_usuarios')
                     .select('*')
                     .order('username');
                 if (error) throw error;
@@ -205,7 +356,7 @@ const db = {
         if (supabaseClient) {
             try {
                 const { data, error } = await supabaseClient
-                    .from('usuarios')
+                    .from('perfiles_usuarios')
                     .update(updates)
                     .eq('id', id)
                     .select('*');

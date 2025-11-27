@@ -18,6 +18,32 @@ const CONFIG = {
     }
 };
 
+// Información del perfil del usuario actual
+let usuarioPerfil = null;
+
+// Función para verificar sesión al cargar
+window.addEventListener('load', async () => {
+    inicializarSupabase();
+    
+    const sesion = await db.obtenerSesionActual();
+    
+    if (!sesion.success || !sesion.data.session) {
+        // No hay sesión, redirigir al login
+        window.location.href = '/pages/login.html';
+        return;
+    }
+    
+    // Obtener perfil para verificar permisos
+    const perfil = await db.obtenerPerfilActual();
+    if (perfil.success) {
+        usuarioPerfil = perfil.data;
+        console.log('Usuario:', perfil.data.username, 'Rol:', perfil.data.rol);
+    } else {
+        // Error obteniendo perfil, redirigir
+        window.location.href = '/pages/login.html';
+    }
+});
+
 // **NUEVO:** Constante para centralizar los servicios de pagos
 // **MODIFICADO:** Lista de servicios dinámica cargada desde localStorage
 const SERVICIOS_DEFAULT = [

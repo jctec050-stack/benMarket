@@ -1,26 +1,14 @@
 document.addEventListener('DOMContentLoaded', async () => {
+    // Inicializar Supabase
+    inicializarSupabase();
+    
     // Referencias a elementos del DOM
     const loginForm = document.getElementById('loginForm');
     const errorMessage = document.getElementById('error-message');
-    const rolSelect = document.getElementById('userRole');
     const cajaContainer = document.getElementById('caja-login-container');
     const cajaSelect = document.getElementById('cajaLogin');
     const passwordInput = document.getElementById('password');
     const togglePasswordButton = document.getElementById('togglePassword');
-
-    let usuarios = [];
-    if (window.db && window.db.obtenerUsuarios) {
-        const res = await window.db.obtenerUsuarios();
-        usuarios = res.success ? (res.data || []) : [];
-        if (!usuarios || usuarios.length === 0) {
-            await window.db.crearUsuario({ username: 'admin', password: 'admin', rol: 'admin', activo: true });
-            await window.db.crearUsuario({ username: 'cajero', password: '123', rol: 'cajero', activo: true });
-            await window.db.crearUsuario({ username: 'tesoreria', password: '123', rol: 'tesoreria', activo: true });
-            const res2 = await window.db.obtenerUsuarios();
-            usuarios = res2.success ? (res2.data || []) : [];
-        }
-        usuarios = usuarios.filter(u => u.activo);
-    }
 
     // --- Lógica para mostrar/ocultar contraseña ---
     if (togglePasswordButton && passwordInput) {
@@ -33,52 +21,70 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Función para mostrar u ocultar el selector de caja
     const toggleCajaSelector = () => {
-        if (rolSelect && cajaContainer && cajaSelect) {
-            if (rolSelect.value === 'cajero') {
-                cajaContainer.style.display = 'block';
-                cajaSelect.required = true;
-            } else {
-                cajaContainer.style.display = 'none';
-                cajaSelect.required = false;
-            }
+        if (cajaContainer && cajaSelect) {
+            // El selector de rol ya no existe, los roles se cargan desde Supabase
+            cajaContainer.style.display = 'block';
+            cajaSelect.required = true;
         }
     };
 
-    if (rolSelect) {
-        toggleCajaSelector();
-        rolSelect.addEventListener('change', toggleCajaSelector);
-    }
+    toggleCajaSelector();
 
     if (loginForm) {
-        loginForm.addEventListener('submit', (event) => {
+        loginForm.addEventListener('submit', async (event) => {
             event.preventDefault();
 
-            const username = document.getElementById('username').value;
+            const email = document.getElementById('username').value;
             const password = document.getElementById('password').value;
-            const rol = rolSelect.value;
             let caja = cajaSelect.value;
 
-            const usuarioValido = usuarios.find(
-                user => user.username === username && user.password === password && user.rol === rol
-            );
-
-            if (rol === 'cajero' && !caja) {
+            if (!caja) {
                 errorMessage.textContent = 'Por favor, seleccione una caja para continuar.';
                 return;
             }
 
-            if (usuarioValido) {
-                sessionStorage.setItem('usuarioActual', username);
-                sessionStorage.setItem('userRole', rol);
+            try {
+                // Usar el nuevo sistema de autenticación
+                const resultado = await db.iniciarSesion(email, password);
 
-                if (rol === 'cajero' || rol === 'tesoreria') {
-                    if (rol === 'tesoreria') caja = 'Caja Tesoreria';
-                    sessionStorage.setItem('cajaSeleccionada', caja);
+                if (!resultado.success) {
+                    errorMessage.textContent = 'Email o contraseña incorrectos.';
+                    console.error('Error de login:', resultado.error);
+                    return;
                 }
 
+                // Obtener perfil del usuario
+                const perfilResult = await db.obtenerPerfilActual();
+                if (!perfilResult.success) {
+                    errorMessage.textContent = 'Error al obtener información del usuario.';
+                    return;
+                }
+
+                const perfil = perfilResult.data;
+
+                // Validar que el usuario está activo
+                if (!perfil.activo) {
+                    await db.cerrarSesion();
+                    errorMessage.textContent = 'Este usuario ha sido desactivado.';
+                    return;
+                }
+
+                // Guardar información de sesión
+                sessionStorage.setItem('usuarioActual', perfil.username);
+                sessionStorage.setItem('userRole', perfil.rol);
+                
+                // Guardar caja seleccionada si es cajero
+                if (perfil.rol === 'cajero') {
+                    sessionStorage.setItem('cajaSeleccionada', caja);
+                } else if (perfil.rol === 'tesoreria') {
+                    sessionStorage.setItem('cajaSeleccionada', 'Caja Tesoreria');
+                }
+
+                // Redirigir a página principal
                 window.location.href = 'index.html';
-            } else {
-                errorMessage.textContent = 'Usuario, contraseña o rol incorrectos.';
+            } catch (error) {
+                errorMessage.textContent = 'Error en el servidor. Intente más tarde.';
+                console.error('Error de autenticación:', error);
             }
         });
     }
