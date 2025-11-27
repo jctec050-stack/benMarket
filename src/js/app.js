@@ -1497,12 +1497,12 @@ async function guardarGasto(event) {
             // Luego, actualizar los datos.
             estado.movimientos[movimientoIndex].fecha = document.getElementById('fechaGasto').value;
             estado.movimientos[movimientoIndex].tipo = document.getElementById('tipoGasto').value;
-            estado.movimientos[movimientoIndex].receptor = receptorValue;
+            estado.movimientos[movimientoIndex].receptor = receptorValue || null;
             estado.movimientos[movimientoIndex].descripcion = document.getElementById('descripcionGasto').value;
             estado.movimientos[movimientoIndex].monto = parsearMoneda(document.getElementById('montoGasto').value);
             estado.movimientos[movimientoIndex].moneda = document.getElementById('monedaGasto').value;
             estado.movimientos[movimientoIndex].caja = document.getElementById('cajaGasto').value;
-            estado.movimientos[movimientoIndex].referencia = document.getElementById('referenciaGasto').value;
+            estado.movimientos[movimientoIndex].referencia = document.getElementById('referenciaGasto').value || null;
 
             // **CORRECCIÓN FINAL:** Usar el objeto ya actualizado para la impresión.
             const movimientoActualizado = estado.movimientos[movimientoIndex]; // Este objeto ya tiene todos los datos.
@@ -1530,14 +1530,14 @@ async function guardarGasto(event) {
             cajero: sessionStorage.getItem('usuarioActual'), // **NUEVO:** Guardar el usuario que realiza la operación.
             tipo: tipoGasto,
             historialEdiciones: [], // Inicializar historial
-            receptor: receptorValue,
+            receptor: receptorValue || null,
             descripcion: document.getElementById('descripcionGasto').value,
             numeroRecibo: numeroRecibo,
             monto: parsearMoneda(document.getElementById('montoGasto').value),
             moneda: document.getElementById('monedaGasto').value,
             // **CORREGIDO:** Asegurar que la caja de Tesorería se asigne si el campo está vacío.
             caja: document.getElementById('cajaGasto').value || (sessionStorage.getItem('userRole') === 'tesoreria' ? 'Caja Tesoreria' : ''),
-            referencia: document.getElementById('referenciaGasto').value
+            referencia: document.getElementById('referenciaGasto').value || null
         };
         estado.movimientos.push(gasto);
         if (window.db && window.db.guardarMovimiento) {
