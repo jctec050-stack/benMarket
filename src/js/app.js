@@ -408,7 +408,7 @@ function calcularTotalEfectivo() {
 }
 
 // Agregar un movimiento de caja a la lista temporal (desde el formulario de Ingresar Movimiento)
-function agregarMovimiento() {
+async function agregarMovimiento() {
     // Función para obtener valor parseado de un campo
     const totalVenta = parsearMoneda(document.getElementById('totalVentaEfectivo').value);
     const montoRecibido = parsearMoneda(document.getElementById('montoRecibidoCliente').value);
@@ -488,15 +488,15 @@ function agregarMovimiento() {
         pagosTarjeta: obtenerValorParseado('pagosTarjetaMovimiento'),
         ventasCredito: obtenerValorParseado('ventasCreditoMovimiento'),
         pedidosYa: obtenerValorParseado('pedidosYaMovimiento'),
-        ventasTransferencia: obtenerValorParseado('ventasTransfMovimiento'),
+        ventas_transferencia: obtenerValorParseado('ventasTransfMovimiento'), // CORREGIDO: Coincidir con nombre de columna
         servicios: {
-            apLote: { lote: obtenerValorTexto('apLoteCantMovimiento'), monto: 0, tarjeta: obtenerValorParseado('apLoteTarjetaMovimiento') },
-            aquiPago: { lote: obtenerValorTexto('aquiPagoLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('aquiPagoTarjetaMovimiento') },
-            expressLote: { lote: obtenerValorTexto('expressCantMovimiento'), monto: 0, tarjeta: obtenerValorParseado('expressTarjetaMovimiento') },
-            wepa: { lote: obtenerValorTexto('wepaFechaMovimiento'), monto: 0, tarjeta: obtenerValorParseado('wepaTarjetaMovimiento') },
-            pasajeNsa: { lote: obtenerValorTexto('pasajeNsaLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('pasajeNsaTarjetaMovimiento') },
-            encomiendaNsa: { lote: obtenerValorTexto('encomiendaNsaLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('encomiendaNsaTarjetaMovimiento') },
-            apostala: { lote: obtenerValorTexto('apostalaLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('apostalaTarjetaMovimiento') }
+            apLote: { lote: obtenerValorTexto('apLoteCantMovimiento'), monto: 0, tarjeta: obtenerValorParseado('apLoteTarjetaMovimiento') || 0 },
+            aquiPago: { lote: obtenerValorTexto('aquiPagoLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('aquiPagoTarjetaMovimiento') || 0 },
+            expressLote: { lote: obtenerValorTexto('expressCantMovimiento'), monto: 0, tarjeta: obtenerValorParseado('expressTarjetaMovimiento') || 0 },
+            wepa: { lote: obtenerValorTexto('wepaFechaMovimiento'), monto: 0, tarjeta: obtenerValorParseado('wepaTarjetaMovimiento') || 0 },
+            pasajeNsa: { lote: obtenerValorTexto('pasajeNsaLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('pasajeNsaTarjetaMovimiento') || 0 },
+            encomiendaNsa: { lote: obtenerValorTexto('encomiendaNsaLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('encomiendaNsaTarjetaMovimiento') || 0 },
+            apostala: { lote: obtenerValorTexto('apostalaLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('apostalaTarjetaMovimiento') || 0 }
         },
         otrosServicios: []
     };
@@ -536,6 +536,10 @@ function agregarMovimiento() {
             return; // Si el usuario canceló, no continuar
         }
         const original = estado.movimientosTemporales[indiceEditar];
+
+        // --- INICIO DE DEPURACIÓN ---
+        console.log('>> DATOS A ENVIAR (EDICIÓN):', { ...original, ...movimiento });
+        // --- FIN DE DEPURACIÓN ---
         const actualizado = { ...original, ...movimiento };
         await window.db.guardarMovimientoTemporal(actualizado);
         estado.movimientosTemporales[indiceEditar] = actualizado;
@@ -1750,15 +1754,16 @@ async function guardarEgresoCaja(event) {
  */
 function cargarHistorialEgresosCaja() {
     const listaEgresosCaja = document.getElementById('listaEgresosCaja');
-    if (!listaEgresosCaja) return;
+    // **CORRECCIÓN:** Solo ejecutar si el contenedor existe en la página actual.
+    if (!listaEgresosCaja) return; 
 
     // Obtener egresos desde localStorage
     let todosLosEgresos = JSON.parse(localStorage.getItem('egresosCaja')) || [];
     let egresosFiltrados = todosLosEgresos;
 
     // Obtener filtros
-    const fechaFiltro = document.getElementById('fechaFiltroEgresos')?.value;
-    const cajaFiltro = document.getElementById('filtroCajaEgresos')?.value;
+    const fechaFiltro = document.getElementById('fechaFiltroEgresos').value;
+    const cajaFiltro = document.getElementById('filtroCajaEgresos').value;
 
     // --- LÓGICA DE FILTRADO REVISADA ---
     const userRole = sessionStorage.getItem('userRole');
@@ -2067,6 +2072,10 @@ function limpiarFormularioEgresoCaja() {
 }
 
 function cargarHistorialEgresosCaja() {
+    const lista = document.getElementById('listaEgresosCaja');
+    // **CORRECCIÓN:** Solo ejecutar si el contenedor existe en la página actual.
+    if (!lista) return;
+
     const fechaFiltro = document.getElementById('fechaFiltroEgresos').value;
     const cajaFiltro = document.getElementById('filtroCajaEgresos').value;
 
@@ -2083,7 +2092,6 @@ function cargarHistorialEgresosCaja() {
     // Ordenar por fecha descendente
     egresosFiltrados.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-    const lista = document.getElementById('listaEgresosCaja');
     lista.innerHTML = '';
 
     if (egresosFiltrados.length === 0) {
