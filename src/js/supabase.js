@@ -129,6 +129,101 @@ const db = {
             return this.obtenerDeLocalStorage('movimientos', fecha);
         }
     },
+    async obtenerUsuarios() {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('usuarios')
+                    .select('*')
+                    .eq('activo', true)
+                    .order('username');
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            const data = JSON.parse(localStorage.getItem('usuarios')) || [];
+            return { success: true, data };
+        }
+    },
+    async crearUsuario(usuario) {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('usuarios')
+                    .insert([usuario]);
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            const usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
+            usuarios.push(usuario);
+            localStorage.setItem('usuarios', JSON.stringify(usuarios));
+            return { success: true };
+        }
+    },
+    async eliminarUsuario(idOrUsername) {
+        if (supabaseClient) {
+            try {
+                const { error } = await supabaseClient
+                    .from('usuarios')
+                    .delete()
+                    .or(`id.eq.${idOrUsername},username.eq.${idOrUsername}`);
+                if (error) throw error;
+                return { success: true };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            const usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
+            const next = usuarios.filter(u => u.username !== idOrUsername && u.id !== idOrUsername);
+            localStorage.setItem('usuarios', JSON.stringify(next));
+            return { success: true };
+        }
+    },
+    async obtenerTodosUsuarios() {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('usuarios')
+                    .select('*')
+                    .order('username');
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            const data = JSON.parse(localStorage.getItem('usuarios')) || [];
+            return { success: true, data };
+        }
+    },
+    async actualizarUsuario(id, updates) {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('usuarios')
+                    .update(updates)
+                    .eq('id', id)
+                    .select('*');
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            const usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
+            const next = usuarios.map(u => u.id === id ? { ...u, ...updates } : u);
+            localStorage.setItem('usuarios', JSON.stringify(next));
+            return { success: true };
+        }
+    },
+    async toggleUsuarioActivo(id, activo) {
+        return this.actualizarUsuario(id, { activo });
+    },
     
     // Funciones auxiliares para localStorage
     guardarEnLocalStorage(tipo, item) {

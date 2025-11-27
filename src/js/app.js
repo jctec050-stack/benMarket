@@ -2646,6 +2646,109 @@ function configurarVistaPorRol(rol, caja, usuario) {
     }
 }
 
+// ============================
+// Gestión de Usuarios (UI)
+// ============================
+async function cargarUsuariosUI() {
+    const lista = document.getElementById('listaUsuarios');
+    const form = document.getElementById('formularioUsuario');
+    if (!lista || !form || !window.db || !window.db.obtenerUsuarios) return;
+
+    const res = await window.db.obtenerTodosUsuarios();
+    const usuarios = res.success ? (res.data || []) : [];
+    lista.innerHTML = '';
+    if (usuarios.length === 0) {
+        lista.innerHTML = '<p class="text-center" style="color: var(--color-secundario);">No hay usuarios.</p>';
+    } else {
+        usuarios.forEach(u => {
+            const div = document.createElement('div');
+            div.className = 'movimiento-item';
+            div.innerHTML = `
+                <div class="movimiento-header">
+                    <span class="movimiento-tipo">${u.username}</span>
+                    <span class="movimiento-monto">${u.rol.toUpperCase()} ${u.activo ? '' : '(INACTIVO)'}</span>
+                </div>
+                <div class="movimiento-detalles" style="display:flex; gap:10px; align-items:flex-end;">
+                    <div>
+                        <label>Rol</label>
+                        <select data-role id="role-${u.id}">
+                            <option value="cajero" ${u.rol==='cajero'?'selected':''}>Cajero</option>
+                            <option value="tesoreria" ${u.rol==='tesoreria'?'selected':''}>Tesorería</option>
+                            <option value="admin" ${u.rol==='admin'?'selected':''}>Administrador</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Nueva contraseña</label>
+                        <input type="password" id="pass-${u.id}" placeholder="Opcional">
+                    </div>
+                    <div>
+                        <label>Activo</label>
+                        <input type="checkbox" id="activo-${u.id}" ${u.activo ? 'checked' : ''}>
+                    </div>
+                </div>
+                <div class="movimiento-acciones" style="margin-top:8px;">
+                    <button class="btn-accion editar" data-id="${u.id}">Guardar</button>
+                    <button class="btn-accion eliminar" data-id-toggle="${u.id}">${u.activo ? 'Desactivar' : 'Activar'}</button>
+                </div>
+            `;
+            lista.appendChild(div);
+        });
+        lista.addEventListener('click', async (e) => {
+            const guardarBtn = e.target.closest('button[data-id]');
+            const toggleBtn = e.target.closest('button[data-id-toggle]');
+            if (guardarBtn) {
+                const id = parseInt(guardarBtn.getAttribute('data-id'), 10);
+                const roleSel = document.getElementById(`role-${id}`);
+                const passInput = document.getElementById(`pass-${id}`);
+                const activoChk = document.getElementById(`activo-${id}`);
+                const updates = { rol: roleSel.value, activo: !!activoChk.checked };
+                if (passInput.value) updates.password = passInput.value;
+                const resu = await window.db.actualizarUsuario(id, updates);
+                if (resu.success) {
+                    mostrarMensaje('Usuario actualizado', 'exito');
+                    cargarUsuariosUI();
+                } else {
+                    mostrarMensaje('Error al actualizar', 'peligro');
+                }
+            }
+            if (toggleBtn) {
+                const id = parseInt(toggleBtn.getAttribute('data-id-toggle'), 10);
+                const activoChk = document.getElementById(`activo-${id}`);
+                const nuevo = !activoChk.checked;
+                const resu = await window.db.toggleUsuarioActivo(id, nuevo);
+                if (resu.success) {
+                    mostrarMensaje(nuevo ? 'Usuario activado' : 'Usuario desactivado', 'info');
+                    cargarUsuariosUI();
+                } else {
+                    mostrarMensaje('Error al cambiar estado', 'peligro');
+                }
+            }
+        }, { once: true });
+    }
+
+    form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const username = document.getElementById('nuevoUsuarioNombre').value;
+        const password = document.getElementById('nuevoUsuarioPassword').value;
+        const rol = document.getElementById('nuevoUsuarioRol').value;
+        if (!username || !password || !rol) return;
+        const crear = await window.db.crearUsuario({ username, password, rol, activo: true });
+        if (crear.success) {
+            mostrarMensaje('Usuario creado', 'exito');
+            form.reset();
+            cargarUsuariosUI();
+        } else {
+            mostrarMensaje('Error al crear usuario', 'peligro');
+        }
+    }, { once: true });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('listaUsuarios')) {
+        cargarUsuariosUI();
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function () {
     // Función para verificar autenticación y configurar la UI básica.
     function setupPage() {

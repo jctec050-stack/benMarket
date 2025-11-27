@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BenMark - Iniciar Sesión</title>
     <link rel="stylesheet" href="../css/login.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../js/supabase.js"></script>
     <style>
         /* Estilos para el contenedor del campo de contraseña */
         .password-wrapper {
@@ -75,6 +77,9 @@
             <p id="error-message" class="error-message"></p>
         </form>
     </div>
+    <script>
+      if (window.inicializarSupabase) { window.inicializarSupabase(); }
+    </script>
     <script src="../js/login.js"></script>
 </body>
 

@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // Referencias a elementos del DOM
     const loginForm = document.getElementById('loginForm');
     const errorMessage = document.getElementById('error-message');
@@ -8,14 +8,18 @@ document.addEventListener('DOMContentLoaded', () => {
     const passwordInput = document.getElementById('password');
     const togglePasswordButton = document.getElementById('togglePassword');
 
-    // Usuarios (Mock o LocalStorage)
-    let usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
-    // Asegurar usuarios por defecto si no existen
-    if (!usuarios.some(u => u.username === 'admin')) {
-        usuarios.push({ username: 'admin', password: 'admin', rol: 'admin' });
-        usuarios.push({ username: 'cajero', password: '123', rol: 'cajero' });
-        usuarios.push({ username: 'tesoreria', password: '123', rol: 'tesoreria' });
-        localStorage.setItem('usuarios', JSON.stringify(usuarios));
+    let usuarios = [];
+    if (window.db && window.db.obtenerUsuarios) {
+        const res = await window.db.obtenerUsuarios();
+        usuarios = res.success ? (res.data || []) : [];
+        if (!usuarios || usuarios.length === 0) {
+            await window.db.crearUsuario({ username: 'admin', password: 'admin', rol: 'admin', activo: true });
+            await window.db.crearUsuario({ username: 'cajero', password: '123', rol: 'cajero', activo: true });
+            await window.db.crearUsuario({ username: 'tesoreria', password: '123', rol: 'tesoreria', activo: true });
+            const res2 = await window.db.obtenerUsuarios();
+            usuarios = res2.success ? (res2.data || []) : [];
+        }
+        usuarios = usuarios.filter(u => u.activo);
     }
 
     // --- Lógica para mostrar/ocultar contraseña ---
