@@ -6,11 +6,18 @@ const SUPABASE_CONFIG = {
 // Cliente de Supabase (se inicializará cuando esté disponible)
 let supabaseClient = null;
 let usuarioActual = null;
+let supabaseInicializado = false;
 
 // Función para inicializar Supabase cuando esté disponible
 function inicializarSupabase() {
+    // Si ya se inicializó, no hacer nada
+    if (supabaseInicializado) {
+        return true;
+    }
+    
     if (typeof supabase !== 'undefined') {
         supabaseClient = supabase.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY);
+        supabaseInicializado = true;
         console.log('Supabase inicializado correctamente');
         
         // Escuchar cambios en autenticación

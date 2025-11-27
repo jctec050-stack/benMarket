@@ -153,11 +153,20 @@ window.initSupabaseData = initSupabaseData;
 
 // Funciones de utilidad
 function formatearMoneda(monto, moneda = 'gs') {
+    // Asegurar que monto es un número válido
+    const montoNumerico = typeof monto === 'number' ? monto : (parseFloat(monto) || 0);
+    if (isNaN(montoNumerico)) {
+        return new Intl.NumberFormat('es-PY', {
+            style: 'currency',
+            currency: moneda === 'gs' ? 'PYG' : moneda === 'usd' ? 'USD' : moneda === 'brl' ? 'BRL' : 'ARS',
+            minimumFractionDigits: 0
+        }).format(0);
+    }
     return new Intl.NumberFormat('es-PY', {
         style: 'currency',
         currency: moneda === 'gs' ? 'PYG' : moneda === 'usd' ? 'USD' : moneda === 'brl' ? 'BRL' : 'ARS',
         minimumFractionDigits: 0
-    }).format(monto);
+    }).format(montoNumerico);
 }
 
 function parsearMoneda(valor) {
@@ -709,11 +718,17 @@ function renderizarIngresosAgregados() {
         mov.otrosServicios.forEach(s => totalServicios += s.monto + s.tarjeta);
 
         // **CORRECCIÓN:** Usar el valor de la venta si existe, si no, calcular el total.
+        // **NUEVA CORRECCIÓN:** Asegurar que todos los valores son números válidos
         let totalGeneral = 0;
-        if (mov.valorVenta > 0) {
+        if ((mov.valorVenta || 0) > 0) {
             totalGeneral = mov.valorVenta;
         } else {
-            totalGeneral = totalEfectivo + mov.pagosTarjeta + mov.ventasCredito + mov.pedidosYa + mov.ventasTransferencia + totalServicios;
+            totalGeneral = totalEfectivo + 
+                          (typeof mov.pagosTarjeta === 'number' ? mov.pagosTarjeta : 0) + 
+                          (typeof mov.ventasCredito === 'number' ? mov.ventasCredito : 0) + 
+                          (typeof mov.pedidosYa === 'number' ? mov.pedidosYa : 0) + 
+                          (typeof mov.ventasTransferencia === 'number' ? mov.ventasTransferencia : 0) + 
+                          totalServicios;
         }
 
         let detallesHTML = [];
@@ -725,10 +740,10 @@ function renderizarIngresosAgregados() {
                 detallesHTML.push(`<p><span class="detalle-icono">💵</span><strong>Efectivo:</strong> ${formatearMoneda(totalEfectivo, 'gs')}</p>`);
             }
         }
-        if (mov.pagosTarjeta > 0) detallesHTML.push(`<p><span class="detalle-icono">💳</span><strong>Pago con Tarjeta:</strong> ${formatearMoneda(mov.pagosTarjeta, 'gs')}</p>`);
-        if (mov.ventasCredito > 0) detallesHTML.push(`<p><span class="detalle-icono">🧾</span><strong>Venta a Crédito:</strong> ${formatearMoneda(mov.ventasCredito, 'gs')}</p>`);
-        if (mov.pedidosYa > 0) detallesHTML.push(`<p><span class="detalle-icono">🛵</span><strong>PedidosYA:</strong> ${formatearMoneda(mov.pedidosYa, 'gs')}</p>`);
-        if (mov.ventasTransferencia > 0) detallesHTML.push(`<p><span class="detalle-icono">💻</span><strong>Venta por Transferencia:</strong> ${formatearMoneda(mov.ventasTransferencia, 'gs')}</p>`);
+        if ((mov.pagosTarjeta || 0) > 0) detallesHTML.push(`<p><span class="detalle-icono">💳</span><strong>Pago con Tarjeta:</strong> ${formatearMoneda(mov.pagosTarjeta, 'gs')}</p>`);
+        if ((mov.ventasCredito || 0) > 0) detallesHTML.push(`<p><span class="detalle-icono">🧾</span><strong>Venta a Crédito:</strong> ${formatearMoneda(mov.ventasCredito, 'gs')}</p>`);
+        if ((mov.pedidosYa || 0) > 0) detallesHTML.push(`<p><span class="detalle-icono">🛵</span><strong>PedidosYA:</strong> ${formatearMoneda(mov.pedidosYa, 'gs')}</p>`);
+        if ((mov.ventasTransferencia || 0) > 0) detallesHTML.push(`<p><span class="detalle-icono">💻</span><strong>Venta por Transferencia:</strong> ${formatearMoneda(mov.ventasTransferencia, 'gs')}</p>`);
 
         // **MODIFICADO:** Detallar los servicios individualmente
         if (totalServicios > 0) {
@@ -3641,9 +3656,9 @@ document.head.appendChild(disabledStyles);
 // =================================================================================
 
 const servicioEfectivoSelect = document.getElementById('servicioEfectivoSelect');
-const montoServicioEfectivoInput = document.getElementById('montoServicioEfectivo');
-const montoRecibidoServicioInput = document.getElementById('montoRecibidoServicio');
-const vueltoCalculadoServicioDisplay = document.getElementById('vueltoCalculadoServicio');
+const montoServicioEfectivoInput = servicioEfectivoSelect ? document.getElementById('montoServicioEfectivo') : null;
+const montoRecibidoServicioInput = servicioEfectivoSelect ? document.getElementById('montoRecibidoServicio') : null;
+const vueltoCalculadoServicioDisplay = servicioEfectivoSelect ? document.getElementById('vueltoCalculadoServicio') : null;
 
 function inicializarSeccionServiciosEfectivo() {
     if (!servicioEfectivoSelect) return;
@@ -3662,18 +3677,22 @@ function inicializarSeccionServiciosEfectivo() {
     });
 
     // **NUEVO:** Listener para mostrar/ocultar campo de otro servicio
-    servicioEfectivoSelect.addEventListener('change', function () {
-        const inputOtro = document.getElementById('nombreServicioOtro');
-        if (this.value === 'Otro...') {
-            inputOtro.style.display = 'block';
-            inputOtro.required = true;
-            inputOtro.focus();
-        } else {
-            inputOtro.style.display = 'none';
-            inputOtro.required = false;
-            inputOtro.value = '';
-        }
-    });
+    if (servicioEfectivoSelect) {
+        servicioEfectivoSelect.addEventListener('change', function () {
+            const inputOtro = document.getElementById('nombreServicioOtro');
+            if (inputOtro) {
+                if (this.value === 'Otro...') {
+                    inputOtro.style.display = 'block';
+                    inputOtro.required = true;
+                    inputOtro.focus();
+                } else {
+                    inputOtro.style.display = 'none';
+                    inputOtro.required = false;
+                    inputOtro.value = '';
+                }
+            }
+        });
+    }
 }
 
 function calcularVueltoServicio() {
@@ -3881,6 +3900,7 @@ function guardarServicioEfectivo() {
     const nuevoMovimiento = {
         id: generarId(),
         fecha: obtenerFechaHoraLocalISO(),
+        cajero: sessionStorage.getItem('usuarioActual') || 'N/A',
         caja: sessionStorage.getItem('cajaSeleccionada') || (sessionStorage.getItem('userRole') === 'tesoreria' ? 'Caja Tesoreria' : 'Caja 1'),
         descripcion: `Ingreso por servicio: ${servicioSeleccionado}`,
         valorVenta: montoServicio,
@@ -3888,16 +3908,24 @@ function guardarServicioEfectivo() {
         // **NUEVO:** Guardar el desglose del vuelto
         efectivoVuelto: desgloseVuelto,
         historialEdiciones: [],
-        monedasExtranjeras: {},
+        monedasExtranjeras: {
+            usd: { cantidad: 0, cotizacion: 0 },
+            brl: { cantidad: 0, cotizacion: 0 },
+            ars: { cantidad: 0, cotizacion: 0 }
+        },
         pagosTarjeta: 0,
         ventasCredito: 0,
         pedidosYa: 0,
-        ventasTransferencia: 0,
+        ventas_transferencia: 0, // **CORRECCIÓN:** Usar ventas_transferencia (con guion bajo) para coincidir con la BD
         servicios: servicios,
         otrosServicios: otrosServicios
     };
 
     estado.movimientosTemporales.push(nuevoMovimiento);
+    
+    // **CORRECCIÓN:** Guardar en base de datos de Supabase
+    window.db.guardarMovimientoTemporal(nuevoMovimiento);
+    
     guardarEnLocalStorage();
     renderizarIngresosAgregados();
     actualizarArqueoFinal();

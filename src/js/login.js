@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    // Inicializar Supabase
+    // Inicializar Supabase solo una vez
     inicializarSupabase();
     
     // Referencias a elementos del DOM
@@ -19,17 +19,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Función para mostrar u ocultar el selector de caja
-    const toggleCajaSelector = () => {
-        if (cajaContainer && cajaSelect) {
-            // El selector de rol ya no existe, los roles se cargan desde Supabase
-            cajaContainer.style.display = 'block';
-            cajaSelect.required = true;
-        }
-    };
-
-    toggleCajaSelector();
-
     if (loginForm) {
         loginForm.addEventListener('submit', async (event) => {
             event.preventDefault();
@@ -37,11 +26,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             const email = document.getElementById('username').value;
             const password = document.getElementById('password').value;
             let caja = cajaSelect.value;
-
-            if (!caja) {
-                errorMessage.textContent = 'Por favor, seleccione una caja para continuar.';
-                return;
-            }
 
             try {
                 // Usar el nuevo sistema de autenticación
@@ -69,15 +53,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
 
+                // Validar caja seleccionada (excepto para admin)
+                if (perfil.rol !== 'admin' && !caja) {
+                    errorMessage.textContent = 'Por favor, seleccione una caja para continuar.';
+                    return;
+                }
+
                 // Guardar información de sesión
                 sessionStorage.setItem('usuarioActual', perfil.username);
                 sessionStorage.setItem('userRole', perfil.rol);
                 
-                // Guardar caja seleccionada si es cajero
+                // Guardar caja seleccionada según el rol
                 if (perfil.rol === 'cajero') {
                     sessionStorage.setItem('cajaSeleccionada', caja);
                 } else if (perfil.rol === 'tesoreria') {
                     sessionStorage.setItem('cajaSeleccionada', 'Caja Tesoreria');
+                } else if (perfil.rol === 'admin') {
+                    // Admin no tiene caja específica (tiene acceso a todas)
+                    sessionStorage.removeItem('cajaSeleccionada');
                 }
 
                 // Redirigir a página principal
