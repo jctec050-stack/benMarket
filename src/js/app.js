@@ -129,18 +129,59 @@ let estado = {
 };
 
 async function initSupabaseData() {
-    const fechaInput = document.getElementById('fecha') || document.getElementById('fechaEgresoCaja') || document.getElementById('fechaGasto');
-    const fechaBase = fechaInput ? (fechaInput.value.split('T')[0] || new Date().toISOString().slice(0,10)) : new Date().toISOString().slice(0,10);
+    // Obtener la fecha: buscar en múltiples elementos posibles
+    let fechaInput = document.getElementById('fecha') || 
+                     document.getElementById('fechaEgresoCaja') || 
+                     document.getElementById('fechaGasto') ||
+                     document.getElementById('fechaMovimiento');
+    
+    // Si aún no hay fecha, usar la fecha actual
+    let fechaBase;
+    if (fechaInput && fechaInput.value) {
+        fechaBase = fechaInput.value.split('T')[0];
+    } else {
+        fechaBase = new Date().toISOString().slice(0, 10);
+    }
+    
     const rol = sessionStorage.getItem('userRole');
     const caja = rol === 'tesoreria' ? 'Caja Tesoreria' : (sessionStorage.getItem('cajaSeleccionada') || '');
+    
+    // **CORRECCIÓN:** Cargar TODOS los datos de Supabase (sin filtro de fecha)
     const a = await window.db.obtenerArqueosPorFecha(fechaBase);
-    const m = await window.db.obtenerMovimientosPorFecha(fechaBase);
-    const e = await window.db.obtenerEgresosCajaPorFecha(fechaBase);
-    const t = await window.db.obtenerMovimientosTemporalesPorFechaCaja(fechaBase, caja);
+    
+    // Obtener TODOS los movimientos, no solo de hoy
+    const m = await (window.db.obtenerMovimientos ? 
+              window.db.obtenerMovimientos() : 
+              window.db.obtenerMovimientosPorFecha(fechaBase));
+    
+    // Obtener TODOS los egresos, no solo de hoy
+    const e = await (window.db.obtenerEgresosCaja ? 
+              window.db.obtenerEgresosCaja() : 
+              window.db.obtenerEgresosCajaPorFecha(fechaBase));
+    
+    const t = await (window.db.obtenerMovimientosTemporales ? 
+              window.db.obtenerMovimientosTemporales() : 
+              { data: [] });
+    
     estado.arqueos = (a && a.data) || [];
     estado.movimientos = (m && m.data) || [];
     estado.egresosCaja = (e && e.data) || [];
     estado.movimientosTemporales = (t && t.data) || [];
+    
+    // Si no hay datos de Supabase, intentar cargar del localStorage
+    if (!estado.movimientosTemporales || estado.movimientosTemporales.length === 0) {
+        const datosLocales = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
+        estado.movimientosTemporales = datosLocales;
+    }
+    if (!estado.egresosCaja || estado.egresosCaja.length === 0) {
+        const egresosCaja = JSON.parse(localStorage.getItem('egresosCaja')) || [];
+        estado.egresosCaja = egresosCaja;
+    }
+    if (!estado.movimientos || estado.movimientos.length === 0) {
+        const movimientos = JSON.parse(localStorage.getItem('movimientos')) || [];
+        estado.movimientos = movimientos;
+    }
+    
     actualizarArqueoFinal();
     cargarHistorialMovimientosDia();
     cargarHistorialEgresosCaja();

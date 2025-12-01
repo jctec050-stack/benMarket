@@ -101,6 +101,23 @@
 
             <div class="historial-gastos">
                 <h3>Historial de Operaciones</h3>
+                <div class="filtros-historial">
+                    <input type="date" id="fechaFiltroGastos" onchange="cargarHistorialGastos()">
+                    <select id="tipoFiltroGastos" onchange="cargarHistorialGastos()">
+                        <option value="">Todos los tipos</option>
+                        <option value="gasto">Gasto General</option>
+                        <option value="egreso">Pago a Proveedor</option>
+                        <option value="transferencia">Transferencia entre Cajas</option>
+                        <option value="operacion">Depósito/Retiro Bancario</option>
+                    </select>
+                    <select id="filtroCajaGastos" onchange="cargarHistorialGastos()">
+                        <option value="">Todas las cajas</option>
+                        <option value="Caja 1">Caja 1</option>
+                        <option value="Caja 2">Caja 2</option>
+                        <option value="Caja 3">Caja 3</option>
+                        <option value="Caja Tesoreria">Caja Tesoreria</option>
+                    </select>
+                </div>
                 <div id="listaGastos" class="lista-movimientos"></div>
             </div>
         </section>

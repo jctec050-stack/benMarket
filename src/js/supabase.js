@@ -208,6 +208,25 @@ const db = {
             return this.guardarEnLocalStorage('egresosCaja', egreso);
         }
     },
+    async obtenerEgresosCaja() {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('egresos_caja')
+                    .select('*')
+                    .order('fecha', { ascending: false });
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                console.error('Error obteniendo egresos caja:', error);
+                return { success: false, error };
+            }
+        } else {
+            const all = JSON.parse(localStorage.getItem('egresosCaja')) || [];
+            return { success: true, data: all };
+        }
+    },
+
     async obtenerEgresosCajaPorFecha(fecha) {
         if (supabaseClient) {
             try {
@@ -267,6 +286,25 @@ const db = {
     },
     
     // Obtener movimientos por fecha
+    async obtenerMovimientos() {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('movimientos')
+                    .select('*')
+                    .order('fecha', { ascending: false });
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                console.error('Error obteniendo movimientos:', error);
+                return { success: false, error };
+            }
+        } else {
+            const all = JSON.parse(localStorage.getItem('movimientos')) || [];
+            return { success: true, data: all };
+        }
+    },
+
     async obtenerMovimientosPorFecha(fecha) {
         if (supabaseClient) {
             try {
@@ -421,6 +459,25 @@ const db = {
             return this.guardarEnLocalStorage('movimientosTemporales', item);
         }
     },
+    async obtenerMovimientosTemporales() {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('movimientos_temporales')
+                    .select('*')
+                    .order('fecha', { ascending: false });
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                console.error('Error obteniendo movimientos temporales:', error);
+                return { success: false, error };
+            }
+        } else {
+            const all = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
+            return { success: true, data: all };
+        }
+    },
+
     async obtenerMovimientosTemporalesPorFechaCaja(fecha, caja) {
         if (supabaseClient) {
             try {
