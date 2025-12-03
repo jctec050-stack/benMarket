@@ -177,22 +177,6 @@ const db = {
     },
     
     // ===== GESTIÓN DE USUARIOS =====
-    // Guardar arqueo
-    async guardarArqueo(arqueo) {
-        if (supabaseClient) {
-            try {
-                const { data, error } = await supabaseClient
-                    .from('arqueos')
-                    .upsert([arqueo]);
-                if (error) throw error;
-                return { success: true, data };
-            } catch (error) {
-                return { success: false, error };
-            }
-        } else {
-            return this.guardarEnLocalStorage('arqueos', arqueo);
-        }
-    },
     async guardarEgresoCaja(egreso) {
         if (supabaseClient) {
             try {
@@ -243,28 +227,6 @@ const db = {
             }
         } else {
             return this.obtenerDeLocalStorage('egresosCaja', fecha);
-        }
-    },
-    
-    // Obtener arqueos por fecha
-    async obtenerArqueosPorFecha(fecha) {
-        if (supabaseClient) {
-            try {
-                const { data, error } = await supabaseClient
-                    .from('arqueos')
-                    .select('*')
-                    .gte('fecha', fecha)
-                    .lt('fecha', fecha + 'T23:59:59');
-                
-                if (error) throw error;
-                return { success: true, data };
-            } catch (error) {
-                console.error('Error obteniendo arqueos:', error);
-                return { success: false, error };
-            }
-        } else {
-            // Usar localStorage
-            return this.obtenerDeLocalStorage('arqueos', fecha);
         }
     },
     
@@ -619,9 +581,175 @@ const ESQUEMA_TABLAS = {
     `
 };
 
+// ==================== FUNCIONES PARA ARQUEOS ====================
+
+/**
+ * Guardar un arqueo en la base de datos
+ */
+async function guardarArqueo(datosArqueo) {
+    try {
+        if (!supabaseClient) {
+            throw new Error('Supabase no está inicializado');
+        }
+
+        // CORRECCIÓN: Usar getSession() que es asíncrono en Supabase v2
+        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
+        if (sessionError) throw sessionError;
+
+        const usuario = session?.user;
+        if (!usuario) {
+            throw new Error('Usuario no autenticado');
+        }
+
+        // Añadir el usuario_id a los datos del arqueo
+        const datosCompletos = { ...datosArqueo, usuario_id: usuario.id };
+
+        const { data, error } = await supabaseClient
+            .from('arqueos')
+            .insert([datosCompletos])
+            .select(); // CORRECCIÓN: Pedir que devuelva los datos insertados.
+
+        if (error) throw error;
+
+        return { success: true, data: data ? data[0] : null };
+    } catch (error) {
+        console.error('Error al guardar arqueo:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Obtener todos los arqueos
+ */
+async function obtenerArqueos() {
+    try {
+        if (!supabaseClient) {
+            throw new Error('Supabase no está inicializado');
+        }
+
+        const { data, error } = await supabaseClient
+            .from('arqueos')
+            .select('*')
+            .order('fecha', { ascending: false });
+
+        if (error) throw error;
+
+        return { success: true, data: data || [] };
+    } catch (error) {
+        console.error('Error al obtener arqueos:', error);
+        return { success: false, error: error.message, data: [] };
+    }
+}
+
+/**
+ * Obtener arqueos por caja
+ */
+async function obtenerArqueosPorCaja(caja) {
+    try {
+        if (!supabaseClient) {
+            throw new Error('Supabase no está inicializado');
+        }
+
+        const { data, error } = await supabaseClient
+            .from('arqueos')
+            .select('*')
+            .eq('caja', caja)
+            .order('fecha', { ascending: false });
+
+        if (error) throw error;
+
+        return { success: true, data: data || [] };
+    } catch (error) {
+        console.error('Error al obtener arqueos por caja:', error);
+        return { success: false, error: error.message, data: [] };
+    }
+}
+
+/**
+ * Obtener arqueos por fecha
+ */
+async function obtenerArqueosPorFecha(fecha) {
+    try {
+        if (!supabaseClient) {
+            throw new Error('Supabase no está inicializado');
+        }
+
+        const fechaInicio = `${fecha}T00:00:00`;
+        const fechaFin = `${fecha}T23:59:59`;
+
+        const { data, error } = await supabaseClient
+            .from('arqueos')
+            .select('*')
+            .gte('fecha', fechaInicio)
+            .lte('fecha', fechaFin)
+            .order('fecha', { ascending: false });
+
+        if (error) throw error;
+
+        return { success: true, data: data || [] };
+    } catch (error) {
+        console.error('Error al obtener arqueos por fecha:', error);
+        return { success: false, error: error.message, data: [] };
+    }
+}
+
+/**
+ * Actualizar arqueo
+ */
+async function actualizarArqueo(arqueoId, datosActualizados) {
+    try {
+        if (!supabaseClient) {
+            throw new Error('Supabase no está inicializado');
+        }
+
+        const { data, error } = await supabaseClient
+            .from('arqueos')
+            .update(datosActualizados)
+            .eq('id', arqueoId)
+            .select(); // CORRECCIÓN: Pedir que devuelva los datos actualizados.
+
+        if (error) throw error;
+
+        return { success: true, data: data ? data[0] : null };
+    } catch (error) {
+        console.error('Error al actualizar arqueo:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Eliminar arqueo (solo admins)
+ */
+async function eliminarArqueo(arqueoId) {
+    try {
+        if (!supabaseClient) {
+            throw new Error('Supabase no está inicializado');
+        }
+
+        const { error } = await supabaseClient
+            .from('arqueos')
+            .delete()
+            .eq('id', arqueoId);
+
+        if (error) throw error;
+
+        return { success: true };
+    } catch (error) {
+        console.error('Error al eliminar arqueo:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 // Exportar para uso en app.js
 window.SUPABASE_CONFIG = SUPABASE_CONFIG;
 window.db = db;
 window.inicializarSupabase = inicializarSupabase;
 window.migrarDatosALocalStorage = migrarDatosALocalStorage;
-window.ESQUEMA_TABLAS = ESQUEMA_TABLAS;
+
+// Exportar funciones de arqueos
+db.guardarArqueo = guardarArqueo;
+db.obtenerArqueos = obtenerArqueos;
+db.obtenerArqueosPorCaja = obtenerArqueosPorCaja;
+db.obtenerArqueosPorFecha = obtenerArqueosPorFecha;
+db.actualizarArqueo = actualizarArqueo;
+db.eliminarArqueo = eliminarArqueo;

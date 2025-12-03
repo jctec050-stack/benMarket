@@ -23,9 +23,28 @@ let usuarioPerfil = null;
 
 // Función para verificar sesión al cargar
 window.addEventListener('load', async () => {
-    inicializarSupabase();
+    // Verificar que supabase esté inicializado
+    if (window.inicializarSupabase) {
+        window.inicializarSupabase();
+    }
     
-    const sesion = await db.obtenerSesionActual();
+    // Esperar a que db esté disponible
+    if (!window.db) {
+        console.error('db no está disponible, esperando...');
+        // Esperar hasta 5 segundos a que db esté disponible
+        for (let i = 0; i < 50; i++) {
+            if (window.db) break;
+            await new Promise(r => setTimeout(r, 100));
+        }
+    }
+    
+    if (!window.db) {
+        console.error('db no se pudo inicializar');
+        window.location.href = '/pages/login.html';
+        return;
+    }
+    
+    const sesion = await window.db.obtenerSesionActual();
     
     if (!sesion.success || !sesion.data.session) {
         // No hay sesión, redirigir al login
@@ -34,7 +53,7 @@ window.addEventListener('load', async () => {
     }
     
     // Obtener perfil para verificar permisos
-    const perfil = await db.obtenerPerfilActual();
+    const perfil = await window.db.obtenerPerfilActual();
     if (perfil.success) {
         usuarioPerfil = perfil.data;
         console.log('Usuario:', perfil.data.username, 'Rol:', perfil.data.rol);
@@ -315,7 +334,10 @@ function inicializarFormularioArqueo() {
     // Establecer fecha y hora actual
     const fechaArqueoInput = document.getElementById('fecha');
     if (fechaArqueoInput) {
-        fechaArqueoInput.value = obtenerFechaHoraLocalISO().split('T')[0];
+        // Obtener fecha y hora en formato ISO y convertir al formato datetime-local (sin segundos)
+        const fechaHoraISO = obtenerFechaHoraLocalISO();
+        const fechaHoraLocal = fechaHoraISO.substring(0, 16); // yyyy-MM-ddThh:mm
+        fechaArqueoInput.value = fechaHoraLocal;
     }
 
     // Formatear input de Fondo Fijo
@@ -1376,7 +1398,10 @@ async function guardarArqueo() {
     const fechaArqueo = arqueo.fecha.split('T')[0];
     const cajaFiltro = arqueo.caja;
 
-    const ingresosParaArqueo = estado.movimientosTemporales.filter(m => m.caja === cajaFiltro);
+    // CORRECCIÓN: Filtrar ingresos también por la fecha del arqueo.
+    const ingresosParaArqueo = estado.movimientosTemporales.filter(m => 
+        m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo)
+    );
     const egresosDeCaja = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro);
     const egresosDeOperaciones = estado.movimientos.filter(m => m.fecha.startsWith(fechaArqueo) && (m.tipo === 'gasto' || m.tipo === 'egreso') && m.caja === cajaFiltro);
     const todosLosEgresos = [...egresosDeCaja, ...egresosDeOperaciones];
@@ -1418,10 +1443,31 @@ async function guardarArqueo() {
         return; // Detener la ejecución de la función
     }
 
+    // Preparar datos para guardar en la base de datos
+    const datosParaBD = {
+        fecha: arqueo.fecha,
+        caja: arqueo.caja,
+        cajero: arqueo.cajero,
+        fondo_fijo: arqueo.fondoFijo,
+        total_ingresos: arqueo.totalIngresos,
+        total_servicios: arqueo.totalServicios,
+        total_egresos: todosLosEgresos.reduce((sum, e) => sum + (e.monto || 0), 0),
+        total_movimientos: movimientosParaArqueo.length,
+        saldo_caja: arqueo.totalIngresos,
+        diferencia: 0,
+        observaciones: null
+    };
+
+    // Guardar en base de datos
     if (window.db && window.db.guardarArqueo) {
-        await window.db.guardarArqueo(arqueo);
+        const resultado = await window.db.guardarArqueo(datosParaBD);
+        if (!resultado.success) {
+            console.error('Error al guardar arqueo en base de datos:', resultado.error);
+            mostrarMensaje('Error al guardar en base de datos: ' + resultado.error, 'peligro');
+        }
     }
-    // Guardar en el estado
+    
+    // Guardar en el estado local
     estado.arqueos.push(arqueo);
     guardarEnLocalStorage();
 
@@ -1431,9 +1477,11 @@ async function guardarArqueo() {
     // **MODIFICADO:** Exportar el PDF con los datos consistentes de la pantalla
     exportarArqueoActualPDF(true); // true indica que es un guardado final
 
-    // **CORRECCIÓN:** Limpiar solo los movimientos temporales de la caja que se está arqueando.
-    const restantes = estado.movimientosTemporales.filter(m => m.caja !== cajaFiltro);
-    const aBorrar = estado.movimientosTemporales.filter(m => m.caja === cajaFiltro);
+    // **CORRECCIÓN MEJORADA:** Limpiar solo los movimientos de la caja y fecha que se están arqueando.
+    const restantes = estado.movimientosTemporales.filter(m => 
+        !(m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo))
+    );
+    const aBorrar = estado.movimientosTemporales.filter(m => m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo));
     for (const mov of aBorrar) {
         if (mov.id && window.db && window.db.eliminarMovimientoTemporal) {
             await window.db.eliminarMovimientoTemporal(mov.id);
@@ -2277,18 +2325,18 @@ function cargarResumenDiario() {
     const filtroDescEgresos = document.getElementById('filtroDescEgresos').value.toLowerCase();
 
     // --- OBTENCIÓN DE DATOS ---
-    // **CORRECCIÓN:** Usar tanto los movimientos guardados (operaciones) como los temporales (ingresos del día).
-    const movimientosOperaciones = estado.movimientos.filter(m => {
-        const fechaMov = m.fecha.split('T')[0];
-        return (!fechaDesde || fechaMov >= fechaDesde) && (!fechaHasta || fechaMov <= fechaHasta);
-    });
-    const movimientosIngresos = estado.movimientosTemporales.filter(m => {
+    // **CORRECCIÓN:** Usar movimientos temporales para ingresos y movimientos guardados para operaciones.
+    const movimientosIngresos = estado.movimientosTemporales.filter(m => { // Ingresos del día (no guardados en arqueo)
         const fechaMov = m.fecha.split('T')[0];
         return (!fechaDesde || fechaMov >= fechaDesde) && (!fechaHasta || fechaMov <= fechaHasta);
     });
 
-    const movimientosDelPeriodo = [...movimientosOperaciones, ...movimientosIngresos];
+    const movimientosOperaciones = estado.movimientos.filter(m => { // Gastos, Egresos, etc. (ya guardados)
+        const fechaMov = m.fecha.split('T')[0];
+        return (!fechaDesde || fechaMov >= fechaDesde) && (!fechaHasta || fechaMov <= fechaHasta);
+    });
 
+    // Los egresos de caja son un tipo separado de movimiento
     const egresosCajaDelPeriodo = estado.egresosCaja.filter(e => {
         const fechaEgreso = e.fecha.split('T')[0];
         return (!fechaDesde || fechaEgreso >= fechaDesde) && (!fechaHasta || fechaEgreso <= fechaHasta);
@@ -2297,15 +2345,15 @@ function cargarResumenDiario() {
     // --- RENDERIZADO DE LISTAS ---
 
     // 1. Ingresos de Tienda (movimientos de ingreso que no son servicios)
-    const esIngresoNoServicio = (m) => {
-        const esIngresoGeneral = m.tipo !== 'gasto' && m.tipo !== 'egreso';
+    const esIngresoTienda = (m) => {
         const esServicio = (m.servicios && Object.values(m.servicios).some(s => s.monto > 0 || s.tarjeta > 0)) || (m.otrosServicios && m.otrosServicios.length > 0);
-        return esIngresoGeneral && !esServicio;
+        // Un ingreso de tienda es cualquier movimiento temporal que no sea un servicio.
+        return !esServicio;
     };
 
     const listaIngresosTienda = document.getElementById('listaIngresosTienda');
-    let ingresosTiendaFiltrados = movimientosDelPeriodo.filter(m => {
-        return esIngresoNoServicio(m) &&
+    let ingresosTiendaFiltrados = movimientosIngresos.filter(m => { // **CORRECCIÓN:** Usar solo movimientosIngresos
+        return esIngresoTienda(m) &&
             (!filtroCajaTienda || m.caja === filtroCajaTienda) &&
             // **CORRECCIÓN:** Mostrar solo los que tienen un componente de efectivo
             ((m.efectivo && Object.keys(m.efectivo).length > 0) || m.valorVenta > 0) &&
@@ -2315,7 +2363,7 @@ function cargarResumenDiario() {
 
     // 2. Ingresos por Servicios (Efectivo)
     const listaIngresosServiciosEfectivo = document.getElementById('listaIngresosServiciosEfectivo');
-    let ingresosServiciosEfectivo = movimientosDelPeriodo.filter(m => {
+    let ingresosServiciosEfectivo = movimientosIngresos.filter(m => { // **CORRECCIÓN:** Usar solo movimientosIngresos
         const esServicioEfectivo = (m.servicios && Object.values(m.servicios).some(s => s.monto > 0)) || (m.otrosServicios && m.otrosServicios.some(s => s.monto > 0));
         if (!esServicioEfectivo) return false;
 
@@ -2335,7 +2383,7 @@ function cargarResumenDiario() {
 
     // **NUEVO:** 3. Ingresos por Servicios (Tarjeta)
     const listaIngresosServiciosTarjeta = document.getElementById('listaIngresosServiciosTarjeta');
-    let ingresosServiciosTarjeta = movimientosDelPeriodo.filter(m => {
+    let ingresosServiciosTarjeta = movimientosIngresos.filter(m => { // **CORRECCIÓN:** Usar solo movimientosIngresos
         const esServicioTarjeta = (m.servicios && Object.values(m.servicios).some(s => s.tarjeta > 0)) || (m.otrosServicios && m.otrosServicios.some(s => s.tarjeta > 0));
         if (!esServicioTarjeta) return false;
 
@@ -2355,9 +2403,9 @@ function cargarResumenDiario() {
 
     // **NUEVO:** 3. Ingresos No Efectivo
     const listaIngresosNoEfectivo = document.getElementById('listaIngresosNoEfectivo');
-    let ingresosNoEfectivoFiltrados = movimientosDelPeriodo.filter(m => {
+    let ingresosNoEfectivoFiltrados = movimientosIngresos.filter(m => { // **CORRECCIÓN:** Usar solo movimientosIngresos
         const tieneNoEfectivo = (m.pagosTarjeta > 0 || m.ventasCredito > 0 || m.pedidosYa > 0 || m.ventasTransferencia > 0);
-        return esIngresoNoServicio(m) && tieneNoEfectivo &&
+        return esIngresoTienda(m) && tieneNoEfectivo &&
             (!filtroCajaNoEfectivo || m.caja === filtroCajaNoEfectivo) &&
             (!filtroDescNoEfectivo || m.descripcion.toLowerCase().includes(filtroDescNoEfectivo));
     });
@@ -2367,7 +2415,7 @@ function cargarResumenDiario() {
     const listaEgresos = document.getElementById('listaEgresos');
     const todosLosEgresos = [
         ...egresosCajaDelPeriodo.map(e => ({ ...e, tipoMovimiento: 'EGRESO DIRECTO' })),
-        ...movimientosDelPeriodo.filter(m => m.tipo === 'gasto' || m.tipo === 'egreso').map(m => ({ ...m, tipoMovimiento: m.tipo.toUpperCase() }))
+        ...movimientosOperaciones.filter(m => m.tipo === 'gasto' || m.tipo === 'egreso').map(m => ({ ...m, tipoMovimiento: m.tipo.toUpperCase() }))
     ];
     let egresosFiltrados = todosLosEgresos.filter(e =>
         (!filtroCajaEgresos || e.caja === filtroCajaEgresos) &&
@@ -3169,13 +3217,13 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
     // **CORRECCIÓN:** Usar el filtro de la página de arqueo, no de ingresos.
     const cajaFiltro = document.getElementById('caja').value;
 
-    let ingresosParaArqueo = estado.movimientosTemporales;
-    let egresosParaArqueo = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo));
-
-    if (cajaFiltro) {
-        ingresosParaArqueo = ingresosParaArqueo.filter(m => m.caja === cajaFiltro);
-        egresosParaArqueo = egresosParaArqueo.filter(e => e.caja === cajaFiltro);
-    }
+    // CORRECCIÓN: Filtrar ingresos por fecha y caja para que coincida con la vista.
+    let ingresosParaArqueo = estado.movimientosTemporales.filter(m => 
+        m.fecha.startsWith(fechaArqueo) && m.caja === cajaFiltro
+    );
+    let egresosParaArqueo = estado.egresosCaja.filter(e => 
+        e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro
+    );
 
     const movimientosParaArqueo = [
         ...ingresosParaArqueo.map(m => ({ ...m, tipoMovimiento: 'ingreso' })),
