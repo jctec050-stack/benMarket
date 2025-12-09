@@ -27,7 +27,7 @@ window.addEventListener('load', async () => {
     if (window.inicializarSupabase) {
         window.inicializarSupabase();
     }
-    
+
     // Esperar a que db esté disponible
     if (!window.db) {
         console.error('db no está disponible, esperando...');
@@ -37,21 +37,21 @@ window.addEventListener('load', async () => {
             await new Promise(r => setTimeout(r, 100));
         }
     }
-    
+
     if (!window.db) {
         console.error('db no se pudo inicializar');
         window.location.href = '/pages/login.html';
         return;
     }
-    
+
     const sesion = await window.db.obtenerSesionActual();
-    
+
     if (!sesion.success || !sesion.data.session) {
         // No hay sesión, redirigir al login
         window.location.href = '/pages/login.html';
         return;
     }
-    
+
     // Obtener perfil para verificar permisos
     const perfil = await window.db.obtenerPerfilActual();
     if (perfil.success) {
@@ -149,11 +149,11 @@ let estado = {
 
 async function initSupabaseData() {
     // Obtener la fecha: buscar en múltiples elementos posibles
-    let fechaInput = document.getElementById('fecha') || 
-                     document.getElementById('fechaEgresoCaja') || 
-                     document.getElementById('fechaGasto') ||
-                     document.getElementById('fechaMovimiento');
-    
+    let fechaInput = document.getElementById('fecha') ||
+        document.getElementById('fechaEgresoCaja') ||
+        document.getElementById('fechaGasto') ||
+        document.getElementById('fechaMovimiento');
+
     // Si aún no hay fecha, usar la fecha actual
     let fechaBase;
     if (fechaInput && fechaInput.value) {
@@ -161,32 +161,32 @@ async function initSupabaseData() {
     } else {
         fechaBase = new Date().toISOString().slice(0, 10);
     }
-    
+
     const rol = sessionStorage.getItem('userRole');
     const caja = rol === 'tesoreria' ? 'Caja Tesoreria' : (sessionStorage.getItem('cajaSeleccionada') || '');
-    
+
     // **CORRECCIÓN:** Cargar TODOS los datos de Supabase (sin filtro de fecha)
     const a = await window.db.obtenerArqueosPorFecha(fechaBase);
-    
+
     // Obtener TODOS los movimientos, no solo de hoy
-    const m = await (window.db.obtenerMovimientos ? 
-              window.db.obtenerMovimientos() : 
-              window.db.obtenerMovimientosPorFecha(fechaBase));
-    
+    const m = await (window.db.obtenerMovimientos ?
+        window.db.obtenerMovimientos() :
+        window.db.obtenerMovimientosPorFecha(fechaBase));
+
     // Obtener TODOS los egresos, no solo de hoy
-    const e = await (window.db.obtenerEgresosCaja ? 
-              window.db.obtenerEgresosCaja() : 
-              window.db.obtenerEgresosCajaPorFecha(fechaBase));
-    
-    const t = await (window.db.obtenerMovimientosTemporales ? 
-              window.db.obtenerMovimientosTemporales() : 
-              { data: [] });
-    
+    const e = await (window.db.obtenerEgresosCaja ?
+        window.db.obtenerEgresosCaja() :
+        window.db.obtenerEgresosCajaPorFecha(fechaBase));
+
+    const t = await (window.db.obtenerMovimientosTemporales ?
+        window.db.obtenerMovimientosTemporales() :
+        { data: [] });
+
     estado.arqueos = (a && a.data) || [];
     estado.movimientos = (m && m.data) || [];
     estado.egresosCaja = (e && e.data) || [];
     estado.movimientosTemporales = (t && t.data) || [];
-    
+
     // Si no hay datos de Supabase, intentar cargar del localStorage
     if (!estado.movimientosTemporales || estado.movimientosTemporales.length === 0) {
         const datosLocales = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
@@ -200,12 +200,22 @@ async function initSupabaseData() {
         const movimientos = JSON.parse(localStorage.getItem('movimientos')) || [];
         estado.movimientos = movimientos;
     }
-    
+
     actualizarArqueoFinal();
     cargarHistorialMovimientosDia();
     cargarHistorialEgresosCaja();
     cargarHistorialGastos();
     renderizarIngresosAgregados();
+
+    // **NUEVO:** Inicializar fechas del resumen con el día actual si están vacías
+    const fechaResumenDesde = document.getElementById('fechaResumenDesde');
+    const fechaResumenHasta = document.getElementById('fechaResumenHasta');
+    if (fechaResumenDesde && fechaResumenHasta) {
+        const hoy = new Date().toISOString().slice(0, 10);
+        if (!fechaResumenDesde.value) fechaResumenDesde.value = hoy;
+        if (!fechaResumenHasta.value) fechaResumenHasta.value = hoy;
+    }
+
     cargarResumenDiario();
 }
 
@@ -350,6 +360,22 @@ function inicializarFormularioArqueo() {
             }
             e.target.value = value;
             actualizarArqueoFinal(); // Recalcular al cambiar el fondo fijo
+        });
+    }
+
+    // **NUEVO:** Agregar listeners para recargar el historial cuando cambie la fecha o la caja
+    if (fechaArqueoInput) {
+        fechaArqueoInput.addEventListener('change', function () {
+            actualizarArqueoFinal();
+            cargarHistorialMovimientosDia();
+        });
+    }
+
+    const cajaArqueoInput = document.getElementById('caja');
+    if (cajaArqueoInput) {
+        cajaArqueoInput.addEventListener('change', function () {
+            actualizarArqueoFinal();
+            cargarHistorialMovimientosDia();
         });
     }
 }
@@ -656,6 +682,7 @@ async function agregarMovimiento() {
     // Actualizar el arqueo final
     actualizarArqueoFinal();
     renderizarIngresosAgregados();
+    cargarResumenDiario(); // **NUEVO:** Actualizar resumen en tiempo real
 }
 
 // Función para agregar una fila de servicio dinámico
@@ -786,12 +813,12 @@ function renderizarIngresosAgregados() {
         if ((mov.valorVenta || 0) > 0) {
             totalGeneral = mov.valorVenta;
         } else {
-            totalGeneral = totalEfectivo + 
-                          (typeof mov.pagosTarjeta === 'number' ? mov.pagosTarjeta : 0) + 
-                          (typeof mov.ventasCredito === 'number' ? mov.ventasCredito : 0) + 
-                          (typeof mov.pedidosYa === 'number' ? mov.pedidosYa : 0) + 
-                          (typeof mov.ventasTransferencia === 'number' ? mov.ventasTransferencia : 0) + 
-                          totalServicios;
+            totalGeneral = totalEfectivo +
+                (typeof mov.pagosTarjeta === 'number' ? mov.pagosTarjeta : 0) +
+                (typeof mov.ventasCredito === 'number' ? mov.ventasCredito : 0) +
+                (typeof mov.pedidosYa === 'number' ? mov.pedidosYa : 0) +
+                (typeof mov.ventasTransferencia === 'number' ? mov.ventasTransferencia : 0) +
+                totalServicios;
         }
 
         let detallesHTML = [];
@@ -923,6 +950,7 @@ async function eliminarIngresoAgregado(index) {
         estado.movimientosTemporales.splice(index, 1);
         actualizarArqueoFinal();
         renderizarIngresosAgregados();
+        cargarResumenDiario(); // **NUEVO:** Actualizar resumen en tiempo real
         mostrarMensaje('Movimiento eliminado', 'info');
     }
 }
@@ -1232,7 +1260,7 @@ function renderizarVistaArqueoFinal(totales) {
 function actualizarArqueoFinal() {
     const fechaInput = document.getElementById('fecha');
     // **CORRECCIÓN:** Usar el mismo ID de caja que en el resto de la página para consistencia.
-    const cajaInput = document.getElementById('caja'); 
+    const cajaInput = document.getElementById('caja');
 
     if (!fechaInput || !cajaInput) return;
 
@@ -1285,6 +1313,14 @@ function cargarHistorialMovimientosDia() {
     const fechaFiltro = fechaInput.value.split('T')[0];
     const cajaFiltro = cajaInput.value;
 
+    // **DEBUG:** Log para verificar qué datos tenemos
+    console.log('=== cargarHistorialMovimientosDia ===');
+    console.log('Fecha filtro:', fechaFiltro);
+    console.log('Caja filtro:', cajaFiltro);
+    console.log('Total movimientosTemporales:', estado.movimientosTemporales.length);
+    console.log('Total egresosCaja:', estado.egresosCaja.length);
+    console.log('Total movimientos (operaciones):', estado.movimientos.length);
+
     // Obtener movimientos
     const ingresos = estado.movimientosTemporales.filter(m =>
         m.fecha.startsWith(fechaFiltro) && (!cajaFiltro || m.caja === cajaFiltro)
@@ -1299,6 +1335,10 @@ function cargarHistorialMovimientosDia() {
         (m.tipo === 'gasto' || m.tipo === 'egreso') &&
         (!cajaFiltro || m.caja === cajaFiltro)
     ).map(m => ({ ...m, tipoMovimiento: 'egreso' }));
+
+    console.log('Ingresos filtrados:', ingresos.length);
+    console.log('Egresos caja filtrados:', egresosCaja.length);
+    console.log('Egresos operaciones filtrados:', egresosOperaciones.length);
 
     const todosLosMovimientos = [...ingresos, ...egresosCaja, ...egresosOperaciones]
         .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
@@ -1399,7 +1439,7 @@ async function guardarArqueo() {
     const cajaFiltro = arqueo.caja;
 
     // CORRECCIÓN: Filtrar ingresos también por la fecha del arqueo.
-    const ingresosParaArqueo = estado.movimientosTemporales.filter(m => 
+    const ingresosParaArqueo = estado.movimientosTemporales.filter(m =>
         m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo)
     );
     const egresosDeCaja = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro);
@@ -1466,7 +1506,7 @@ async function guardarArqueo() {
             mostrarMensaje('Error al guardar en base de datos: ' + resultado.error, 'peligro');
         }
     }
-    
+
     // Guardar en el estado local
     estado.arqueos.push(arqueo);
     guardarEnLocalStorage();
@@ -1478,7 +1518,7 @@ async function guardarArqueo() {
     exportarArqueoActualPDF(true); // true indica que es un guardado final
 
     // **CORRECCIÓN MEJORADA:** Limpiar solo los movimientos de la caja y fecha que se están arqueando.
-    const restantes = estado.movimientosTemporales.filter(m => 
+    const restantes = estado.movimientosTemporales.filter(m =>
         !(m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo))
     );
     const aBorrar = estado.movimientosTemporales.filter(m => m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo));
@@ -1877,6 +1917,7 @@ async function guardarEgresoCaja(event) {
     // Limpiar formulario y actualizar historial
     limpiarFormularioEgresoCaja();
     cargarHistorialEgresosCaja();
+    cargarResumenDiario(); // **NUEVO:** Actualizar resumen en tiempo real
 }
 
 /**
@@ -1885,7 +1926,7 @@ async function guardarEgresoCaja(event) {
 function cargarHistorialEgresosCaja() {
     const listaEgresosCaja = document.getElementById('listaEgresosCaja');
     // **CORRECCIÓN:** Solo ejecutar si el contenedor existe en la página actual.
-    if (!listaEgresosCaja) return; 
+    if (!listaEgresosCaja) return;
 
     // Obtener egresos desde localStorage
     let todosLosEgresos = JSON.parse(localStorage.getItem('egresosCaja')) || [];
@@ -2300,6 +2341,12 @@ function cargarResumenDiario() {
     const fechaDesdeInput = document.getElementById('fechaResumenDesde');
     if (!fechaDesdeInput) return;
 
+    // **DEBUG:** Log para verificar qué datos tenemos
+    console.log('=== cargarResumenDiario ===');
+    console.log('Movimientos temporales (ingresos):', estado.movimientosTemporales.length);
+    console.log('Egresos caja:', estado.egresosCaja.length);
+    console.log('Movimientos operaciones:', estado.movimientos.length);
+
     // --- CAPTURA DE FILTROS ---
     const fechaDesde = fechaDesdeInput.value;
     const fechaHasta = document.getElementById('fechaResumenHasta').value;
@@ -2517,11 +2564,61 @@ function renderizarLista(contenedor, items, tipo) {
 
         granTotal += montoTotal; // **NUEVO:** Sumar al total de la lista.
 
+        // **NUEVO:** Extraer nombres de servicios si es un movimiento de servicios
+        let tituloMovimiento = item.descripcion || item.categoria || 'Movimiento';
+
+        if (tipo === 'IngresosServiciosTarjeta' || tipo === 'IngresosServiciosEfectivo') {
+            const nombresServicios = [];
+
+            // Mapeo de claves a nombres legibles
+            const nombresLegibles = {
+                'apLote': 'Aca Puedo',
+                'aquiPago': 'Aquí Pago',
+                'expressLote': 'Pago Express',
+                'wepa': 'WEPA',
+                'pasajeNsa': 'Pasaje NSA',
+                'encomiendaNsa': 'Encomienda NSA',
+                'apostala': 'Apostala'
+            };
+
+            // Extraer servicios según el tipo
+            if (tipo === 'IngresosServiciosTarjeta') {
+                // Servicios con tarjeta
+                Object.entries(item.servicios || {}).forEach(([key, servicio]) => {
+                    if (servicio.tarjeta > 0) {
+                        nombresServicios.push(nombresLegibles[key] || key);
+                    }
+                });
+                (item.otrosServicios || []).forEach(s => {
+                    if (s.tarjeta > 0) {
+                        nombresServicios.push(s.nombre);
+                    }
+                });
+            } else if (tipo === 'IngresosServiciosEfectivo') {
+                // Servicios con efectivo
+                Object.entries(item.servicios || {}).forEach(([key, servicio]) => {
+                    if (servicio.monto > 0) {
+                        nombresServicios.push(nombresLegibles[key] || key);
+                    }
+                });
+                (item.otrosServicios || []).forEach(s => {
+                    if (s.monto > 0) {
+                        nombresServicios.push(s.nombre);
+                    }
+                });
+            }
+
+            // Si hay servicios, usar sus nombres; si no, usar la descripción
+            if (nombresServicios.length > 0) {
+                tituloMovimiento = nombresServicios.join(', ');
+            }
+        }
+
         const div = document.createElement('div');
         div.className = 'movimiento-item';
         div.innerHTML = `
             <div class="movimiento-header">
-                <span class="movimiento-tipo">${item.descripcion || item.categoria || 'Movimiento'}</span>
+                <span class="movimiento-tipo">${tituloMovimiento}</span>
                 <span class="movimiento-monto ${claseMonto}">${signo}${formatearMoneda(montoTotal, item.moneda || 'gs')}</span>
             </div>
             <div class="movimiento-detalles">
@@ -2810,9 +2907,9 @@ async function cargarUsuariosUI() {
                     <div>
                         <label>Rol</label>
                         <select data-role id="role-${u.id}">
-                            <option value="cajero" ${u.rol==='cajero'?'selected':''}>Cajero</option>
-                            <option value="tesoreria" ${u.rol==='tesoreria'?'selected':''}>Tesorería</option>
-                            <option value="admin" ${u.rol==='admin'?'selected':''}>Administrador</option>
+                            <option value="cajero" ${u.rol === 'cajero' ? 'selected' : ''}>Cajero</option>
+                            <option value="tesoreria" ${u.rol === 'tesoreria' ? 'selected' : ''}>Tesorería</option>
+                            <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
                         </select>
                     </div>
                     <div>
@@ -3218,10 +3315,10 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
     const cajaFiltro = document.getElementById('caja').value;
 
     // CORRECCIÓN: Filtrar ingresos por fecha y caja para que coincida con la vista.
-    let ingresosParaArqueo = estado.movimientosTemporales.filter(m => 
+    let ingresosParaArqueo = estado.movimientosTemporales.filter(m =>
         m.fecha.startsWith(fechaArqueo) && m.caja === cajaFiltro
     );
-    let egresosParaArqueo = estado.egresosCaja.filter(e => 
+    let egresosParaArqueo = estado.egresosCaja.filter(e =>
         e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro
     );
 
@@ -4011,10 +4108,10 @@ function guardarServicioEfectivo() {
     };
 
     estado.movimientosTemporales.push(nuevoMovimiento);
-    
+
     // **CORRECCIÓN:** Guardar en base de datos de Supabase
     window.db.guardarMovimientoTemporal(nuevoMovimiento);
-    
+
     guardarEnLocalStorage();
     renderizarIngresosAgregados();
     actualizarArqueoFinal();

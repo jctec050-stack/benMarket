@@ -78,7 +78,9 @@
                                                 <option value="Caja 2">Caja 2</option>
                                                 <option value="Caja 3">Caja 3</option>
                                             </select>
-                                            <input type="text" id="filtroDescIngresosTienda" placeholder="Filtrar por descripción..." oninput="cargarResumenDiario()">
+                                            <input type="text" id="filtroDescIngresosTienda"
+                                                placeholder="Filtrar por descripción..."
+                                                oninput="cargarResumenDiario()">
                                         </div>
                                         <div id="listaIngresosTienda" class="lista-movimientos-reporte"></div>
                                     </div>
@@ -96,9 +98,11 @@
                                                 <option value="Caja 2">Caja 2</option>
                                                 <option value="Caja 3">Caja 3</option>
                                             </select>
-                                            <input type="text" id="filtroNombreServicioEfectivo" placeholder="Filtrar por servicio..." oninput="cargarResumenDiario()">
+                                            <input type="text" id="filtroNombreServicioEfectivo"
+                                                placeholder="Filtrar por servicio..." oninput="cargarResumenDiario()">
                                         </div>
-                                        <div id="listaIngresosServiciosEfectivo" class="lista-movimientos-reporte"></div>
+                                        <div id="listaIngresosServiciosEfectivo" class="lista-movimientos-reporte">
+                                        </div>
                                     </div>
                                 </section>
                             </div>
@@ -124,7 +128,8 @@
                                                 <option value="Caja 2">Caja 2</option>
                                                 <option value="Caja 3">Caja 3</option>
                                             </select>
-                                            <input type="text" id="filtroNombreServicioTarjeta" placeholder="Filtrar por servicio..." oninput="cargarResumenDiario()">
+                                            <input type="text" id="filtroNombreServicioTarjeta"
+                                                placeholder="Filtrar por servicio..." oninput="cargarResumenDiario()">
                                         </div>
                                         <div id="listaIngresosServiciosTarjeta" class="lista-movimientos-reporte"></div>
                                     </div>
@@ -142,7 +147,9 @@
                                                 <option value="Caja 2">Caja 2</option>
                                                 <option value="Caja 3">Caja 3</option>
                                             </select>
-                                            <input type="text" id="filtroDescNoEfectivo" placeholder="Filtrar por descripción..." oninput="cargarResumenDiario()">
+                                            <input type="text" id="filtroDescNoEfectivo"
+                                                placeholder="Filtrar por descripción..."
+                                                oninput="cargarResumenDiario()">
                                         </div>
                                         <div id="listaIngresosNoEfectivo" class="lista-movimientos-reporte"></div>
                                     </div>
@@ -173,7 +180,8 @@
                                         <option value="Caja 2">Caja 2</option>
                                         <option value="Caja 3">Caja 3</option>
                                     </select>
-                                    <input type="text" id="filtroDescEgresos" placeholder="Filtrar por descripción..." oninput="cargarResumenDiario()">
+                                    <input type="text" id="filtroDescEgresos" placeholder="Filtrar por descripción..."
+                                        oninput="cargarResumenDiario()">
                                 </div>
                                 <div id="listaEgresos" class="lista-movimientos-reporte"></div>
                             </div>
@@ -202,11 +210,12 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <!-- **CORRECCIÓN:** Cargar app.js PRIMERO, antes de llamar a las funciones -->
+    <script src="../js/app.js"></script>
     <script>
         if (window.inicializarSupabase) { window.inicializarSupabase(); }
         if (window.initSupabaseData) { window.initSupabaseData(); }
     </script>
-    <script src="../js/app.js"></script>
 </body>
 
 </html>
