@@ -646,13 +646,25 @@ body {
 /* Para tablets y pantallas medianas (hasta 992px) */
 @media (max-width: 992px) {
     .nav-menu {
-        gap: 1rem;
-        /* Reducimos el espacio entre elementos para que quepan más */
+        gap: 0.5rem;
     }
 
-    .navbar h1 {
-        font-size: 1.3rem;
-        /* Hacemos el título un poco más pequeño */
+    .navbar-logo {
+        height: 60px;
+    }
+
+    .nav-link {
+        padding: 0.5rem 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    /* Grids de formularios */
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .layout-grid-columnas {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -666,35 +678,57 @@ body {
 
     .seccion h2 {
         font-size: 1.5rem;
-        /* Títulos más pequeños */
         margin-bottom: 1.5rem;
     }
 
     /* --- Navegación --- */
     .nav-container {
-        flex-direction: column;
-        height: auto;
         padding: 1rem;
+        gap: 0.75rem;
+    }
+
+    .navbar-logo {
+        height: 50px;
     }
 
     .nav-menu {
-        margin-top: 1rem;
-        flex-wrap: wrap;
-        /* Permite que los elementos del menú pasen a la siguiente línea */
-        justify-content: center;
-        gap: 1rem;
+        gap: 0.25rem;
+        width: 100%;
+    }
+
+    .nav-link {
+        padding: 0.4rem 0.6rem;
+        font-size: 0.8rem;
     }
 
     .nav-usuario {
-        margin-top: 1rem;
+        position: static;
         width: 100%;
-        justify-content: space-between;
+        justify-content: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-top: 0.5rem;
+    }
+
+    .nav-usuario span {
+        font-size: 0.85rem;
+    }
+
+    .nav-link-logout {
+        padding: 0.4rem 0.8rem;
+        font-size: 0.85rem;
     }
 
     /* --- Formularios y Filtros --- */
     .formulario-arqueo,
     .formulario-gastos {
         padding: 1rem;
+    }
+
+    .form-grid,
+    .cotizacion-grid,
+    .servicio-grid {
+        grid-template-columns: 1fr;
     }
 
     .resumen-filtros {
@@ -713,23 +747,85 @@ body {
         flex-direction: column;
     }
 
+    .btn {
+        width: 100%;
+    }
+
     /* --- Grids --- */
-    .cotizacion-grid,
-    .servicio-grid,
     .resumen-grid {
         grid-template-columns: 1fr;
     }
 
     /* --- Tablas Responsivas --- */
-    /* Hacemos que las tablas tengan desplazamiento horizontal si no caben */
     .tabla-conteo,
-    .tabla-servicios,
-    .lista-movimientos {
+    .tabla-servicios {
+        font-size: 0.85rem;
+    }
+
+    .tabla-conteo th,
+    .tabla-conteo td,
+    .tabla-servicios th,
+    .tabla-servicios td {
+        padding: 0.5rem 0.25rem;
+    }
+
+    /* Scroll horizontal para tablas si es necesario */
+    .tabla-conteo,
+    .tabla-servicios {
         display: block;
         width: 100%;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-        /* Scroll suave en iOS */
+    }
+
+    /* --- Headers de sección --- */
+    #header-ingresos {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 1rem;
+    }
+
+    #header-ingresos>div {
+        width: 100%;
+    }
+
+    /* --- Layouts de dos columnas --- */
+    div[style*="grid-template-columns: 1fr 1fr"] {
+        display: block !important;
+    }
+
+    div[style*="grid-template-columns: 1fr 1fr"]>div {
+        margin-bottom: 1.5rem;
+    }
+
+    /* --- Modales --- */
+    .modal-contenido {
+        width: 95%;
+        margin: 1rem auto;
+    }
+
+    .modal-body {
+        padding: 1rem;
+    }
+
+    /* --- Totales --- */
+    .totales-grid {
+        grid-template-columns: 1fr;
+    }
+
+    /* --- Historial --- */
+    .historial-gastos {
+        padding: 1rem;
+    }
+
+    .movimiento-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .movimiento-acciones {
+        flex-wrap: wrap;
     }
 }
 
