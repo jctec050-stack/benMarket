@@ -2646,8 +2646,8 @@ function renderizarLista(contenedor, items, tipo) {
     return granTotal; // **MODIFICADO:** Devolver el total calculado.
 }
 
-// Función para descargar Excel
-function descargarExcel() {
+// Función para descargar Excel con detalles completos
+async function descargarExcel() {
     const fechaDesde = document.getElementById('fechaResumenDesde').value;
     const fechaHasta = document.getElementById('fechaResumenHasta').value;
     if (!fechaDesde || !fechaHasta) {
@@ -2655,72 +2655,292 @@ function descargarExcel() {
         return;
     }
 
+    // Mostrar mensaje de carga
+    mostrarMensaje('Cargando datos para exportar...', 'info');
+
+    // **NUEVO**: Recargar TODOS los datos antes de exportar para asegurar que tenemos el historial completo
+    try {
+        // Cargar todos los movimientos (ingresos guardados)
+        const m = await (window.db.obtenerMovimientos ? window.db.obtenerMovimientos() : { data: [] });
+        estado.movimientos = (m && m.data) || JSON.parse(localStorage.getItem('movimientos')) || [];
+
+        // Cargar todos los egresos
+        const e = await (window.db.obtenerEgresosCaja ? window.db.obtenerEgresosCaja() : { data: [] });
+        estado.egresosCaja = (e && e.data) || JSON.parse(localStorage.getItem('egresosCaja')) || [];
+
+        // Cargar movimientos temporales (ingresos del día actual)
+        const t = await (window.db.obtenerMovimientosTemporales ? window.db.obtenerMovimientosTemporales() : { data: [] });
+        estado.movimientosTemporales = (t && t.data) || JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
+
+        // Cargar servicios en efectivo si existen
+        if (window.db.obtenerServiciosEfectivo) {
+            const s = await window.db.obtenerServiciosEfectivo();
+            estado.serviciosEfectivo = (s && s.data) || [];
+        }
+
+        console.log('Datos cargados para exportación:');
+        console.log('- Movimientos (ingresos guardados):', estado.movimientos.length);
+        console.log('- Movimientos temporales (ingresos actuales):', estado.movimientosTemporales.length);
+        console.log('- Egresos:', estado.egresosCaja.length);
+        console.log('- Servicios efectivo:', (estado.serviciosEfectivo || []).length);
+    } catch (error) {
+        console.error('Error cargando datos:', error);
+        mostrarMensaje('Error al cargar datos. Usando datos en caché.', 'advertencia');
+    }
+
     // Filtrar datos por fecha
-    const arqueosDelDia = estado.arqueos.filter(a => a.fecha.split('T')[0] >= fechaDesde && a.fecha.split('T')[0] <= fechaHasta);
-    const movimientosDelDia = estado.movimientos.filter(m => m.fecha.split('T')[0] >= fechaDesde && m.fecha.split('T')[0] <= fechaHasta);
-    const egresosCajaDelDia = estado.egresosCaja.filter(e => e.fecha.split('T')[0] >= fechaDesde && e.fecha.split('T')[0] <= fechaHasta);
+    const arqueosDelPeriodo = estado.arqueos.filter(a => a.fecha.split('T')[0] >= fechaDesde && a.fecha.split('T')[0] <= fechaHasta);
 
-    // Preparar datos para Excel
-    const datosExcel = [];
+    // Combinar movimientos temporales (ingresos del día actual) con movimientos guardados (ingresos de arqueos anteriores)
+    const todosLosMovimientos = [
+        ...(estado.movimientosTemporales || []),
+        ...(estado.movimientos || [])
+    ];
 
-    // Agregar encabezado
-    datosExcel.push(['RESUMEN - FECHA: ' + fecha]);
-    datosExcel.push([]);
-
-    // Agregar arqueos
-    datosExcel.push(['ARQUEOS DE CAJA']);
-    datosExcel.push(['Caja', 'Cajero', 'Fecha/Hora', 'Total Efectivo', 'Tarjeta', 'Transferencia', 'Servicios', 'Total']);
-
-    arqueosDelDia.forEach(arqueo => {
-        datosExcel.push([
-            arqueo.caja,
-            arqueo.cajero,
-            formatearFecha(arqueo.fecha),
-            arqueo.totalEfectivo,
-            arqueo.pagosTarjeta,
-            arqueo.ventasTransferencia,
-            arqueo.totalServicios,
-            arqueo.totalIngresos
-        ]);
-    });
-
-    datosExcel.push([]);
-    datosExcel.push(['OPERACIONES Y EGRESOS']);
-    datosExcel.push(['Tipo', 'Categoría', 'Descripción', 'Monto', 'Moneda', 'Fecha/Hora', 'Caja', 'Referencia', 'Nro. Recibo']);
-
-    const todosLosEgresos = [...movimientosDelDia, ...egresosCajaDelDia].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-
-    todosLosEgresos.forEach(movimiento => {
-        datosExcel.push([
-            movimiento.tipo || 'EGRESO CAJA',
-            movimiento.categoria || '',
-            movimiento.descripcion,
-            movimiento.monto,
-            CONFIG.monedas[movimiento.moneda] || 'Guaraníes',
-            formatearFecha(movimiento.fecha),
-            movimiento.caja || '',
-            movimiento.referencia || '',
-            movimiento.numeroRecibo ? String(movimiento.numeroRecibo).padStart(6, '0') : ''
-        ]);
-    });
+    const movimientosDelPeriodo = todosLosMovimientos.filter(m => m.fecha.split('T')[0] >= fechaDesde && m.fecha.split('T')[0] <= fechaHasta);
+    const egresosCajaDelPeriodo = estado.egresosCaja.filter(e => e.fecha.split('T')[0] >= fechaDesde && e.fecha.split('T')[0] <= fechaHasta);
+    const serviciosEfectivoDelPeriodo = estado.serviciosEfectivo ? estado.serviciosEfectivo.filter(s => s.fecha.split('T')[0] >= fechaDesde && s.fecha.split('T')[0] <= fechaHasta) : [];
 
     // Crear libro de trabajo
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(datosExcel);
 
-    // Ajustar anchos de columna
-    const colWidths = [
-        { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 15 },
-        { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
-        { wch: 15 } // Ancho para Nro. Recibo
+    // ========== HOJA 1: RESUMEN GENERAL ==========
+    const datosResumen = [];
+    datosResumen.push(['RESUMEN GENERAL DE TESORERÍA']);
+    datosResumen.push(['Período:', `${fechaDesde} al ${fechaHasta}`]);
+    datosResumen.push([]);
+
+    // Calcular totales
+    let totalIngresosEfectivo = 0;
+    let totalIngresosNoEfectivo = 0;
+    let totalEgresos = 0;
+
+    movimientosDelPeriodo.forEach(m => {
+        const efectivo = parsearMoneda(m.totalEfectivo || 0);
+        const tarjeta = parsearMoneda(m.pagosTarjeta || 0);
+        const credito = parsearMoneda(m.ventasCredito || 0);
+        const pedidosYa = parsearMoneda(m.pedidosYa || 0);
+        const transferencia = parsearMoneda(m.ventasTransferencia || 0);
+
+        totalIngresosEfectivo += efectivo;
+        totalIngresosNoEfectivo += tarjeta + credito + pedidosYa + transferencia;
+    });
+
+    serviciosEfectivoDelPeriodo.forEach(s => {
+        totalIngresosEfectivo += parsearMoneda(s.efectivo || 0);
+    });
+
+    egresosCajaDelPeriodo.forEach(e => {
+        totalEgresos += parsearMoneda(e.monto || 0);
+    });
+
+    datosResumen.push(['INGRESOS']);
+    datosResumen.push(['Ingresos en Efectivo:', formatearMoneda(totalIngresosEfectivo, 'gs')]);
+    datosResumen.push(['Ingresos No Efectivo:', formatearMoneda(totalIngresosNoEfectivo, 'gs')]);
+    datosResumen.push(['Total Ingresos:', formatearMoneda(totalIngresosEfectivo + totalIngresosNoEfectivo, 'gs')]);
+    datosResumen.push([]);
+    datosResumen.push(['EGRESOS']);
+    datosResumen.push(['Total Egresos:', formatearMoneda(totalEgresos, 'gs')]);
+    datosResumen.push([]);
+    datosResumen.push(['SALDO']);
+    datosResumen.push(['Efectivo en Caja:', formatearMoneda(totalIngresosEfectivo - totalEgresos, 'gs')]);
+    datosResumen.push(['Total General:', formatearMoneda(totalIngresosEfectivo + totalIngresosNoEfectivo - totalEgresos, 'gs')]);
+
+    const wsResumen = XLSX.utils.aoa_to_sheet(datosResumen);
+    wsResumen['!cols'] = [{ wch: 25 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
+
+    // ========== HOJA 2: INGRESOS EN EFECTIVO (TIENDA) ==========
+    const datosIngresosEfectivo = [];
+    datosIngresosEfectivo.push(['INGRESOS EN EFECTIVO - VENTAS DE TIENDA']);
+    datosIngresosEfectivo.push(['Fecha/Hora', 'Caja', 'Cajero', 'Descripción', 'Total Venta', 'Vuelto', 'Efectivo Neto']);
+
+    movimientosDelPeriodo.forEach(m => {
+        const efectivo = parsearMoneda(m.totalEfectivo || 0);
+        const vuelto = parsearMoneda(m.vuelto || 0);
+        if (efectivo > 0) {
+            datosIngresosEfectivo.push([
+                formatearFecha(m.fecha),
+                m.caja || '',
+                m.cajero || '',
+                m.descripcion || '',
+                formatearMoneda(efectivo + vuelto, 'gs'),
+                formatearMoneda(vuelto, 'gs'),
+                formatearMoneda(efectivo, 'gs')
+            ]);
+        }
+    });
+
+    const wsIngresosEfectivo = XLSX.utils.aoa_to_sheet(datosIngresosEfectivo);
+    wsIngresosEfectivo['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, wsIngresosEfectivo, 'Ingresos Efectivo');
+
+    // ========== HOJA 3: SERVICIOS CON EFECTIVO (DETALLADO) ==========
+    const datosServiciosEfectivo = [];
+    datosServiciosEfectivo.push(['INGRESOS POR SERVICIOS - EFECTIVO (DETALLADO)']);
+    datosServiciosEfectivo.push(['Fecha/Hora', 'Caja', 'Cajero', 'Nombre del Servicio', 'Monto Servicio']);
+
+    // Mapeo de claves a nombres legibles
+    const nombresLegibles = {
+        'apLote': 'ACA PUEDO',
+        'aquiPago': 'Aquí Pago',
+        'expressLote': 'Pago Express',
+        'wepa': 'WEPA',
+        'pasajeNsa': 'Pasaje NSA',
+        'encomiendaNsa': 'Encomienda NSA',
+        'apostala': 'Apostala'
+    };
+
+    // Agregar servicios de efectivo desde movimientos
+    movimientosDelPeriodo.forEach(m => {
+        if (m.servicios) {
+            const agregarServicioEfectivo = (nombre, servicio) => {
+                if (servicio && servicio.monto > 0) {
+                    datosServiciosEfectivo.push([
+                        formatearFecha(m.fecha),
+                        m.caja || '',
+                        m.cajero || '',
+                        nombre,
+                        formatearMoneda(servicio.monto, 'gs')
+                    ]);
+                }
+            };
+
+            agregarServicioEfectivo('ACA PUEDO', m.servicios.apLote);
+            agregarServicioEfectivo('Aquí Pago', m.servicios.aquiPago);
+            agregarServicioEfectivo('Pago Express', m.servicios.expressLote);
+            agregarServicioEfectivo('WEPA', m.servicios.wepa);
+            agregarServicioEfectivo('Pasaje NSA', m.servicios.pasajeNsa);
+            agregarServicioEfectivo('Encomienda NSA', m.servicios.encomiendaNsa);
+            agregarServicioEfectivo('Apostala', m.servicios.apostala);
+
+            if (m.otrosServicios) {
+                m.otrosServicios.forEach(s => agregarServicioEfectivo(s.nombre, s));
+            }
+        }
+    });
+
+    // Agregar servicios de efectivo desde serviciosEfectivo
+    serviciosEfectivoDelPeriodo.forEach(s => {
+        datosServiciosEfectivo.push([
+            formatearFecha(s.fecha),
+            s.caja || '',
+            s.cajero || '',
+            s.nombreServicio || 'Servicio',
+            formatearMoneda(s.montoServicio || s.efectivo || 0, 'gs')
+        ]);
+    });
+
+    const wsServiciosEfectivo = XLSX.utils.aoa_to_sheet(datosServiciosEfectivo);
+    wsServiciosEfectivo['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 30 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, wsServiciosEfectivo, 'Servicios Efectivo');
+
+    // ========== HOJA 4: INGRESOS NO EFECTIVO ==========
+    const datosIngresosNoEfectivo = [];
+    datosIngresosNoEfectivo.push(['INGRESOS NO EFECTIVO']);
+    datosIngresosNoEfectivo.push(['Fecha/Hora', 'Caja', 'Cajero', 'Descripción', 'Tarjeta', 'Crédito', 'PedidosYA', 'Transferencia', 'Total']);
+
+    movimientosDelPeriodo.forEach(m => {
+        const tarjeta = parsearMoneda(m.pagosTarjeta || 0);
+        const credito = parsearMoneda(m.ventasCredito || 0);
+        const pedidosYa = parsearMoneda(m.pedidosYa || 0);
+        const transferencia = parsearMoneda(m.ventasTransferencia || 0);
+        const total = tarjeta + credito + pedidosYa + transferencia;
+
+        if (total > 0) {
+            datosIngresosNoEfectivo.push([
+                formatearFecha(m.fecha),
+                m.caja || '',
+                m.cajero || '',
+                m.descripcion || '',
+                formatearMoneda(tarjeta, 'gs'),
+                formatearMoneda(credito, 'gs'),
+                formatearMoneda(pedidosYa, 'gs'),
+                formatearMoneda(transferencia, 'gs'),
+                formatearMoneda(total, 'gs')
+            ]);
+        }
+    });
+
+    const wsIngresosNoEfectivo = XLSX.utils.aoa_to_sheet(datosIngresosNoEfectivo);
+    wsIngresosNoEfectivo['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, wsIngresosNoEfectivo, 'Ingresos No Efectivo');
+
+    // ========== HOJA 5: SERVICIOS CON TARJETA ==========
+    const datosServiciosTarjeta = [];
+    datosServiciosTarjeta.push(['INGRESOS POR SERVICIOS - TARJETA']);
+    datosServiciosTarjeta.push(['Fecha/Hora', 'Caja', 'Cajero', 'Servicio', 'Referencia/Lote', 'Monto Tarjeta']);
+
+    movimientosDelPeriodo.forEach(m => {
+        if (m.servicios) {
+            const agregarServicio = (nombre, servicio) => {
+                if (servicio && servicio.tarjeta > 0) {
+                    datosServiciosTarjeta.push([
+                        formatearFecha(m.fecha),
+                        m.caja || '',
+                        m.cajero || '',
+                        nombre,
+                        servicio.lote || servicio.referencia || '',
+                        formatearMoneda(servicio.tarjeta, 'gs')
+                    ]);
+                }
+            };
+
+            agregarServicio('ACA PUEDO', m.servicios.apLote);
+            agregarServicio('Aquí Pago', m.servicios.aquiPago);
+            agregarServicio('Pago Express', m.servicios.expressLote);
+            agregarServicio('WEPA', m.servicios.wepa);
+            agregarServicio('Pasaje NSA', m.servicios.pasajeNsa);
+            agregarServicio('Encomienda NSA', m.servicios.encomiendaNsa);
+            agregarServicio('Apostala', m.servicios.apostala);
+
+            if (m.otrosServicios) {
+                m.otrosServicios.forEach(s => agregarServicio(s.nombre, s));
+            }
+        }
+    });
+
+    const wsServiciosTarjeta = XLSX.utils.aoa_to_sheet(datosServiciosTarjeta);
+    wsServiciosTarjeta['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 25 }, { wch: 20 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, wsServiciosTarjeta, 'Servicios Tarjeta');
+
+    // ========== HOJA 6: EGRESOS (COMPLETO) ==========
+    const datosEgresos = [];
+    datosEgresos.push(['EGRESOS DE CAJA']);
+    datosEgresos.push(['Fecha/Hora', 'Caja', 'Cajero', 'Tipo', 'Categoría', 'Descripción', 'Monto', 'Referencia', 'Nro. Recibo']);
+
+    // Combinar egresos directos con gastos/egresos de operaciones (igual que en la página de resumen)
+    const todosLosEgresos = [
+        ...egresosCajaDelPeriodo.map(e => ({ ...e, tipoMovimiento: 'EGRESO DIRECTO' })),
+        ...movimientosDelPeriodo.filter(m => m.tipo === 'gasto' || m.tipo === 'egreso').map(m => ({ ...m, tipoMovimiento: m.tipo.toUpperCase() }))
     ];
-    ws['!cols'] = colWidths;
 
-    XLSX.utils.book_append_sheet(wb, ws, 'Resumen');
+    // Ordenar por fecha (más recientes primero)
+    todosLosEgresos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    todosLosEgresos.forEach(e => {
+        datosEgresos.push([
+            formatearFecha(e.fecha),
+            e.caja || '',
+            e.cajero || '',
+            e.tipoMovimiento || 'EGRESO',
+            e.categoria || '',
+            e.descripcion || '',
+            formatearMoneda(e.monto, e.moneda || 'gs'),
+            e.referencia || '',
+            e.numeroRecibo ? String(e.numeroRecibo).padStart(6, '0') : ''
+        ]);
+    });
+
+    const wsEgresos = XLSX.utils.aoa_to_sheet(datosEgresos);
+    wsEgresos['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 20 }, { wch: 35 }, { wch: 15 }, { wch: 20 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, wsEgresos, 'Egresos');
 
     // Descargar archivo
-    const nombreArchivo = `Resumen_${fecha.replace(/-/g, '_')}.xlsx`;
+    const nombreArchivo = `Resumen_Detallado_${fechaDesde}_al_${fechaHasta}.xlsx`;
     XLSX.writeFile(wb, nombreArchivo);
+
+    mostrarMensaje('Excel exportado exitosamente con todos los detalles', 'exito');
 }
 
 // **NUEVA FUNCIÓN PARA EXPORTAR HISTORIAL DE ARQUEOS**
