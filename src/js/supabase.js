@@ -14,12 +14,12 @@ function inicializarSupabase() {
     if (supabaseInicializado) {
         return true;
     }
-    
+
     if (typeof supabase !== 'undefined') {
         supabaseClient = supabase.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY);
         supabaseInicializado = true;
         console.log('Supabase inicializado correctamente');
-        
+
         // Escuchar cambios en autenticación
         supabaseClient.auth.onAuthStateChange((event, session) => {
             if (session) {
@@ -32,7 +32,7 @@ function inicializarSupabase() {
                 console.log('Usuario desautenticado');
             }
         });
-        
+
         return true;
     }
     console.warn('Supabase no está disponible. Usando localStorage.');
@@ -55,18 +55,18 @@ const db = {
                         }
                     }
                 });
-                
+
                 if (error) throw error;
-                
+
                 // El perfil se crea automáticamente por el trigger
                 // Pero podemos asignar el rol específico
                 const { error: perfilError } = await supabaseClient
                     .from('perfiles_usuarios')
                     .update({ rol })
                     .eq('id', data.user.id);
-                
+
                 if (perfilError) console.warn('Error asignando rol:', perfilError);
-                
+
                 return { success: true, data };
             } catch (error) {
                 return { success: false, error };
@@ -75,7 +75,7 @@ const db = {
             return { success: false, error: 'Supabase no disponible' };
         }
     },
-    
+
     async iniciarSesion(email, password) {
         if (supabaseClient) {
             try {
@@ -83,7 +83,7 @@ const db = {
                     email,
                     password
                 });
-                
+
                 if (error) throw error;
                 usuarioActual = data.user;
                 localStorage.setItem('usuario_actual', JSON.stringify(usuarioActual));
@@ -95,7 +95,7 @@ const db = {
             return { success: false, error: 'Supabase no disponible' };
         }
     },
-    
+
     async cerrarSesion() {
         if (supabaseClient) {
             try {
@@ -112,7 +112,7 @@ const db = {
             return { success: true };
         }
     },
-    
+
     async obtenerSesionActual() {
         if (supabaseClient) {
             try {
@@ -126,7 +126,7 @@ const db = {
             return { success: false, error: 'Supabase no disponible' };
         }
     },
-    
+
     async obtenerPerfilActual() {
         if (supabaseClient && usuarioActual) {
             try {
@@ -135,7 +135,7 @@ const db = {
                     .select('*')
                     .eq('id', usuarioActual.id)
                     .single();
-                
+
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {
@@ -145,7 +145,7 @@ const db = {
             return { success: false, error: 'No hay sesión activa' };
         }
     },
-    
+
     async restablecerContraseña(email) {
         if (supabaseClient) {
             try {
@@ -159,7 +159,7 @@ const db = {
             return { success: false, error: 'Supabase no disponible' };
         }
     },
-    
+
     async actualizarContraseña(nuevoPassword) {
         if (supabaseClient) {
             try {
@@ -175,7 +175,7 @@ const db = {
             return { success: false, error: 'Supabase no disponible' };
         }
     },
-    
+
     // ===== GESTIÓN DE USUARIOS =====
     async guardarEgresoCaja(egreso) {
         if (supabaseClient) {
@@ -229,7 +229,7 @@ const db = {
             return this.obtenerDeLocalStorage('egresosCaja', fecha);
         }
     },
-    
+
     // Guardar movimiento
     async guardarMovimiento(movimiento) {
         if (supabaseClient) {
@@ -246,7 +246,7 @@ const db = {
             return this.guardarEnLocalStorage('movimientos', movimiento);
         }
     },
-    
+
     // Obtener movimientos por fecha
     async obtenerMovimientos() {
         if (supabaseClient) {
@@ -276,7 +276,7 @@ const db = {
                     .gte('fecha', fecha)
                     .lt('fecha', fecha + 'T23:59:59')
                     .order('fecha', { ascending: false });
-                
+
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {
@@ -382,7 +382,7 @@ const db = {
     async toggleUsuarioActivo(id, activo) {
         return this.actualizarUsuario(id, { activo });
     },
-    
+
     // Funciones auxiliares para localStorage
     guardarEnLocalStorage(tipo, item) {
         try {
@@ -394,11 +394,11 @@ const db = {
             return { success: false, error };
         }
     },
-    
+
     obtenerDeLocalStorage(tipo, fecha) {
         try {
             const items = JSON.parse(localStorage.getItem(tipo)) || [];
-            const itemsFiltrados = items.filter(item => 
+            const itemsFiltrados = items.filter(item =>
                 item.fecha && item.fecha.startsWith(fecha)
             );
             return { success: true, data: itemsFiltrados };
@@ -409,9 +409,12 @@ const db = {
     async guardarMovimientoTemporal(item) {
         if (supabaseClient) {
             try {
+                // **NUEVO:** Asegurar que el campo arqueado esté presente
+                const itemConEstado = { ...item, arqueado: item.arqueado !== undefined ? item.arqueado : false };
+
                 const { data, error } = await supabaseClient
                     .from('movimientos_temporales')
-                    .upsert([item]);
+                    .upsert([itemConEstado]);
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {
@@ -489,40 +492,40 @@ async function migrarDatosALocalStorage() {
         console.warn('Supabase no está configurado');
         return;
     }
-    
+
     try {
         // Obtener todos los datos de localStorage
         const arqueosLocal = JSON.parse(localStorage.getItem('arqueos')) || [];
         const movimientosLocal = JSON.parse(localStorage.getItem('movimientos')) || [];
-        
+
         console.log(`Migrando ${arqueosLocal.length} arqueos y ${movimientosLocal.length} movimientos...`);
-        
+
         // Migrar arqueos
         if (arqueosLocal.length > 0) {
             const { data, error } = await supabaseClient
                 .from('arqueos')
                 .insert(arqueosLocal);
-            
+
             if (error) throw error;
             console.log('Arqueos migrados exitosamente');
         }
-        
+
         // Migrar movimientos
         if (movimientosLocal.length > 0) {
             const { data, error } = await supabaseClient
                 .from('movimientos')
                 .insert(movimientosLocal);
-            
+
             if (error) throw error;
             console.log('Movimientos migrados exitosamente');
         }
-        
+
         // Limpiar localStorage después de migrar
         localStorage.removeItem('arqueos');
         localStorage.removeItem('movimientos');
-        
+
         console.log('Migración completada exitosamente');
-        
+
     } catch (error) {
         console.error('Error durante la migración:', error);
     }
@@ -558,7 +561,7 @@ const ESQUEMA_TABLAS = {
         CREATE INDEX idx_arqueos_caja ON arqueos(caja);
         CREATE INDEX idx_arqueos_cajero ON arqueos(cajero);
     `,
-    
+
     movimientos: `
         CREATE TABLE movimientos (
             id TEXT PRIMARY KEY,

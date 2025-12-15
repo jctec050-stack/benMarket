@@ -600,6 +600,7 @@ async function agregarMovimiento() {
             ? 'Caja Tesoreria'
             : (sessionStorage.getItem('cajaSeleccionada') || 'Caja 1'),
         historialEdiciones: [], // Inicializamos el historial de ediciones
+        arqueado: false, // **NUEVO:** Inicializar como no arqueado
         valorVenta: esVentaConVuelto ? totalVenta : 0, // **NUEVO:** Guardar el valor real de la venta
         efectivoVuelto: {}, // **NUEVO:** Para guardar el desglose del vuelto
         descripcion: document.getElementById('descripcionMovimiento').value || '',
@@ -1269,11 +1270,15 @@ function actualizarArqueoFinal() {
 
     // 1. Obtener ingresos del día
     // **CORRECCIÓN:** Filtrar también los ingresos por la fecha seleccionada.
-    let ingresosParaArqueo = estado.movimientosTemporales.filter(m => m.fecha.split('T')[0] === fechaArqueo);
+    // **NUEVO:** Excluir movimientos ya arqueados
+    let ingresosParaArqueo = estado.movimientosTemporales.filter(m =>
+        m.fecha.split('T')[0] === fechaArqueo && m.arqueado !== true
+    );
 
     // 2. Obtener egresos de la sección "Egresos"
+    // **NUEVO:** Excluir egresos ya arqueados
     let egresosDeCaja = estado.egresosCaja.filter(e => {
-        return e.fecha.split('T')[0] === fechaArqueo;
+        return e.fecha.split('T')[0] === fechaArqueo && e.arqueado !== true;
     });
 
     // **CORRECCIÓN:** 3. Obtener egresos de la sección "Operaciones" que afecten a la caja
@@ -1439,10 +1444,12 @@ async function guardarArqueo() {
     const cajaFiltro = arqueo.caja;
 
     // CORRECCIÓN: Filtrar ingresos también por la fecha del arqueo.
+    // **NUEVO:** Excluir movimientos ya arqueados
     const ingresosParaArqueo = estado.movimientosTemporales.filter(m =>
-        m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo)
+        m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo) && m.arqueado !== true
     );
-    const egresosDeCaja = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro);
+    // **NUEVO:** Excluir egresos ya arqueados
+    const egresosDeCaja = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro && e.arqueado !== true);
     const egresosDeOperaciones = estado.movimientos.filter(m => m.fecha.startsWith(fechaArqueo) && (m.tipo === 'gasto' || m.tipo === 'egreso') && m.caja === cajaFiltro);
     const todosLosEgresos = [...egresosDeCaja, ...egresosDeOperaciones];
 
@@ -1514,24 +1521,30 @@ async function guardarArqueo() {
     // Mostrar mensaje de éxito
     mostrarMensaje('Arqueo guardado exitosamente', 'exito');
 
+
     // **MODIFICADO:** Exportar el PDF con los datos consistentes de la pantalla
     exportarArqueoActualPDF(true); // true indica que es un guardado final
 
-    // **CORRECCIÓN MEJORADA:** Limpiar solo los movimientos de la caja y fecha que se están arqueando.
-    const restantes = estado.movimientosTemporales.filter(m =>
-        !(m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo))
+    // **NUEVO:** Marcar movimientos como arqueados en lugar de borrarlos
+    const movimientosArqueados = estado.movimientosTemporales.filter(m =>
+        m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo)
     );
-    const aBorrar = estado.movimientosTemporales.filter(m => m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo));
-    for (const mov of aBorrar) {
-        if (mov.id && window.db && window.db.eliminarMovimientoTemporal) {
-            await window.db.eliminarMovimientoTemporal(mov.id);
+
+    console.log(`Marcando ${movimientosArqueados.length} movimientos como arqueados...`);
+
+    for (const mov of movimientosArqueados) {
+        mov.arqueado = true;
+        mov.fecha_arqueo = new Date().toISOString(); // Registrar cuándo fue arqueado
+
+        if (mov.id && window.db && window.db.guardarMovimientoTemporal) {
+            await window.db.guardarMovimientoTemporal(mov);
         }
     }
-    estado.movimientosTemporales = restantes;
 
     // Actualizar las vistas
     cargarHistorialMovimientosDia();
     renderizarIngresosAgregados();
+
 }
 
 // Funciones de Modal
@@ -1891,7 +1904,8 @@ async function guardarEgresoCaja(event) {
         descripcion: descripcion,
         monto: monto,
         referencia: referencia,
-        efectivo: efectivo
+        efectivo: efectivo,
+        arqueado: false // **NUEVO:** Inicializar como no arqueado
     };
 
     if (esEdicion) {
