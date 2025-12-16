@@ -614,6 +614,151 @@ body {
     background-color: #f8fafc;
 }
 
+/* === ESTILOS PARA VISTA EXCEL EN DESKTOP === */
+
+/* Contenedor de tabla para resumen */
+.lista-movimientos-reporte {
+    width: 100%;
+    overflow-x: auto;
+}
+
+/* Tabla estilo Excel - Solo visible en desktop */
+.tabla-resumen-excel {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.tabla-resumen-excel thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #f1f5f9;
+}
+
+.tabla-resumen-excel th {
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--color-texto);
+    border: 1px solid #e2e8f0;
+    background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tabla-resumen-excel th:last-child {
+    text-align: right;
+}
+
+.tabla-resumen-excel td {
+    padding: 0.65rem 0.5rem;
+    border: 1px solid #e2e8f0;
+    color: var(--color-texto);
+}
+
+.tabla-resumen-excel td:last-child {
+    text-align: right;
+    font-weight: 600;
+}
+
+/* Zebra striping para filas */
+.tabla-resumen-excel tbody tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+.tabla-resumen-excel tbody tr:nth-child(odd) {
+    background-color: white;
+}
+
+.tabla-resumen-excel tbody tr:hover {
+    background-color: #f0f9ff;
+    transition: background-color 0.15s ease;
+}
+
+/* Columnas específicas */
+.tabla-resumen-excel .col-fecha {
+    width: 12%;
+    white-space: nowrap;
+}
+
+.tabla-resumen-excel .col-hora {
+    width: 10%;
+    white-space: nowrap;
+}
+
+.tabla-resumen-excel .col-caja {
+    width: 12%;
+}
+
+.tabla-resumen-excel .col-cajero {
+    width: 15%;
+}
+
+.tabla-resumen-excel .col-descripcion {
+    width: 36%;
+}
+
+.tabla-resumen-excel .col-monto {
+    width: 15%;
+    font-family: 'Courier New', monospace;
+}
+
+/* Estilos para montos positivos y negativos */
+.tabla-resumen-excel .monto-positivo {
+    color: var(--color-exito);
+}
+
+.tabla-resumen-excel .monto-negativo {
+    color: var(--color-peligro);
+}
+
+/* Mensaje cuando no hay datos */
+.tabla-resumen-excel-vacia {
+    text-align: center;
+    padding: 2rem;
+    color: var(--color-secundario);
+    font-style: italic;
+}
+
+/* === RESPONSIVE: Desktop (≥992px) === */
+@media (min-width: 992px) {
+
+    /* Mostrar tabla en desktop */
+    .lista-movimientos-reporte .tabla-resumen-excel {
+        display: table;
+    }
+
+    /* Ocultar tarjetas en desktop */
+    .lista-movimientos-reporte .movimiento-item {
+        display: none;
+    }
+
+    /* Ajustar altura máxima para scroll */
+    .lista-movimientos-reporte {
+        max-height: 500px;
+        overflow-y: auto;
+    }
+}
+
+/* === RESPONSIVE: Mobile (<992px) === */
+@media (max-width: 991px) {
+
+    /* Ocultar tabla en móvil */
+    .lista-movimientos-reporte .tabla-resumen-excel {
+        display: none;
+    }
+
+    /* Mostrar tarjetas en móvil */
+    .lista-movimientos-reporte .movimiento-item {
+        display: block;
+    }
+}
+
 /* Historial de gastos */
 .historial-gastos {
     background: white;

@@ -2545,6 +2545,26 @@ function renderizarLista(contenedor, items, tipo) {
 
     let granTotal = 0; // **NUEVO:** Para calcular el total de la lista.
 
+    // **NUEVO:** Crear tabla para vista desktop
+    const tabla = document.createElement('table');
+    tabla.className = 'tabla-resumen-excel';
+
+    // Crear encabezado de tabla
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+        <tr>
+            <th class="col-fecha">Fecha</th>
+            <th class="col-hora">Hora</th>
+            <th class="col-caja">Caja</th>
+            <th class="col-cajero">Cajero</th>
+            <th class="col-descripcion">Descripción</th>
+            <th class="col-monto">Monto</th>
+        </tr>
+    `;
+    tabla.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+
     items.forEach(item => {
         const esEgreso = tipo.toLowerCase().includes('egreso');
         const claseMonto = esEgreso ? 'negativo' : 'positivo';
@@ -2628,6 +2648,24 @@ function renderizarLista(contenedor, items, tipo) {
             }
         }
 
+        // **NUEVO:** Extraer fecha y hora
+        const fechaCompleta = new Date(item.fecha);
+        const fecha = fechaCompleta.toLocaleDateString('es-PY');
+        const hora = fechaCompleta.toLocaleTimeString('es-PY', { hour: '2-digit', minute: '2-digit' });
+
+        // **NUEVO:** Crear fila de tabla para desktop
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="col-fecha">${fecha}</td>
+            <td class="col-hora">${hora}</td>
+            <td class="col-caja">${item.caja || 'N/A'}</td>
+            <td class="col-cajero">${item.cajero || 'N/A'}</td>
+            <td class="col-descripcion">${tituloMovimiento}</td>
+            <td class="col-monto monto-${claseMonto}">${signo}${formatearMoneda(montoTotal, item.moneda || 'gs')}</td>
+        `;
+        tbody.appendChild(tr);
+
+        // **MANTENER:** Crear tarjeta para vista móvil
         const div = document.createElement('div');
         div.className = 'movimiento-item';
         div.innerHTML = `
@@ -2641,6 +2679,10 @@ function renderizarLista(contenedor, items, tipo) {
         `;
         contenedor.appendChild(div);
     });
+
+    // Agregar tabla al contenedor
+    tabla.appendChild(tbody);
+    contenedor.insertBefore(tabla, contenedor.firstChild);
 
     // **MODIFICADO:** Colocar el totalizador en el span de la cabecera.
     if (items.length > 0) {
