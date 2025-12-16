@@ -145,6 +145,7 @@ let estado = {
     egresosCaja: [],
     movimientosTemporales: [],
     ultimoNumeroRecibo: JSON.parse(localStorage.getItem('ultimoNumeroRecibo')) || 0,
+    fondoFijoPorCaja: JSON.parse(localStorage.getItem('fondoFijoPorCaja')) || {} // **NUEVO:** Almacenar fondo fijo por caja
 };
 
 async function initSupabaseData() {
@@ -199,6 +200,13 @@ async function initSupabaseData() {
     if (!estado.movimientos || estado.movimientos.length === 0) {
         const movimientos = JSON.parse(localStorage.getItem('movimientos')) || [];
         estado.movimientos = movimientos;
+    }
+
+    // **NUEVO:** Cargar fondoFijoPorCaja desde localStorage
+    if (!estado.fondoFijoPorCaja || Object.keys(estado.fondoFijoPorCaja).length === 0) {
+        const fondoFijo = JSON.parse(localStorage.getItem('fondoFijoPorCaja')) || {};
+        estado.fondoFijoPorCaja = fondoFijo;
+        console.log('Fondo fijo cargado desde localStorage:', fondoFijo);
     }
 
     actualizarArqueoFinal();
@@ -376,7 +384,156 @@ function inicializarFormularioArqueo() {
         cajaArqueoInput.addEventListener('change', function () {
             actualizarArqueoFinal();
             cargarHistorialMovimientosDia();
+            cargarFondoFijoEnArqueo(); // **NUEVO:** Cargar fondo fijo al cambiar de caja
         });
+    }
+}
+
+// ===== FUNCIONES PARA FONDO FIJO =====
+
+/**
+ * Inicializar tabla de denominaciones para Fondo Fijo
+ */
+function inicializarTablaFondoFijo() {
+    const tabla = document.getElementById('tablaDenominacionesFondoFijo');
+    if (!tabla) return;
+
+    tabla.innerHTML = '';
+
+    CONFIG.denominaciones.forEach(denom => {
+        const fila = document.createElement('tr');
+        fila.innerHTML = `
+            <td>${denom.nombre}</td>
+            <td><input type="number" class="cantidad-denominacion-fondo-fijo" data-denominacion="${denom.valor}" min="0" value="0"></td>
+            <td class="monto-parcial-fondo-fijo" data-denominacion="${denom.valor}">G$ 0</td>
+        `;
+        tabla.appendChild(fila);
+    });
+
+    // Agregar listener para calcular total automáticamente
+    tabla.addEventListener('input', function (e) {
+        if (e.target.classList.contains('cantidad-denominacion-fondo-fijo')) {
+            const input = e.target;
+            const monto = (parseInt(input.value) || 0) * parseInt(input.dataset.denominacion);
+            input.closest('tr').querySelector('.monto-parcial-fondo-fijo').textContent = formatearMoneda(monto, 'gs');
+            calcularTotalFondoFijo();
+        }
+    });
+}
+
+/**
+ * Calcular total del Fondo Fijo
+ */
+function calcularTotalFondoFijo() {
+    let total = 0;
+    document.querySelectorAll('.cantidad-denominacion-fondo-fijo').forEach(input => {
+        const denominacion = parseInt(input.dataset.denominacion);
+        const cantidad = parseInt(input.value) || 0;
+        total += denominacion * cantidad;
+    });
+
+    const totalSpan = document.getElementById('totalFondoFijo');
+    if (totalSpan) {
+        totalSpan.textContent = formatearMoneda(total, 'gs');
+    }
+
+    return total;
+}
+
+/**
+ * Guardar Fondo Fijo para la caja actual
+ */
+window.guardarFondoFijo = function () {
+    // Obtener la caja actual - CORREGIDO: usar 'cajaSeleccionada' en lugar de 'cajaActual'
+    const cajaActual = sessionStorage.getItem('cajaSeleccionada') || 'Caja 1';
+
+    // Capturar denominaciones
+    const billetes = {};
+    document.querySelectorAll('.cantidad-denominacion-fondo-fijo').forEach(input => {
+        const denominacion = input.dataset.denominacion;
+        const cantidad = parseInt(input.value) || 0;
+        if (cantidad > 0) {
+            billetes[denominacion] = cantidad;
+        }
+    });
+
+    // Calcular total
+    const total = calcularTotalFondoFijo();
+
+    if (total === 0) {
+        mostrarMensaje('Debe ingresar al menos un billete para el fondo fijo', 'peligro');
+        return;
+    }
+
+    // Guardar en estado
+    estado.fondoFijoPorCaja[cajaActual] = {
+        monto: total,
+        billetes: billetes,
+        fecha: new Date().toISOString()
+    };
+
+    console.log('Antes de guardarEnLocalStorage');
+    console.log('estado.fondoFijoPorCaja:', estado.fondoFijoPorCaja);
+
+    // Guardar en localStorage
+    try {
+        guardarEnLocalStorage();
+        console.log('Después de guardarEnLocalStorage');
+    } catch (error) {
+        console.error('Error al guardar en localStorage:', error);
+    }
+
+    // **DEBUG:** Verificar que se guardó correctamente
+    console.log('Fondo Fijo guardado:', cajaActual, total, estado.fondoFijoPorCaja);
+
+    // Verificar directamente en localStorage
+    const verificacion = localStorage.getItem('fondoFijoPorCaja');
+    console.log('Verificación directa de localStorage:', verificacion);
+
+    // Mostrar mensaje de confirmación
+    mostrarMensaje(`Fondo Fijo de ${formatearMoneda(total, 'gs')} guardado para ${cajaActual}`, 'exito');
+
+    // Limpiar campos
+    document.querySelectorAll('.cantidad-denominacion-fondo-fijo').forEach(input => {
+        input.value = 0;
+    });
+    calcularTotalFondoFijo();
+
+    // Cerrar modal
+    cerrarModal();
+};
+
+/**
+ * Cargar Fondo Fijo en la página de Arqueo
+ */
+function cargarFondoFijoEnArqueo() {
+    const fondoFijoInput = document.getElementById('fondoFijo');
+    const cajaInput = document.getElementById('caja');
+
+    if (!fondoFijoInput || !cajaInput) {
+        console.log('cargarFondoFijoEnArqueo: elementos no encontrados', { fondoFijoInput, cajaInput });
+        return;
+    }
+
+    const cajaSeleccionada = cajaInput.value;
+    const fondoFijo = estado.fondoFijoPorCaja[cajaSeleccionada];
+
+    // **DEBUG:** Verificar qué se está cargando
+    console.log('cargarFondoFijoEnArqueo:', { cajaSeleccionada, fondoFijo, estado: estado.fondoFijoPorCaja });
+
+    if (fondoFijo && fondoFijo.monto) {
+        // Aplicar formato con separador de miles
+        const montoFormateado = fondoFijo.monto.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        fondoFijoInput.value = montoFormateado;
+        console.log('Fondo fijo cargado:', montoFormateado);
+    } else {
+        fondoFijoInput.value = '0';
+        console.log('No hay fondo fijo para esta caja');
+    }
+
+    // Recalcular arqueo con el nuevo fondo fijo
+    if (typeof actualizarArqueoFinal === 'function') {
+        actualizarArqueoFinal();
     }
 }
 
@@ -1552,6 +1709,10 @@ function abrirModal(contenidoId, titulo) {
     // Asegurarse de que el contenido del modal de efectivo esté generado
     if (contenidoId === 'contenido-efectivo') {
         inicializarModalEfectivo();
+    }
+    // **NUEVO:** Inicializar tabla de Fondo Fijo
+    if (contenidoId === 'contenido-fondo-fijo') {
+        inicializarTablaFondoFijo();
     }
     const modal = document.getElementById('modal');
     const modalTitulo = document.getElementById('modal-titulo');
@@ -3065,10 +3226,16 @@ function limpiarMovimientos() {
 }
 
 function guardarEnLocalStorage() {
+    console.log('=== guardarEnLocalStorage ===');
+    console.log('estado.fondoFijoPorCaja:', estado.fondoFijoPorCaja);
+
     localStorage.setItem('arqueos', JSON.stringify(estado.arqueos));
     localStorage.setItem('movimientos', JSON.stringify(estado.movimientos));
     localStorage.setItem('egresosCaja', JSON.stringify(estado.egresosCaja));
     localStorage.setItem('ultimoNumeroRecibo', JSON.stringify(estado.ultimoNumeroRecibo));
+    localStorage.setItem('fondoFijoPorCaja', JSON.stringify(estado.fondoFijoPorCaja)); // **NUEVO:** Guardar fondo fijo
+
+    console.log('fondoFijoPorCaja guardado en localStorage:', localStorage.getItem('fondoFijoPorCaja'));
 }
 
 function mostrarMensaje(mensaje, tipo = 'info') {
@@ -3359,6 +3526,7 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('fecha').addEventListener('change', actualizarArqueoFinal); // **CORRECCIÓN:** Añadir listener para la fecha.
         document.getElementById('fondoFijo').addEventListener('input', actualizarArqueoFinal);
         actualizarArqueoFinal();
+        cargarFondoFijoEnArqueo(); // **NUEVO:** Cargar fondo fijo al inicializar la página de arqueo
         // **NUEVO:** Asegurar que la fecha y hora se establezcan al cargar la página de arqueo.
         const fechaArqueoInput = document.getElementById('fecha');
         if (fechaArqueoInput) fechaArqueoInput.value = obtenerFechaHoraLocalISO();
@@ -3962,6 +4130,7 @@ function guardarEnLocalStorage() {
     localStorage.setItem('egresosCaja', JSON.stringify(estado.egresosCaja));
     localStorage.setItem('movimientosTemporales', JSON.stringify(estado.movimientosTemporales));
     localStorage.setItem('ultimoNumeroRecibo', JSON.stringify(estado.ultimoNumeroRecibo));
+    localStorage.setItem('fondoFijoPorCaja', JSON.stringify(estado.fondoFijoPorCaja)); // **NUEVO:** Guardar fondo fijo
 }
 
 const style = document.createElement('style');

@@ -95,6 +95,9 @@
                                 Efectivo</button>
                             <button type="button" class="btn btn-secundario"
                                 onclick="abrirModal('contenido-servicios', 'Servicios')">Servicios c/ Tarjeta</button>
+                            <button type="button" class="btn btn-adicional"
+                                onclick="abrirModal('contenido-fondo-fijo', 'Registrar Fondo Fijo')">💰 Fondo
+                                Fijo</button>
                         </div>
 
                         <!-- Contenido oculto para los modales -->
@@ -345,6 +348,36 @@
                                     <button type="button" class="btn btn-primario"
                                         onclick="guardarServicioEfectivo()">Confirmar
                                         y Guardar Ingreso</button>
+                                </div>
+                            </div>
+
+                            <!-- =================================================================== -->
+                            <!-- NUEVO: CONTENIDO PARA EL MODAL DE FONDO FIJO -->
+                            <!-- =================================================================== -->
+                            <div id="contenido-fondo-fijo">
+                                <p style="margin-bottom: 1rem; color: var(--color-secundario);">
+                                    Ingrese los billetes iniciales para comenzar el día en esta caja:
+                                </p>
+                                <table class="tabla-conteo">
+                                    <thead>
+                                        <tr>
+                                            <th>Denominación</th>
+                                            <th>Cantidad</th>
+                                            <th>Monto</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tablaDenominacionesFondoFijo">
+                                        <!-- Se llenará dinámicamente desde app.js -->
+                                    </tbody>
+                                </table>
+                                <div class="total-efectivo">
+                                    <strong>Total Fondo Fijo: <span id="totalFondoFijo">G$ 0</span></strong>
+                                </div>
+                                <div class="form-botones" style="text-align: right; margin-top: 1rem;">
+                                    <button type="button" class="btn btn-secundario"
+                                        onclick="cerrarModal()">Cancelar</button>
+                                    <button type="button" class="btn btn-primario" onclick="guardarFondoFijo()">💾
+                                        Guardar Fondo Fijo</button>
                                 </div>
                             </div>
 
