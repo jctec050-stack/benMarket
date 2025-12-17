@@ -2623,15 +2623,64 @@ function cargarResumenDiario() {
     });
     const totalServiciosTarjeta = renderizarLista(listaIngresosServiciosTarjeta, ingresosServiciosTarjeta, 'IngresosServiciosTarjeta');
 
-    // **NUEVO:** 3. Ingresos No Efectivo
+    // **NUEVO:** 3. Ingresos No Efectivo - Descomponer por tipo
     const listaIngresosNoEfectivo = document.getElementById('listaIngresosNoEfectivo');
-    let ingresosNoEfectivoFiltrados = movimientosIngresos.filter(m => { // **CORRECCIÓN:** Usar solo movimientosIngresos
+
+    // Filtrar movimientos que tienen componentes no efectivo
+    let movimientosConNoEfectivo = movimientosIngresos.filter(m => {
         const tieneNoEfectivo = (m.pagosTarjeta > 0 || m.ventasCredito > 0 || m.pedidosYa > 0 || m.ventasTransferencia > 0);
         return esIngresoTienda(m) && tieneNoEfectivo &&
-            (!filtroCajaNoEfectivo || m.caja === filtroCajaNoEfectivo) &&
-            (!filtroDescNoEfectivo || m.descripcion.toLowerCase().includes(filtroDescNoEfectivo));
+            (!filtroCajaNoEfectivo || m.caja === filtroCajaNoEfectivo);
     });
-    const totalNoEfectivo = renderizarLista(listaIngresosNoEfectivo, ingresosNoEfectivoFiltrados, 'IngresosNoEfectivo');
+
+    // **NUEVO:** Descomponer cada movimiento en entradas separadas por tipo de ingreso
+    let ingresosNoEfectivoDescompuestos = [];
+    movimientosConNoEfectivo.forEach(m => {
+        // Crear una entrada separada para cada tipo de ingreso no efectivo
+        if (m.pagosTarjeta > 0) {
+            ingresosNoEfectivoDescompuestos.push({
+                ...m,
+                monto: m.pagosTarjeta,
+                categoria: 'Pago c/ Tarjeta', // Usar categoria para el título
+                tipoIngreso: 'pagosTarjeta'
+                // Mantener descripcion original para el filtro
+            });
+        }
+        if (m.ventasCredito > 0) {
+            ingresosNoEfectivoDescompuestos.push({
+                ...m,
+                monto: m.ventasCredito,
+                categoria: 'Venta a Crédito',
+                tipoIngreso: 'ventasCredito'
+            });
+        }
+        if (m.pedidosYa > 0) {
+            ingresosNoEfectivoDescompuestos.push({
+                ...m,
+                monto: m.pedidosYa,
+                categoria: 'Pedidos Ya',
+                tipoIngreso: 'pedidosYa'
+            });
+        }
+        if (m.ventasTransferencia > 0) {
+            ingresosNoEfectivoDescompuestos.push({
+                ...m,
+                monto: m.ventasTransferencia,
+                categoria: 'Venta a Transferencia',
+                tipoIngreso: 'ventasTransferencia'
+            });
+        }
+    });
+
+    // **NUEVO:** Aplicar filtro de descripción después de descomponer
+    if (filtroDescNoEfectivo) {
+        ingresosNoEfectivoDescompuestos = ingresosNoEfectivoDescompuestos.filter(m =>
+            (m.descripcion && m.descripcion.toLowerCase().includes(filtroDescNoEfectivo)) ||
+            (m.categoria && m.categoria.toLowerCase().includes(filtroDescNoEfectivo))
+        );
+    }
+
+    const totalNoEfectivo = renderizarLista(listaIngresosNoEfectivo, ingresosNoEfectivoDescompuestos, 'Ingreso No Efectivo');
 
     // 4. Egresos de Caja
     const listaEgresos = document.getElementById('listaEgresos');
@@ -2759,8 +2808,22 @@ function renderizarLista(contenedor, items, tipo) {
 
         granTotal += montoTotal; // **NUEVO:** Sumar al total de la lista.
 
-        // **NUEVO:** Extraer nombres de servicios si es un movimiento de servicios
-        let tituloMovimiento = item.descripcion || item.categoria || 'Movimiento';
+        // **NUEVO:** Construir título del movimiento según el tipo
+        let tituloMovimiento = '';
+
+        // **NUEVO:** Extraer títulos para Ingresos No Efectivo (PRIMERO)
+        if (tipo === 'Ingreso No Efectivo') {
+            const tiposIngreso = [];
+
+            if (item.pagosTarjeta > 0) tiposIngreso.push('Pago c/ Tarjeta');
+            if (item.ventasCredito > 0) tiposIngreso.push('Venta a Crédito');
+            if (item.pedidosYa > 0) tiposIngreso.push('Pedidos Ya');
+            if (item.ventasTransferencia > 0) tiposIngreso.push('Venta a Transferencia');
+
+            if (tiposIngreso.length > 0) {
+                tituloMovimiento = tiposIngreso.join(', ');
+            }
+        }
 
         if (tipo === 'IngresosServiciosTarjeta' || tipo === 'IngresosServiciosEfectivo') {
             const nombresServicios = [];
@@ -2807,6 +2870,11 @@ function renderizarLista(contenedor, items, tipo) {
             if (nombresServicios.length > 0) {
                 tituloMovimiento = nombresServicios.join(', ');
             }
+        }
+
+        // **NUEVO:** Fallback si no se pudo determinar un título específico
+        if (!tituloMovimiento) {
+            tituloMovimiento = item.descripcion || item.categoria || 'Movimiento';
         }
 
         // **NUEVO:** Extraer fecha y hora
