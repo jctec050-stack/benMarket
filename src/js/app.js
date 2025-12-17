@@ -2513,6 +2513,32 @@ function eliminarEgresoCaja(id) {
 }
 
 
+// Aplicar filtro general de caja a todos los filtros individuales
+function aplicarFiltroCajaGeneral() {
+    const cajaGeneral = document.getElementById('filtroCajaGeneral')?.value || '';
+
+    // Lista de todos los filtros de caja individuales
+    const filtrosCaja = [
+        'filtroCajaIngresosTienda',
+        'filtroCajaServiciosEfectivo',
+        'filtroCajaDepositosInversiones',
+        'filtroCajaServiciosTarjeta',
+        'filtroCajaNoEfectivo',
+        'filtroCajaEgresos'
+    ];
+
+    // Sincronizar todos los filtros individuales con el general
+    filtrosCaja.forEach(filtroId => {
+        const filtro = document.getElementById(filtroId);
+        if (filtro) {
+            filtro.value = cajaGeneral;
+        }
+    });
+
+    // Recargar el resumen con los nuevos filtros
+    cargarResumenDiario();
+}
+
 // Resumen de tesorería
 function cargarResumenDiario() {
     const fechaDesdeInput = document.getElementById('fechaResumenDesde');
@@ -3398,12 +3424,9 @@ function filtrarGastos() {
 function configurarVistaPorRol(rol, caja, usuario) {
     // --- Visibilidad de Pestañas por Rol ---
     const navUsuarios = document.getElementById('nav-usuarios');
-    if (navUsuarios) { // Siempre verificar que el elemento exista
-        if (rol === 'admin') {
-            navUsuarios.style.display = 'block'; // Mostrar para admin
-        } else {
-            navUsuarios.style.display = 'none'; // Ocultar para otros roles
-        }
+    if (navUsuarios) {
+        // Ocultar página de usuarios (deshabilitada temporalmente)
+        navUsuarios.style.display = 'none';
     }
 
     // --- Configuración de Campos y Selectores por Rol ---
@@ -3453,6 +3476,16 @@ function configurarVistaPorRol(rol, caja, usuario) {
 // Gestión de Usuarios (UI)
 // ============================
 async function cargarUsuariosUI() {
+    // Validar acceso de administrador
+    const userRole = sessionStorage.getItem('userRole');
+    if (userRole !== 'admin') {
+        mostrarMensaje('Acceso denegado. Solo los administradores pueden gestionar usuarios.', 'peligro');
+        setTimeout(() => {
+            window.location.href = 'index.html';
+        }, 2000);
+        return;
+    }
+
     const lista = document.getElementById('listaUsuarios');
     const form = document.getElementById('formularioUsuario');
     if (!lista || !form || !window.db || !window.db.obtenerUsuarios) return;
@@ -3526,7 +3559,7 @@ async function cargarUsuariosUI() {
                     mostrarMensaje('Error al cambiar estado', 'peligro');
                 }
             }
-        }, { once: true });
+        });
     }
 
     form.addEventListener('submit', async (event) => {
@@ -3543,7 +3576,7 @@ async function cargarUsuariosUI() {
         } else {
             mostrarMensaje('Error al crear usuario', 'peligro');
         }
-    }, { once: true });
+    });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -3600,11 +3633,8 @@ document.addEventListener('DOMContentLoaded', function () {
         return; // Si la configuración falla (no autenticado), no continuar.
     }
 
-    // **CORRECCIÓN:** Inicializar la gestión de usuarios si estamos en la página correcta.
-    // Esto soluciona el error en la línea 2259.
-    if (window.location.pathname.includes('usuarios.html')) {
-        inicializarGestionUsuarios();
-    }
+    // **NOTA:** La gestión de usuarios ahora usa solo Supabase vía cargarUsuariosUI()
+    // La función inicializarGestionUsuarios() (localStorage) ya no se usa para evitar conflictos.
 
     initializeDateTimeFields();
 

@@ -313,12 +313,38 @@ const db = {
     async crearUsuario(usuario) {
         if (supabaseClient) {
             try {
-                const { data, error } = await supabaseClient
-                    .from('perfiles_usuarios')
-                    .insert([usuario]);
+                // Usar el username como email para Supabase Auth
+                const email = usuario.username;
+                const password = usuario.password;
+                const rol = usuario.rol || 'cajero';
+
+                // Registrar con Supabase Auth
+                const { data, error } = await supabaseClient.auth.signUp({
+                    email,
+                    password,
+                    options: {
+                        data: {
+                            username: email
+                        }
+                    }
+                });
+
                 if (error) throw error;
+
+                // El perfil se crea automáticamente por el trigger
+                // Actualizar el rol específico si es diferente de 'cajero'
+                if (data.user && rol !== 'cajero') {
+                    const { error: perfilError } = await supabaseClient
+                        .from('perfiles_usuarios')
+                        .update({ rol })
+                        .eq('id', data.user.id);
+
+                    if (perfilError) console.warn('Error asignando rol:', perfilError);
+                }
+
                 return { success: true, data };
             } catch (error) {
+                console.error('Error creando usuario:', error);
                 return { success: false, error };
             }
         } else {

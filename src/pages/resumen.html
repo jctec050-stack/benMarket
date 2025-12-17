@@ -43,6 +43,15 @@
                     <label for="fechaResumenHasta">Hasta:</label>
                     <input type="date" id="fechaResumenHasta" onchange="cargarResumenDiario()">
                 </div>
+                <div class="form-grupo">
+                    <label for="filtroCajaGeneral">Caja:</label>
+                    <select id="filtroCajaGeneral" onchange="aplicarFiltroCajaGeneral()">
+                        <option value="">Todas las Cajas</option>
+                        <option value="Caja 1">Caja 1</option>
+                        <option value="Caja 2">Caja 2</option>
+                        <option value="Caja 3">Caja 3</option>
+                    </select>
+                </div>
                 <div class="resumen-botones-excel">
                     <button class="btn btn-excel" onclick="descargarExcel()">Exportar Resumen</button>
                     <button class="btn btn-excel" onclick="exportarHistorialArqueosExcel()">Exportar Arqueos</button>
