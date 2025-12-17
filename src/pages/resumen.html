@@ -108,6 +108,38 @@
                             </div>
                         </section>
 
+                        <!-- **NUEVO:** Sub-sección para Depósitos - Inversiones -->
+                        <section class="resumen-card sub-seccion" id="cardDepositosInversionesGeneral">
+                            <div class="reporte-header" onclick="toggleReporte(this)">
+                                <h3 class="reporte-titulo">Depósitos - Inversiones</h3>
+                                <span id="totalDepositosInversionesGeneral" class="reporte-total positivo"></span>
+                            </div>
+                            <div class="reporte-contenido" style="display: none;">
+                                <section class="resumen-card" id="cardDepositosInversiones">
+                                    <div class="reporte-header" onclick="toggleReporte(this)">
+                                        <h3 class="reporte-titulo">Detalle de Depósitos</h3>
+                                        <span id="totalDepositosInversiones" class="reporte-total"></span>
+                                    </div>
+                                    <div class="reporte-contenido" style="display: none;">
+                                        <div class="filtros-historial">
+                                            <select id="filtroCajaDepositosInversiones"
+                                                onchange="cargarResumenDiario()">
+                                                <option value="">Todas las Cajas</option>
+                                                <option value="Caja 1">Caja 1</option>
+                                                <option value="Caja 2">Caja 2</option>
+                                                <option value="Caja 3">Caja 3</option>
+                                            </select>
+                                            <input type="text" id="filtroDescDepositosInversiones"
+                                                placeholder="Filtrar por descripción..."
+                                                oninput="cargarResumenDiario()">
+                                        </div>
+                                        <div id="listaDepositosInversiones" class="lista-movimientos-reporte">
+                                        </div>
+                                    </div>
+                                </section>
+                            </div>
+                        </section>
+
                         <!-- **NUEVO:** Sub-sección para Ingresos No Efectivo -->
                         <section class="resumen-card sub-seccion" id="cardIngresosNoEfectivoGeneral">
                             <div class="reporte-header" onclick="toggleReporte(this)">

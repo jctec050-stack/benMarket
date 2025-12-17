@@ -237,9 +237,14 @@ const db = {
                 const { data, error } = await supabaseClient
                     .from('movimientos')
                     .upsert([movimiento]);
-                if (error) throw error;
+                if (error) {
+                    console.error('Error de Supabase al guardar movimiento:', error);
+                    console.error('Datos del movimiento:', movimiento);
+                    throw error;
+                }
                 return { success: true, data };
             } catch (error) {
+                console.error('Error completo:', error);
                 return { success: false, error };
             }
         } else {

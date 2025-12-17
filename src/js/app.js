@@ -1927,8 +1927,10 @@ function cargarHistorialGastos() {
         const div = document.createElement('div');
         div.className = 'movimiento-item';
 
-        const signo = '-'; // Todos los movimientos en esta sección son egresos
-        const claseMonto = 'negativo';
+        // **CORRECCIÓN:** Los depósitos-inversiones son ingresos (positivos), el resto son egresos (negativos)
+        const esIngreso = movimiento.tipo === 'deposito-inversiones';
+        const signo = esIngreso ? '+' : '-';
+        const claseMonto = esIngreso ? 'positivo' : 'negativo';
         const numeroReciboHTML = movimiento.numeroRecibo
             ? `| Recibo: ${String(movimiento.numeroRecibo).padStart(6, '0')}`
             : '';
@@ -2682,7 +2684,26 @@ function cargarResumenDiario() {
 
     const totalNoEfectivo = renderizarLista(listaIngresosNoEfectivo, ingresosNoEfectivoDescompuestos, 'Ingreso No Efectivo');
 
-    // 4. Egresos de Caja
+    // **NUEVO:** 4. Depósitos - Inversiones (movimientos de operaciones tipo deposito-inversiones)
+    const listaDepositosInversiones = document.getElementById('listaDepositosInversiones');
+    const filtroCajaDepositosInversiones = document.getElementById('filtroCajaDepositosInversiones') ? document.getElementById('filtroCajaDepositosInversiones').value : '';
+    const filtroDescDepositosInversiones = document.getElementById('filtroDescDepositosInversiones') ? document.getElementById('filtroDescDepositosInversiones').value.toLowerCase() : '';
+
+    let depositosInversiones = movimientosOperaciones.filter(m => {
+        // Filtrar solo movimientos de tipo deposito-inversiones
+        if (m.tipo !== 'deposito-inversiones') return false;
+
+        // Aplicar filtro de caja
+        if (filtroCajaDepositosInversiones && m.caja !== filtroCajaDepositosInversiones) return false;
+
+        // Aplicar filtro de descripción
+        if (filtroDescDepositosInversiones && !m.descripcion.toLowerCase().includes(filtroDescDepositosInversiones)) return false;
+
+        return true;
+    });
+    const totalDepositosInversiones = renderizarLista(listaDepositosInversiones, depositosInversiones, 'DepositosInversiones');
+
+    // 5. Egresos de Caja
     const listaEgresos = document.getElementById('listaEgresos');
     const todosLosEgresos = [
         ...egresosCajaDelPeriodo.map(e => ({ ...e, tipoMovimiento: 'EGRESO DIRECTO' })),
@@ -2695,7 +2716,7 @@ function cargarResumenDiario() {
     const totalEgresos = renderizarLista(listaEgresos, egresosFiltrados, 'Egresos');
 
     // **NUEVO:** Calcular y mostrar totales generales
-    const granTotalIngresos = totalTienda + totalServiciosEfectivo + totalServiciosTarjeta + totalNoEfectivo;
+    const granTotalIngresos = totalTienda + totalServiciosEfectivo + totalServiciosTarjeta + totalNoEfectivo + totalDepositosInversiones;
     const granTotalEgresos = totalEgresos;
     const diferenciaNeta = granTotalIngresos - granTotalEgresos;
 
@@ -2704,6 +2725,7 @@ function cargarResumenDiario() {
     const subTotalNoEfectivo = totalServiciosTarjeta + totalNoEfectivo;
 
     document.getElementById('totalIngresosEfectivo').innerHTML = `<strong>${formatearMoneda(subTotalEfectivo, 'gs')}</strong>`;
+    document.getElementById('totalDepositosInversionesGeneral').innerHTML = `<strong>${formatearMoneda(totalDepositosInversiones, 'gs')}</strong>`;
     document.getElementById('totalIngresosNoEfectivoGeneral').innerHTML = `<strong>${formatearMoneda(subTotalNoEfectivo, 'gs')}</strong>`;
 
     // Mostrar totales generales
@@ -2715,7 +2737,7 @@ function cargarResumenDiario() {
     diferenciaSpan.className = 'reporte-total-principal'; // Reset class
     diferenciaSpan.classList.add(diferenciaNeta >= 0 ? 'positivo' : 'negativo');
 
-    // **NUEVO:** Calcular y mostrar la diferencia de efectivo
+    // **NUEVO:** Calcular y mostrar la diferencia de efectivo (sin incluir Depósitos - Inversiones)
     const diferenciaEfectivo = subTotalEfectivo - granTotalEgresos;
     const diferenciaEfectivoStrong = document.getElementById('diferenciaEfectivo');
     const diferenciaEfectivoItem = document.getElementById('itemDiferenciaEfectivo');
@@ -3019,16 +3041,25 @@ async function descargarExcel() {
         totalEgresos += parsearMoneda(e.monto || 0);
     });
 
+    // **NUEVO:** Calcular total de Depósitos - Inversiones
+    let totalDepositosInversiones = 0;
+    movimientosDelPeriodo.forEach(m => {
+        if (m.tipo === 'deposito-inversiones') {
+            totalDepositosInversiones += parsearMoneda(m.monto || 0);
+        }
+    });
+
     datosResumen.push(['INGRESOS']);
     datosResumen.push(['Ingresos en Efectivo:', formatearMoneda(totalIngresosEfectivo, 'gs')]);
+    datosResumen.push(['Depósitos - Inversiones:', formatearMoneda(totalDepositosInversiones, 'gs')]);
     datosResumen.push(['Ingresos No Efectivo:', formatearMoneda(totalIngresosNoEfectivo, 'gs')]);
-    datosResumen.push(['Total Ingresos:', formatearMoneda(totalIngresosEfectivo + totalIngresosNoEfectivo, 'gs')]);
+    datosResumen.push(['Total Ingresos:', formatearMoneda(totalIngresosEfectivo + totalDepositosInversiones + totalIngresosNoEfectivo, 'gs')]);
     datosResumen.push([]);
     datosResumen.push(['EGRESOS']);
     datosResumen.push(['Total Egresos:', formatearMoneda(totalEgresos, 'gs')]);
     datosResumen.push([]);
     datosResumen.push(['SALDO']);
-    datosResumen.push(['Efectivo en Caja:', formatearMoneda(totalIngresosEfectivo - totalEgresos, 'gs')]);
+    datosResumen.push(['Efectivo en Caja:', formatearMoneda(totalIngresosEfectivo + totalDepositosInversiones - totalEgresos, 'gs')]);
     datosResumen.push(['Total General:', formatearMoneda(totalIngresosEfectivo + totalIngresosNoEfectivo - totalEgresos, 'gs')]);
 
     const wsResumen = XLSX.utils.aoa_to_sheet(datosResumen);
@@ -3220,6 +3251,32 @@ async function descargarExcel() {
     const wsEgresos = XLSX.utils.aoa_to_sheet(datosEgresos);
     wsEgresos['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 20 }, { wch: 35 }, { wch: 15 }, { wch: 20 }, { wch: 12 }];
     XLSX.utils.book_append_sheet(wb, wsEgresos, 'Egresos');
+
+    // ========== HOJA 7: DEPOSITOS - INVERSIONES ==========
+    const datosDepositosInversiones = [];
+    datosDepositosInversiones.push(['DEPÓSITOS - INVERSIONES']);
+    datosDepositosInversiones.push(['Fecha/Hora', 'Caja', 'Cajero', 'Descripción', 'Monto', 'Referencia']);
+
+    // Filtrar movimientos de tipo deposito-inversiones
+    const depositosInversiones = movimientosDelPeriodo.filter(m => m.tipo === 'deposito-inversiones');
+
+    // Ordenar por fecha (más recientes primero)
+    depositosInversiones.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    depositosInversiones.forEach(d => {
+        datosDepositosInversiones.push([
+            formatearFecha(d.fecha),
+            d.caja || '',
+            d.cajero || '',
+            d.descripcion || '',
+            formatearMoneda(d.monto, d.moneda || 'gs'),
+            d.referencia || ''
+        ]);
+    });
+
+    const wsDepositosInversiones = XLSX.utils.aoa_to_sheet(datosDepositosInversiones);
+    wsDepositosInversiones['!cols'] = [{ wch: 18 }, { wch: 15 }, { wch: 20 }, { wch: 35 }, { wch: 15 }, { wch: 20 }];
+    XLSX.utils.book_append_sheet(wb, wsDepositosInversiones, 'Depositos Inversiones');
 
     // Descargar archivo
     const nombreArchivo = `Resumen_Detallado_${fechaDesde}_al_${fechaHasta}.xlsx`;
