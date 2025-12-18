@@ -2733,17 +2733,54 @@ function cargarResumenDiario() {
     });
     const totalDepositosInversiones = renderizarLista(listaDepositosInversiones, depositosInversiones, 'DepositosInversiones');
 
-    // 5. Egresos de Caja
+    // 5. Egresos de Caja (solo egresos directos)
     const listaEgresos = document.getElementById('listaEgresos');
-    const todosLosEgresos = [
-        ...egresosCajaDelPeriodo.map(e => ({ ...e, tipoMovimiento: 'EGRESO DIRECTO' })),
-        ...movimientosOperaciones.filter(m => m.tipo === 'gasto' || m.tipo === 'egreso').map(m => ({ ...m, tipoMovimiento: m.tipo.toUpperCase() }))
-    ];
-    let egresosFiltrados = todosLosEgresos.filter(e =>
+
+    // **MODIFICADO:** Solo egresos directos de caja
+    let egresosCajaFiltrados = egresosCajaDelPeriodo.filter(e =>
         (!filtroCajaEgresos || e.caja === filtroCajaEgresos) &&
         (!filtroDescEgresos || e.descripcion.toLowerCase().includes(filtroDescEgresos) || (e.categoria && e.categoria.toLowerCase().includes(filtroDescEgresos)))
     );
-    const totalEgresos = renderizarLista(listaEgresos, egresosFiltrados, 'Egresos');
+    const totalEgresosCaja = renderizarLista(listaEgresos, egresosCajaFiltrados, 'Egresos');
+
+
+    // **NUEVO:** 6. Egresos Tesorería (solo de operaciones: gastos y egresos)
+    const listaEgresosTesoreria = document.getElementById('listaEgresosTesoreria');
+    const filtroCajaEgresosTesoreria = document.getElementById('filtroCajaEgresosTesoreria') ? document.getElementById('filtroCajaEgresosTesoreria').value : '';
+    const filtroDescEgresosTesoreria = document.getElementById('filtroDescEgresosTesoreria') ? document.getElementById('filtroDescEgresosTesoreria').value.toLowerCase() : '';
+
+    // **CORRECCIÓN:** Combinar movimientos guardados y temporales para buscar operaciones
+    const todosLosMovimientosOperaciones = [
+        ...movimientosOperaciones,
+        ...movimientosIngresos // También buscar en movimientos temporales por si hay operaciones no guardadas
+    ];
+
+    // Debug: Ver qué movimientos tienen la propiedad 'tipo'
+    console.log('Total movimientos para buscar operaciones:', todosLosMovimientosOperaciones.length);
+    const movimientosConTipo = todosLosMovimientosOperaciones.filter(m => m.tipo);
+    console.log('Movimientos con tipo:', movimientosConTipo.map(m => ({ tipo: m.tipo, descripcion: m.descripcion, caja: m.caja })));
+    console.log('Tipos únicos encontrados:', [...new Set(movimientosConTipo.map(m => m.tipo))]);
+
+    let egresosTesoreriaFiltrados = todosLosMovimientosOperaciones.filter(m => {
+        // **CORRECCIÓN:** Incluir todos los tipos de operaciones EXCEPTO deposito-inversiones (que tiene su propia sección)
+        // Tipos válidos: 'gasto', 'egreso', 'operacion', 'transferencia'
+        const tiposEgresosTesoreria = ['gasto', 'egreso', 'operacion', 'transferencia'];
+        if (!m.tipo || !tiposEgresosTesoreria.includes(m.tipo)) return false;
+
+        // Aplicar filtros
+        if (filtroCajaEgresosTesoreria && m.caja !== filtroCajaEgresosTesoreria) return false;
+        if (filtroDescEgresosTesoreria && !m.descripcion.toLowerCase().includes(filtroDescEgresosTesoreria) &&
+            (!m.categoria || !m.categoria.toLowerCase().includes(filtroDescEgresosTesoreria))) return false;
+
+        return true;
+    }).map(m => ({ ...m, tipoMovimiento: m.tipo.toUpperCase() }));
+
+    console.log('Egresos Tesorería encontrados:', egresosTesoreriaFiltrados.length);
+
+    const totalEgresosTesoreria = renderizarLista(listaEgresosTesoreria, egresosTesoreriaFiltrados, 'EgresosTesoreria');
+
+    // **MODIFICADO:** Calcular total de egresos (suma de ambos tipos)
+    const totalEgresos = totalEgresosCaja + totalEgresosTesoreria;
 
     // **NUEVO:** Calcular saldo del día anterior
     const saldoDiaAnterior = calcularSaldoDiaAnterior(fechaDesde, filtroCajaSaldoAnterior);
@@ -3129,6 +3166,9 @@ function renderizarDetalleSaldoAnterior(detallePorCaja, fechaAnterior) {
 
 // Función para descargar Excel con detalles completos
 async function descargarExcel() {
+    // **NUEVO:** Definir tipos de egresos de tesorería una sola vez
+    const tiposEgresosTesoreria = ['gasto', 'egreso', 'operacion', 'transferencia'];
+
     const fechaDesde = document.getElementById('fechaResumenDesde').value;
     const fechaHasta = document.getElementById('fechaResumenHasta').value;
     if (!fechaDesde || !fechaHasta) {
@@ -3213,6 +3253,13 @@ async function descargarExcel() {
 
     egresosCajaDelPeriodo.forEach(e => {
         totalEgresos += parsearMoneda(e.monto || 0);
+    });
+
+    // **NUEVO:** Sumar egresos de tesorería (operaciones)
+    movimientosDelPeriodo.forEach(m => {
+        if (tiposEgresosTesoreria.includes(m.tipo)) {
+            totalEgresos += parsearMoneda(m.monto || 0);
+        }
     });
 
     // **NUEVO:** Calcular total de Depósitos - Inversiones
@@ -3399,10 +3446,10 @@ async function descargarExcel() {
     datosEgresos.push(['EGRESOS DE CAJA']);
     datosEgresos.push(['Fecha/Hora', 'Caja', 'Cajero', 'Tipo', 'Categoría', 'Descripción', 'Monto', 'Referencia', 'Nro. Recibo']);
 
-    // Combinar egresos directos con gastos/egresos de operaciones (igual que en la página de resumen)
+    // **MODIFICADO:** Combinar egresos directos con TODOS los egresos de tesorería (igual que en la página de resumen)
     const todosLosEgresos = [
         ...egresosCajaDelPeriodo.map(e => ({ ...e, tipoMovimiento: 'EGRESO DIRECTO' })),
-        ...movimientosDelPeriodo.filter(m => m.tipo === 'gasto' || m.tipo === 'egreso').map(m => ({ ...m, tipoMovimiento: m.tipo.toUpperCase() }))
+        ...movimientosDelPeriodo.filter(m => tiposEgresosTesoreria.includes(m.tipo)).map(m => ({ ...m, tipoMovimiento: m.tipo.toUpperCase() }))
     ];
 
     // Ordenar por fecha (más recientes primero)

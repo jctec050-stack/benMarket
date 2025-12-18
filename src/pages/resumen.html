@@ -246,6 +246,26 @@
                                 <div id="listaEgresos" class="lista-movimientos-reporte"></div>
                             </div>
                         </section>
+                        <!-- **NUEVO:** Sub-sección para Egresos de Tesorería (Operaciones) -->
+                        <section class="resumen-card" id="cardEgresosTesoreria">
+                            <div class="reporte-header" onclick="toggleReporte(this)">
+                                <h3 class="reporte-titulo" style="color: var(--color-peligro);">Egresos Tesorería</h3>
+                                <span id="totalEgresosTesoreria" class="reporte-total negativo"></span>
+                            </div>
+                            <div class="reporte-contenido" style="display: none;">
+                                <div class="filtros-historial">
+                                    <select id="filtroCajaEgresosTesoreria" onchange="cargarResumenDiario()">
+                                        <option value="">Todas las Cajas</option>
+                                        <option value="Caja 1">Caja 1</option>
+                                        <option value="Caja 2">Caja 2</option>
+                                        <option value="Caja 3">Caja 3</option>
+                                    </select>
+                                    <input type="text" id="filtroDescEgresosTesoreria"
+                                        placeholder="Filtrar por descripción..." oninput="cargarResumenDiario()">
+                                </div>
+                                <div id="listaEgresosTesoreria" class="lista-movimientos-reporte"></div>
+                            </div>
+                        </section>
                     </div>
                 </section>
 
