@@ -2766,6 +2766,9 @@ function cargarResumenDiario() {
     document.getElementById('totalDepositosInversionesGeneral').innerHTML = `<strong>${formatearMoneda(totalDepositosInversiones, 'gs')}</strong>`;
     document.getElementById('totalIngresosNoEfectivoGeneral').innerHTML = `<strong>${formatearMoneda(subTotalNoEfectivo, 'gs')}</strong>`;
 
+    // **NUEVO:** Mostrar total de "Otros Ingresos No Efectivo" (sin servicios tarjeta)
+    document.getElementById('totalIngresosNoEfectivo').innerHTML = `<strong>${formatearMoneda(totalNoEfectivo, 'gs')}</strong>`;
+
     // Mostrar totales generales
     document.getElementById('totalGeneralIngresos').innerHTML = `<strong>${formatearMoneda(granTotalIngresos, 'gs')}</strong>`;
     document.getElementById('totalGeneralEgresos').innerHTML = `<strong>${formatearMoneda(granTotalEgresos, 'gs')}</strong>`;
