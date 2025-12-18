@@ -2519,6 +2519,7 @@ function aplicarFiltroCajaGeneral() {
 
     // Lista de todos los filtros de caja individuales
     const filtrosCaja = [
+        'filtroCajaSaldoAnterior',
         'filtroCajaIngresosTienda',
         'filtroCajaServiciosEfectivo',
         'filtroCajaDepositosInversiones',
@@ -2573,6 +2574,9 @@ function cargarResumenDiario() {
     // Filtros de Egresos
     const filtroCajaEgresos = document.getElementById('filtroCajaEgresos').value;
     const filtroDescEgresos = document.getElementById('filtroDescEgresos').value.toLowerCase();
+
+    // **NUEVO:** Filtro de Saldo Día Anterior
+    const filtroCajaSaldoAnterior = document.getElementById('filtroCajaSaldoAnterior')?.value || '';
 
     // --- OBTENCIÓN DE DATOS ---
     // **CORRECCIÓN:** Usar movimientos temporales para ingresos y movimientos guardados para operaciones.
@@ -2741,8 +2745,16 @@ function cargarResumenDiario() {
     );
     const totalEgresos = renderizarLista(listaEgresos, egresosFiltrados, 'Egresos');
 
-    // **NUEVO:** Calcular y mostrar totales generales
-    const granTotalIngresos = totalTienda + totalServiciosEfectivo + totalServiciosTarjeta + totalNoEfectivo + totalDepositosInversiones;
+    // **NUEVO:** Calcular saldo del día anterior
+    const saldoDiaAnterior = calcularSaldoDiaAnterior(fechaDesde, filtroCajaSaldoAnterior);
+    const totalSaldoDiaAnteriorEl = document.getElementById('totalSaldoDiaAnterior');
+    if (totalSaldoDiaAnteriorEl) {
+        totalSaldoDiaAnteriorEl.innerHTML = `<strong>${formatearMoneda(saldoDiaAnterior.total, 'gs')}</strong>`;
+    }
+    renderizarDetalleSaldoAnterior(saldoDiaAnterior.detallePorCaja, saldoDiaAnterior.fecha);
+
+    // **NUEVO:** Calcular y mostrar totales generales (incluyendo saldo día anterior)
+    const granTotalIngresos = saldoDiaAnterior.total + totalTienda + totalServiciosEfectivo + totalServiciosTarjeta + totalNoEfectivo + totalDepositosInversiones;
     const granTotalEgresos = totalEgresos;
     const diferenciaNeta = granTotalIngresos - granTotalEgresos;
 
@@ -2977,6 +2989,139 @@ function renderizarLista(contenedor, items, tipo) {
     }
 
     return granTotal; // **MODIFICADO:** Devolver el total calculado.
+}
+
+/**
+ * Calcula el saldo de EFECTIVO del día anterior (ingresos efectivo - egresos)
+ * @param {string} fechaActual - Fecha del día actual (formato YYYY-MM-DD)
+ * @param {string} filtroCaja - Caja específica o "" para todas
+ * @returns {object} { total: number, detallePorCaja: array, fecha: string }
+ */
+function calcularSaldoDiaAnterior(fechaActual, filtroCaja = '') {
+    if (!fechaActual) {
+        return { total: 0, detallePorCaja: [], fecha: '' };
+    }
+
+    // Calcular fecha del día anterior
+    const fecha = new Date(fechaActual + 'T00:00:00');
+    fecha.setDate(fecha.getDate() - 1);
+    const fechaAnterior = fecha.toISOString().split('T')[0];
+
+    // Obtener movimientos del día anterior
+    const ingresosAnterior = estado.movimientosTemporales.filter(m =>
+        m.fecha.startsWith(fechaAnterior) &&
+        (!filtroCaja || m.caja === filtroCaja)
+    );
+
+    const egresosAnterior = estado.egresosCaja.filter(e =>
+        e.fecha.startsWith(fechaAnterior) &&
+        (!filtroCaja || e.caja === filtroCaja)
+    );
+
+    const movimientosAnterior = estado.movimientos.filter(m =>
+        m.fecha.startsWith(fechaAnterior) &&
+        (!filtroCaja || m.caja === filtroCaja)
+    );
+
+    // Calcular totales por caja
+    const cajas = filtroCaja ? [filtroCaja] : ['Caja 1', 'Caja 2', 'Caja 3'];
+    const detallePorCaja = [];
+    let totalGeneral = 0;
+
+    cajas.forEach(caja => {
+        // Calcular SOLO ingresos en EFECTIVO de la caja
+        let totalIngresosCaja = 0;
+
+        ingresosAnterior.filter(m => m.caja === caja).forEach(m => {
+            // Ingresos de tienda - SOLO EFECTIVO
+            const efectivo = m.valorVenta ||
+                Object.entries(m.efectivo || {}).reduce((s, [d, c]) => s + (parseInt(d) * c), 0);
+
+            // Servicios - SOLO EFECTIVO (no tarjeta)
+            let serviciosEfectivo = 0;
+            Object.values(m.servicios || {}).forEach(s => {
+                serviciosEfectivo += (s.monto || 0); // Solo monto, no tarjeta
+            });
+            (m.otrosServicios || []).forEach(s => {
+                serviciosEfectivo += (s.monto || 0); // Solo monto, no tarjeta
+            });
+
+            totalIngresosCaja += efectivo + serviciosEfectivo;
+        });
+
+        // NO agregar depósitos-inversiones (no es efectivo de caja)
+
+        // Calcular TODOS los egresos de la caja
+        const totalEgresosCaja = egresosAnterior
+            .filter(e => e.caja === caja)
+            .reduce((sum, e) => sum + (e.monto || 0), 0) +
+            movimientosAnterior
+                .filter(m => m.caja === caja && (m.tipo === 'gasto' || m.tipo === 'egreso'))
+                .reduce((sum, m) => sum + (m.monto || 0), 0);
+
+        const saldoCaja = totalIngresosCaja - totalEgresosCaja;
+
+        if (saldoCaja !== 0 || totalIngresosCaja !== 0 || totalEgresosCaja !== 0) {
+            detallePorCaja.push({
+                caja,
+                ingresos: totalIngresosCaja,
+                egresos: totalEgresosCaja,
+                saldo: saldoCaja
+            });
+            totalGeneral += saldoCaja;
+        }
+    });
+
+    return {
+        total: totalGeneral,
+        detallePorCaja,
+        fecha: fechaAnterior
+    };
+}
+
+/**
+ * Renderiza el detalle del saldo del día anterior por caja
+ */
+function renderizarDetalleSaldoAnterior(detallePorCaja, fechaAnterior) {
+    const contenedor = document.getElementById('detalleSaldoDiaAnterior');
+    if (!contenedor) return;
+
+    if (detallePorCaja.length === 0) {
+        contenedor.innerHTML = `<p class="text-center" style="color: var(--color-secundario);">No hay saldo del día anterior${fechaAnterior ? ` (${fechaAnterior})` : ''}</p>`;
+        return;
+    }
+
+    const tabla = document.createElement('table');
+    tabla.className = 'tabla-resumen-excel';
+
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+        <tr>
+            <th>Caja</th>
+            <th>Ingresos</th>
+            <th>Egresos</th>
+            <th>Saldo</th>
+        </tr>
+    `;
+    tabla.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    detallePorCaja.forEach(d => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${d.caja}</td>
+            <td class="positivo">${formatearMoneda(d.ingresos, 'gs')}</td>
+            <td class="negativo">${formatearMoneda(d.egresos, 'gs')}</td>
+            <td class="${d.saldo >= 0 ? 'positivo' : 'negativo'}">
+                ${formatearMoneda(d.saldo, 'gs')}
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    tabla.appendChild(tbody);
+
+    contenedor.innerHTML = '';
+    contenedor.appendChild(tabla);
 }
 
 // Función para descargar Excel con detalles completos

@@ -67,6 +67,25 @@
                         <span id="totalGeneralIngresos" class="reporte-total-principal positivo"></span>
                     </div>
                     <div class="reporte-contenido" style="display: none;">
+                        <!-- **NUEVO:** Saldo en Caja Día Anterior -->
+                        <section class="resumen-card sub-seccion" id="cardSaldoDiaAnterior">
+                            <div class="reporte-header" onclick="toggleReporte(this)">
+                                <h3 class="reporte-titulo">Saldo en Caja Día Anterior</h3>
+                                <span id="totalSaldoDiaAnterior" class="reporte-total positivo"></span>
+                            </div>
+                            <div class="reporte-contenido" style="display: none;">
+                                <div class="filtros-historial">
+                                    <select id="filtroCajaSaldoAnterior" onchange="cargarResumenDiario()">
+                                        <option value="">Todas las Cajas</option>
+                                        <option value="Caja 1">Caja 1</option>
+                                        <option value="Caja 2">Caja 2</option>
+                                        <option value="Caja 3">Caja 3</option>
+                                    </select>
+                                </div>
+                                <div id="detalleSaldoDiaAnterior" class="lista-movimientos-reporte"></div>
+                            </div>
+                        </section>
+
                         <!-- **NUEVO:** Sub-sección para Ingresos en Efectivo -->
                         <section class="resumen-card sub-seccion" id="cardIngresosEfectivo">
                             <div class="reporte-header" onclick="toggleReporte(this)">
