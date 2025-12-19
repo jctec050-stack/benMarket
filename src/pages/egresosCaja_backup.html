@@ -35,46 +35,6 @@
         <!-- Sección de Egresos de Caja -->
         <section id="egresos-caja" class="seccion activa">
             <h2>Egresos de Caja</h2>
-
-            <!-- **NUEVO:** Quick Stats Dashboard -->
-            <div class="dashboard-metrics" style="margin-bottom: 2rem;">
-                <div class="metric-card metric-efectivo">
-                    <div class="metric-icon">💰</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Total Ingresos</div>
-                        <div class="metric-value" id="metricTotalIngresosDia">G$ 0</div>
-                        <div class="metric-subtitle">Ingresos del día</div>
-                    </div>
-                </div>
-
-                <div class="metric-card metric-egresos">
-                    <div class="metric-icon">💸</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Total Egresos</div>
-                        <div class="metric-value" id="metricTotalEgresosDia">G$ 0</div>
-                        <div class="metric-subtitle">Egresos del día</div>
-                    </div>
-                </div>
-
-                <div class="metric-card metric-tarjeta">
-                    <div class="metric-icon">📝</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Movimientos</div>
-                        <div class="metric-value" id="metricTotalMovimientos">0</div>
-                        <div class="metric-subtitle">Registros del día</div>
-                    </div>
-                </div>
-
-                <div class="metric-card metric-credito">
-                    <div class="metric-icon">🕐</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Último Registro</div>
-                        <div class="metric-value" id="metricUltimoRegistro" style="font-size: 1.25rem;">-</div>
-                        <div class="metric-subtitle">Hora del último movimiento</div>
-                    </div>
-                </div>
-            </div>
-
             <form id="formularioEgresoCaja" class="formulario-gastos">
                 <input type="hidden" id="idEgresoCajaEditar">
                 <div class="form-grid">
@@ -183,16 +143,6 @@
     <script>
         if (window.inicializarSupabase) { window.inicializarSupabase(); }
         if (window.initSupabaseData) { window.initSupabaseData(); }
-
-        // Inicializar métricas cuando se carga la página
-        window.addEventListener('DOMContentLoaded', function () {
-            if (typeof window.actualizarMetricasEgresos === 'function') {
-                // Esperar un momento para que los datos se carguen
-                setTimeout(() => {
-                    window.actualizarMetricasEgresos();
-                }, 500);
-            }
-        });
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>

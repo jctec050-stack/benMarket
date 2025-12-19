@@ -5207,3 +5207,161 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ... (resto del código existente)
 });
+
+// ============================================
+// QUICK STATS - INGRESOS & EGRESOS PAGES
+// ============================================
+
+/**
+ * Actualiza las métricas quick stats en la página de Ingresos
+ * Muestra total ingresos, total egresos, movimientos totales y último registro
+ */
+window.actualizarMetricasIngresos = function () {
+    // Verificar que estamos en la página de ingresos
+    if (!document.getElementById('metricTotalIngresosDia')) return;
+
+    // Obtener fecha actual
+    const hoy = new Date().toISOString().split('T')[0];
+
+    // Filtrar movimientos del día actual (INGRESOS)
+    const movimientosHoy = estado.movimientosTemporales.filter(m => {
+        const fechaMov = m.fecha.split('T')[0];
+        return fechaMov === hoy;
+    });
+
+    // Leer egresos desde localStorage
+    const todosLosEgresos = JSON.parse(localStorage.getItem('egresosCaja')) || [];
+    const egresosHoy = todosLosEgresos.filter(e => {
+        const fechaEgreso = e.fecha.split('T')[0];
+        return fechaEgreso === hoy;
+    });
+
+    // Calcular total de INGRESOS del día
+    let totalIngresos = 0;
+    movimientosHoy.forEach(m => {
+        // Sumar efectivo
+        if (m.efectivo) {
+            Object.entries(m.efectivo).forEach(([denom, cant]) => {
+                totalIngresos += parseInt(denom) * cant;
+            });
+        }
+        // Sumar otros métodos de pago
+        totalIngresos += (m.pagosTarjeta || 0) + (m.ventasCredito || 0) +
+            (m.pedidosYa || 0) + (m.ventas_transferencia || 0);
+        // Sumar servicios
+        if (m.servicios) {
+            Object.values(m.servicios).forEach(s => {
+                totalIngresos += (s.monto || 0) + (s.tarjeta || 0);
+            });
+        }
+    });
+
+    // Calcular total de EGRESOS del día
+    let totalEgresos = 0;
+    egresosHoy.forEach(e => {
+        totalEgresos += e.monto || 0;
+    });
+
+    // Cantidad total de movimientos
+    const totalMovimientos = movimientosHoy.length + egresosHoy.length;
+
+    // Último registro (el más reciente entre ingresos y egresos)
+    let ultimoRegistro = '-';
+    const todosMovimientos = [
+        ...movimientosHoy.map(m => ({ fecha: m.fecha, tipo: 'ingreso' })),
+        ...egresosHoy.map(e => ({ fecha: e.fecha, tipo: 'egreso' }))
+    ];
+
+    if (todosMovimientos.length > 0) {
+        todosMovimientos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+        const ultimo = todosMovimientos[0];
+        const fecha = new Date(ultimo.fecha);
+        ultimoRegistro = fecha.toLocaleTimeString('es-PY', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // Actualizar UI
+    document.getElementById('metricTotalIngresosDia').textContent = formatearMoneda(totalIngresos, 'gs');
+    document.getElementById('metricTotalEgresosDia').textContent = formatearMoneda(totalEgresos, 'gs');
+    document.getElementById('metricTotalMovimientos').textContent = totalMovimientos;
+    document.getElementById('metricUltimoRegistro').textContent = ultimoRegistro;
+};
+
+/**
+ * Actualiza las métricas quick stats en la página de Egresos
+ * Muestra total ingresos, total egresos, movimientos totales y último registro
+ */
+window.actualizarMetricasEgresos = function () {
+    // Verificar que estamos en la página de egresos
+    if (!document.getElementById('metricTotalEgresosDia')) return;
+
+    // Obtener fecha actual
+    const hoy = new Date().toISOString().split('T')[0];
+
+    // Leer egresos desde localStorage
+    const todosLosEgresos = JSON.parse(localStorage.getItem('egresosCaja')) || [];
+    const egresosHoy = todosLosEgresos.filter(e => {
+        const fechaEgreso = e.fecha.split('T')[0];
+        return fechaEgreso === hoy;
+    });
+
+    // Filtrar movimientos del día actual (INGRESOS)
+    const movimientosHoy = estado.movimientosTemporales.filter(m => {
+        const fechaMov = m.fecha.split('T')[0];
+        return fechaMov === hoy;
+    });
+
+    // Calcular total de INGRESOS del día
+    let totalIngresos = 0;
+    movimientosHoy.forEach(m => {
+        // Sumar efectivo
+        if (m.efectivo) {
+            Object.entries(m.efectivo).forEach(([denom, cant]) => {
+                totalIngresos += parseInt(denom) * cant;
+            });
+        }
+        // Sumar otros métodos de pago
+        totalIngresos += (m.pagosTarjeta || 0) + (m.ventasCredito || 0) +
+            (m.pedidosYa || 0) + (m.ventas_transferencia || 0);
+        // Sumar servicios
+        if (m.servicios) {
+            Object.values(m.servicios).forEach(s => {
+                totalIngresos += (s.monto || 0) + (s.tarjeta || 0);
+            });
+        }
+    });
+
+    // Calcular total de EGRESOS del día
+    let totalEgresos = 0;
+    egresosHoy.forEach(e => {
+        totalEgresos += e.monto || 0;
+    });
+
+    // Cantidad total de movimientos
+    const totalMovimientos = movimientosHoy.length + egresosHoy.length;
+
+    // Último registro (el más reciente entre ingresos y egresos)
+    let ultimoRegistro = '-';
+    const todosMovimientos = [
+        ...movimientosHoy.map(m => ({ fecha: m.fecha, tipo: 'ingreso' })),
+        ...egresosHoy.map(e => ({ fecha: e.fecha, tipo: 'egreso' }))
+    ];
+
+    if (todosMovimientos.length > 0) {
+        todosMovimientos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+        const ultimo = todosMovimientos[0];
+        const fecha = new Date(ultimo.fecha);
+        ultimoRegistro = fecha.toLocaleTimeString('es-PY', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    // Actualizar UI
+    document.getElementById('metricTotalIngresosDia').textContent = formatearMoneda(totalIngresos, 'gs');
+    document.getElementById('metricTotalEgresosDia').textContent = formatearMoneda(totalEgresos, 'gs');
+    document.getElementById('metricTotalMovimientos').textContent = totalMovimientos;
+    document.getElementById('metricUltimoRegistro').textContent = ultimoRegistro;
+};
