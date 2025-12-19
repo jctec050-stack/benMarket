@@ -5223,11 +5223,23 @@ window.actualizarMetricasIngresos = function () {
     // Obtener fecha actual
     const hoy = new Date().toISOString().split('T')[0];
 
-    // Filtrar movimientos del día actual (INGRESOS)
-    const movimientosHoy = estado.movimientosTemporales.filter(m => {
-        const fechaMov = m.fecha.split('T')[0];
-        return fechaMov === hoy;
-    });
+    // **CORRECCIÓN:** Leer desde localStorage o estado
+    let movimientosHoy = [];
+
+    // Intentar leer desde estado si existe
+    if (typeof estado !== 'undefined' && estado.movimientosTemporales) {
+        movimientosHoy = estado.movimientosTemporales.filter(m => {
+            const fechaMov = m.fecha.split('T')[0];
+            return fechaMov === hoy;
+        });
+    } else {
+        // Si no existe estado, intentar desde localStorage
+        const todosMovimientos = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
+        movimientosHoy = todosMovimientos.filter(m => {
+            const fechaMov = m.fecha.split('T')[0];
+            return fechaMov === hoy;
+        });
+    }
 
     // Leer egresos desde localStorage
     const todosLosEgresos = JSON.parse(localStorage.getItem('egresosCaja')) || [];
@@ -5307,11 +5319,23 @@ window.actualizarMetricasEgresos = function () {
         return fechaEgreso === hoy;
     });
 
-    // Filtrar movimientos del día actual (INGRESOS)
-    const movimientosHoy = estado.movimientosTemporales.filter(m => {
-        const fechaMov = m.fecha.split('T')[0];
-        return fechaMov === hoy;
-    });
+    // **CORRECCIÓN:** Leer desde localStorage o estado
+    let movimientosHoy = [];
+
+    // Intentar leer desde estado si existe
+    if (typeof estado !== 'undefined' && estado.movimientosTemporales) {
+        movimientosHoy = estado.movimientosTemporales.filter(m => {
+            const fechaMov = m.fecha.split('T')[0];
+            return fechaMov === hoy;
+        });
+    } else {
+        // Si no existe estado, intentar desde localStorage
+        const todosMovimientos = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
+        movimientosHoy = todosMovimientos.filter(m => {
+            const fechaMov = m.fecha.split('T')[0];
+            return fechaMov === hoy;
+        });
+    }
 
     // Calcular total de INGRESOS del día
     let totalIngresos = 0;

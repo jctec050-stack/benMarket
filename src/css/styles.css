@@ -1959,22 +1959,24 @@ body {
 
 .movimiento-footer {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
+    flex-direction: column;
+    gap: 0.75rem;
     margin-top: 1rem;
     padding-top: 0.75rem;
     border-top: 1px solid #e5e7eb;
 }
 
 .movimiento-info {
-    flex: 1;
+    order: 1;
 }
 
-.movimiento-info small {
-    color: #64748b;
-    font-size: 0.8rem;
-    line-height: 1.4;
+.movimiento-acciones {
+    order: 2;
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-start;
 }
+
 
 /* Modern Buttons */
 .btn-accion {

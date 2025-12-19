@@ -532,6 +532,28 @@
     <script>
         if (window.inicializarSupabase) { window.inicializarSupabase(); }
         if (window.initSupabaseData) { window.initSupabaseData(); }
+
+        // Inicializar métricas cuando se carga la página
+        window.addEventListener('DOMContentLoaded', function () {
+            if (typeof window.actualizarMetricasIngresos === 'function') {
+                // Esperar un momento para que los datos se carguen
+                setTimeout(() => {
+                    window.actualizarMetricasIngresos();
+                }, 500);
+            }
+        });
+
+        // También actualizar cuando cambie el estado
+        if (typeof estado !== 'undefined') {
+            const originalPush = estado.movimientosTemporales.push;
+            estado.movimientosTemporales.push = function (...args) {
+                const result = originalPush.apply(this, args);
+                if (typeof window.actualizarMetricasIngresos === 'function') {
+                    setTimeout(() => window.actualizarMetricasIngresos(), 100);
+                }
+                return result;
+            };
+        }
     </script>
 
     <!-- Librerías para exportar PDF (cargadas después de la lógica principal) -->
