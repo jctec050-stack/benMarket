@@ -40,7 +40,14 @@ const server = http.createServer((req, res) => {
                 res.end('Error del servidor: ' + error.code + ' ..\n');
             }
         } else {
-            res.writeHead(200, { 'Content-Type': contentType });
+            // Agregar headers para prevenir caché
+            const headers = {
+                'Content-Type': contentType,
+                'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma': 'no-cache',
+                'Expires': '0'
+            };
+            res.writeHead(200, headers);
             res.end(content, 'utf-8');
         }
     });

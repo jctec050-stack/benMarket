@@ -333,9 +333,20 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <!-- **CORRECCIÓN:** Cargar app.js PRIMERO, antes de llamar a las funciones -->
     <script src="../js/app.js"></script>
+    <script src="../js/resumen-metrics.js"></script>
     <script>
         if (window.inicializarSupabase) { window.inicializarSupabase(); }
         if (window.initSupabaseData) { window.initSupabaseData(); }
+
+        // Inicializar métricas cuando se carga la página
+        window.addEventListener('DOMContentLoaded', function () {
+            if (typeof window.actualizarMetricasResumen === 'function') {
+                // Esperar un momento para que los datos se carguen
+                setTimeout(() => {
+                    window.actualizarMetricasResumen();
+                }, 500);
+            }
+        });
     </script>
 </body>
 

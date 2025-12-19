@@ -855,6 +855,7 @@ async function agregarMovimiento() {
     actualizarArqueoFinal();
     renderizarIngresosAgregados();
     cargarResumenDiario(); // **NUEVO:** Actualizar resumen en tiempo real
+    // **CORRECCIÓN:** Actualizar métricas después de agregar movimiento (ya se llama en renderizar)
 }
 
 // Función para agregar una fila de servicio dinámico
@@ -1031,27 +1032,36 @@ function renderizarIngresosAgregados() {
 
         div.innerHTML = `
             <div class="movimiento-header">
-                <span class="movimiento-tipo">${mov.descripcion.toUpperCase() || 'MOVIMIENTO'}${edicionHTML}</span>
-                <span class="movimiento-monto positivo">${formatearMoneda(totalGeneral, 'gs')}</span>
+                <div class="movimiento-info">
+                    <div class="movimiento-titulo">
+                        <span class="movimiento-tipo">${mov.descripcion.toUpperCase() || 'MOVIMIENTO'}${edicionHTML}</span>
+                        <span class="movimiento-monto positivo">${formatearMoneda(totalGeneral, 'gs')}</span>
+                    </div>
+                    <div class="movimiento-fecha-hora">
+                        <small>${formatearFecha(mov.fecha)}</small>
+                    </div>
+                    <div class="movimiento-cajero-caja">
+                        <small><strong>Cajero:</strong> ${mov.cajero || 'N/A'}</small>
+                        <small><strong>Caja:</strong> ${mov.caja || 'N/A'}</small>
+                    </div>
+                    <div class="movimiento-acciones">
+                        <button class="btn-accion editar" onclick="iniciarEdicionMovimiento(${originalIndex})">Editar</button>
+                        <button class="btn-accion eliminar" onclick="eliminarIngresoAgregado(${originalIndex})">Eliminar</button>
+                    </div>
+                </div>
             </div>
             ${observacionEdicionHTML}
             
             <!-- **NUEVO:** Contenedor para los sub-detalles -->
             ${subDetallesHTML}
-
-            <div class="movimiento-detalles" style="display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <small>${formatearFecha(mov.fecha)}</small><br>
-                    <small><strong>Cajero:</strong> ${mov.cajero || 'N/A'} | <strong>Caja:</strong> ${mov.caja || 'N/A'}</small>
-                </div>
-                <div>
-                    <button class="btn-accion editar" onclick="iniciarEdicionMovimiento(${originalIndex})">Editar</button>
-                    <button class="btn-accion eliminar" onclick="eliminarIngresoAgregado(${originalIndex})">Eliminar</button>
-                </div>
-            </div>
         `;
         lista.appendChild(div);
     });
+
+    // **CORRECCIÓN:** Actualizar las métricas cuando se renderiza la lista de ingresos
+    if (typeof window.actualizarMetricasIngresos === 'function') {
+        window.actualizarMetricasIngresos();
+    }
 }
 
 function iniciarEdicionMovimiento(index) {
@@ -1132,6 +1142,8 @@ async function eliminarIngresoAgregado(index) {
         cargarResumenDiario(); // **NUEVO:** Actualizar resumen en tiempo real
         guardarEnLocalStorage();
         showNotification('Movimiento eliminado correctamente', 'success');
+        // **CORRECCIÓN:** Actualizar métricas después de eliminar un ingreso (ya se llama en renderizar)
+
     }
 }
 
@@ -1967,9 +1979,6 @@ function cargarHistorialGastos() {
         const esIngreso = movimiento.tipo === 'deposito-inversiones';
         const signo = esIngreso ? '+' : '-';
         const claseMonto = esIngreso ? 'positivo' : 'negativo';
-        const numeroReciboHTML = movimiento.numeroRecibo
-            ? `| Recibo: ${String(movimiento.numeroRecibo).padStart(6, '0')}`
-            : '';
 
         // Preparar HTML de edición
         let edicionHTML = '';
@@ -1977,21 +1986,30 @@ function cargarHistorialGastos() {
 
         div.innerHTML = `
             <div class="movimiento-header">
-                <span class="movimiento-tipo">${movimiento.tipo.toUpperCase()}${edicionHTML}</span>
-                <span class="movimiento-monto ${claseMonto}">${signo}${formatearMoneda(movimiento.monto, movimiento.moneda)}</span>
+                <div class="movimiento-info">
+                    <div class="movimiento-titulo">
+                        <span class="movimiento-tipo">${movimiento.tipo.toUpperCase()}${edicionHTML}</span>
+                        <span class="movimiento-monto ${claseMonto}">${signo}${formatearMoneda(movimiento.monto, movimiento.moneda)}</span>
+                    </div>
+                    <div class="movimiento-fecha-hora">
+                        <small>${formatearFecha(movimiento.fecha)}</small>
+                    </div>
+                    <div class="movimiento-cajero-caja">
+                        ${movimiento.caja ? `<small><strong>Caja:</strong> ${movimiento.caja}</small>` : ''}
+                        ${movimiento.referencia ? `<small><strong>Referencia:</strong> ${movimiento.referencia}</small>` : ''}
+                    </div>
+                    <div class="movimiento-descripcion">
+                        <small><strong>Descripción:</strong> ${movimiento.descripcion}</small>
+                    </div>
+                    ${movimiento.numeroRecibo ? `<div class="movimiento-recibo"><small><strong>Recibo:</strong> ${String(movimiento.numeroRecibo).padStart(6, '0')}</small></div>` : ''}
+                    <div class="movimiento-acciones">
+                        ${movimiento.numeroRecibo ? `<button class="btn-accion reimprimir" onclick="reimprimirRecibo('${movimiento.id}')">Reimprimir</button>` : ''}
+                        <button class="btn-accion editar" onclick="iniciarEdicionGasto('${movimiento.id}')">Editar</button>
+                        <button class="btn-accion eliminar" onclick="eliminarGasto('${movimiento.id}')">Eliminar</button>
+                    </div>
+                </div>
             </div>
             ${observacionEdicionHTML}
-            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-                <div class="movimiento-detalles">
-                    <strong>${movimiento.descripcion}</strong><br>
-                    <small>${formatearFecha(movimiento.fecha)} ${movimiento.caja ? '| ' + movimiento.caja : ''} ${movimiento.referencia ? '| Ref: ' + movimiento.referencia : ''} ${numeroReciboHTML}</small>
-                </div>
-                <div class="movimiento-acciones">
-                    ${movimiento.numeroRecibo ? `<button class="btn-accion reimprimir" onclick="reimprimirRecibo('${movimiento.id}')">Reimprimir</button>` : ''}
-                    <button class="btn-accion editar" onclick="iniciarEdicionGasto('${movimiento.id}')">Editar</button>
-                    <button class="btn-accion eliminar" onclick="eliminarGasto('${movimiento.id}')">Eliminar</button>
-                </div>
-            </div>
         `;
 
         lista.appendChild(div);
@@ -2192,19 +2210,26 @@ function cargarHistorialEgresosCaja() {
 
         div.innerHTML = `
             <div class="movimiento-header">
-                <span class="movimiento-tipo">${egreso.categoria.toUpperCase()}</span>
-                <span class="movimiento-monto negativo">${formatearMoneda(egreso.monto, 'gs')}</span>
-            </div>
-            <div class="movimiento-detalles">
-                <div>
-                    <p><strong>Descripción:</strong> ${egreso.descripcion}</p>
-                    <small>${formatearFecha(egreso.fecha)}</small><br>
-                    <small><strong>Cajero:</strong> ${egreso.cajero || 'N/A'} | <strong>Caja:</strong> ${egreso.caja}</small>
-                    ${egreso.referencia ? `<br><small><strong>Referencia:</strong> ${egreso.referencia}</small>` : ''}
-                </div>
-                <div>
-                    <button class="btn-accion editar" onclick="iniciarEdicionEgresoCaja('${egreso.id}')">Editar</button>
-                    <button class="btn-accion eliminar" onclick="eliminarEgresoCaja('${egreso.id}')">Eliminar</button>
+                <div class="movimiento-info">
+                    <div class="movimiento-titulo">
+                        <span class="movimiento-tipo">${egreso.categoria.toUpperCase()}</span>
+                        <span class="movimiento-monto negativo">${formatearMoneda(egreso.monto, 'gs')}</span>
+                    </div>
+                    <div class="movimiento-fecha-hora">
+                        <small>${formatearFecha(egreso.fecha)}</small>
+                    </div>
+                    <div class="movimiento-cajero-caja">
+                        <small><strong>Cajero:</strong> ${egreso.cajero || 'N/A'}</small>
+                        <small><strong>Caja:</strong> ${egreso.caja}</small>
+                    </div>
+                    <div class="movimiento-descripcion">
+                        <small><strong>Descripción:</strong> ${egreso.descripcion}</small>
+                    </div>
+                    ${egreso.referencia ? `<div class="movimiento-referencia"><small><strong>Referencia:</strong> ${egreso.referencia}</small></div>` : ''}
+                    <div class="movimiento-acciones">
+                        <button class="btn-accion editar" onclick="iniciarEdicionEgresoCaja('${egreso.id}')">Editar</button>
+                        <button class="btn-accion eliminar" onclick="eliminarEgresoCaja('${egreso.id}')">Eliminar</button>
+                    </div>
                 </div>
             </div>
         `;
@@ -2890,6 +2915,10 @@ function cargarResumenDiario() {
     diferenciaEfectivoItem.classList.remove('positivo', 'negativo');
     diferenciaEfectivoItem.classList.add(diferenciaEfectivo >= 0 ? 'positivo' : 'negativo');
 
+    // **CORRECCIÓN:** Actualizar las métricas del resumen después de cargar todos los datos
+    if (typeof window.actualizarMetricasResumen === 'function') {
+        window.actualizarMetricasResumen();
+    }
 
     // **NUEVO:** Función para desplegar/colapsar los reportes
     window.toggleReporte = function (headerElement) {
