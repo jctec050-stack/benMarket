@@ -33,7 +33,7 @@
 
     if (restricciones.includes(paginaActual)) {
         console.warn(`Acceso denegado: ${userRole} no puede acceder a ${paginaActual}`);
-        alert('No tienes permisos para acceder a esta página.');
-        window.location.href = 'index.html'; // Redirigir a Ingresos
+        showNotification('No tienes permisos para acceder a esta página', 'error');
+        setTimeout(() => window.location.href = 'index.html', 1000); // Redirigir a Ingresos
     }
 })();

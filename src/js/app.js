@@ -113,7 +113,7 @@ window.agregarNuevoServicio = function () {
         const existe = SERVICIOS_PAGOS.some(s => s.toLowerCase() === nombreServicio.toLowerCase());
 
         if (existe) {
-            alert("Este servicio ya existe en la lista.");
+            showNotification('Este servicio ya existe en la lista', 'warning');
             return;
         }
 
@@ -132,7 +132,7 @@ window.agregarNuevoServicio = function () {
             select.value = nombreServicio;
         }
 
-        alert(`Servicio "${nombreServicio}" agregado correctamente.`);
+        showNotification(`Servicio "${nombreServicio}" agregado correctamente`, 'success');
     }
 };
 
@@ -146,6 +146,20 @@ let estado = {
     movimientosTemporales: [],
     ultimoNumeroRecibo: JSON.parse(localStorage.getItem('ultimoNumeroRecibo')) || 0,
     fondoFijoPorCaja: JSON.parse(localStorage.getItem('fondoFijoPorCaja')) || {} // **NUEVO:** Almacenar fondo fijo por caja
+};
+
+
+// Función para mostrar/ocultar secciones desplegables
+window.toggleSeccion = function (seccionId) {
+    const contenido = document.getElementById(seccionId);
+    const iconoId = seccionId.replace('contenido', 'icono');
+    const icono = document.getElementById(iconoId);
+
+    if (contenido && icono) {
+        const estaVisible = contenido.style.display !== 'none';
+        contenido.style.display = estaVisible ? 'none' : 'block';
+        icono.textContent = estaVisible ? '▶' : '▼';
+    }
 };
 
 async function initSupabaseData() {
@@ -1100,7 +1114,14 @@ function iniciarEdicionMovimiento(index) {
 
 async function eliminarIngresoAgregado(index) {
     // **MEJORA UX:** Añadir confirmación antes de eliminar.
-    if (confirm('¿Está seguro de que desea eliminar este movimiento?')) {
+    const confirmed = await showConfirm('¿Está seguro de que desea eliminar este movimiento?', {
+        title: 'Eliminar Movimiento',
+        confirmText: 'Sí, eliminar',
+        type: 'danger',
+        confirmButtonType: 'danger'
+    });
+
+    if (confirmed) {
         const mov = estado.movimientosTemporales[index];
         if (mov && mov.id && window.db && window.db.eliminarMovimientoTemporal) {
             await window.db.eliminarMovimientoTemporal(mov.id);
@@ -1109,7 +1130,8 @@ async function eliminarIngresoAgregado(index) {
         actualizarArqueoFinal();
         renderizarIngresosAgregados();
         cargarResumenDiario(); // **NUEVO:** Actualizar resumen en tiempo real
-        mostrarMensaje('Movimiento eliminado', 'info');
+        guardarEnLocalStorage();
+        showNotification('Movimiento eliminado correctamente', 'success');
     }
 }
 
@@ -2008,9 +2030,15 @@ function iniciarEdicionGasto(id) {
     document.getElementById('gastos').scrollIntoView({ behavior: 'smooth' });
 }
 
-function eliminarGasto(id) {
+async function eliminarGasto(id) {
     // **MEJORA UX:** Añadir confirmación antes de eliminar.
-    if (confirm('¿Está seguro de que desea eliminar este movimiento de tesorería? Esta acción no se puede deshacer.')) {
+    const confirmed = await showConfirm('¿Está seguro de que desea eliminar este movimiento de tesorería? Esta acción no se puede deshacer.', {
+        title: 'Eliminar Movimiento',
+        confirmText: 'Sí, eliminar',
+        type: 'danger',
+        confirmButtonType: 'danger'
+    });
+    if (confirmed) {
         estado.movimientos = estado.movimientos.filter(m => m.id !== id);
         guardarEnLocalStorage();
         mostrarMensaje('Movimiento eliminado', 'info');
@@ -2508,7 +2536,13 @@ async function eliminarEgresoCaja(id) {
     console.log('ID a eliminar:', id);
 
     // **MEJORA UX:** Añadir confirmación antes de eliminar.
-    if (confirm('¿Está seguro de que desea eliminar este egreso de caja? Esta acción no se puede deshacer.')) {
+    const confirmed = await showConfirm('¿Está seguro de que desea eliminar este egreso de caja? Esta acción no se puede deshacer.', {
+        title: 'Eliminar Egreso',
+        confirmText: 'Sí, eliminar',
+        type: 'danger',
+        confirmButtonType: 'danger'
+    });
+    if (confirmed) {
         console.log('Usuario confirmó eliminación');
 
         // **CORRECCIÓN:** Eliminar de Supabase primero
@@ -3655,22 +3689,27 @@ function configurarVistaPorRol(rol, caja, usuario) {
     const navOperaciones = document.querySelector('a[href="operaciones.html"]')?.parentElement;
     const navResumen = document.querySelector('a[href="resumen.html"]')?.parentElement;
 
+    // Por defecto, ocultar Usuarios para todos
+    if (navUsuarios) navUsuarios.style.display = 'none';
+
     // Control de visibilidad según rol
     if (rol === 'cajero') {
         // Cajeros solo ven: Ingresos, Egresos, Arqueo de Caja
         if (navOperaciones) navOperaciones.style.display = 'none';
         if (navResumen) navResumen.style.display = 'none';
-        if (navUsuarios) navUsuarios.style.display = 'none';
     } else if (rol === 'tesoreria') {
         // Tesorería ve todo excepto Usuarios
         if (navOperaciones) navOperaciones.style.display = '';
         if (navResumen) navResumen.style.display = '';
-        if (navUsuarios) navUsuarios.style.display = 'none';
     } else if (rol === 'admin') {
-        // Admin ve todo
+        // Admin ve TODO, incluyendo Usuarios
         if (navOperaciones) navOperaciones.style.display = '';
         if (navResumen) navResumen.style.display = '';
-        if (navUsuarios) navUsuarios.style.display = '';
+        if (navUsuarios) navUsuarios.style.display = ''; // Solo admin ve Usuarios
+    } else {
+        // Para cualquier otro rol o sin rol, ocultar todo excepto básico
+        if (navOperaciones) navOperaciones.style.display = 'none';
+        if (navResumen) navResumen.style.display = 'none';
     }
 
     // --- Configuración de Campos y Selectores por Rol ---
@@ -3781,14 +3820,27 @@ async function cargarUsuariosUI() {
                 const roleSel = document.getElementById(`role-${id}`);
                 const passInput = document.getElementById(`pass-${id}`);
                 const activoChk = document.getElementById(`activo-${id}`);
-                const updates = { rol: roleSel.value, activo: !!activoChk.checked };
-                if (passInput.value) updates.password = passInput.value;
+
+                // Validar que los elementos existan
+                if (!roleSel || !passInput || !activoChk) {
+                    showNotification('Error: No se encontraron los campos del usuario', 'error');
+                    console.error('Elementos no encontrados:', { roleSel, passInput, activoChk, id });
+                    return;
+                }
+
+                // IMPORTANTE: Capturar valores ANTES del await
+                const rolValue = roleSel.value;
+                const passValue = passInput.value;
+                const activoValue = activoChk.checked;
+
+                const updates = { rol: rolValue, activo: !!activoValue };
+                if (passValue) updates.password = passValue;
                 const resu = await window.db.actualizarUsuario(id, updates);
                 if (resu.success) {
-                    mostrarMensaje('Usuario actualizado', 'exito');
+                    showNotification('Usuario actualizado correctamente', 'success');
                     cargarUsuariosUI();
                 } else {
-                    mostrarMensaje('Error al actualizar', 'peligro');
+                    showNotification('Error al actualizar usuario', 'error');
                 }
             }
             if (toggleBtn) {
@@ -4010,14 +4062,20 @@ function calcularVuelto() {
 }
 
 // **NUEVA FUNCIÓN PARA CERRAR SESIÓN**
-function cerrarSesion() {
-    if (confirm('¿Está seguro de que desea cerrar la sesión?')) {
+async function cerrarSesion() {
+    const confirmed = await showConfirm('¿Está seguro de que desea cerrar la sesión?', {
+        title: 'Cerrar Sesión',
+        confirmText: 'Sí, cerrar',
+        type: 'warning'
+    });
+
+    if (confirmed) {
         // Limpiar los datos de la sesión del usuario
         sessionStorage.clear();
 
         // Mostrar un mensaje y redirigir a la página de login
-        alert('Sesión cerrada exitosamente.');
-        window.location.href = 'login.html';
+        showNotification('Sesión cerrada exitosamente', 'success');
+        setTimeout(() => window.location.href = 'login.html', 500);
     }
 }
 
@@ -4050,10 +4108,16 @@ function aplicarFormatoMiles(input) {
     input.addEventListener('input', handleInput);
 }
 
-function eliminarArqueo(arqueoId, event) {
+async function eliminarArqueo(arqueoId, event) {
     event.stopPropagation(); // Evita que se dispare el modal de detalles
 
-    if (confirm('¿Está seguro de que desea eliminar este arqueo de forma permanente? Esta acción no se puede deshacer.')) {
+    const confirmed = await showConfirm('¿Está seguro de que desea eliminar este arqueo de forma permanente? Esta acción no se puede deshacer.', {
+        title: 'Eliminar Arqueo',
+        confirmText: 'Sí, eliminar',
+        type: 'danger',
+        confirmButtonType: 'danger'
+    });
+    if (confirmed) {
         estado.arqueos = estado.arqueos.filter(a => a.id !== arqueoId);
         guardarEnLocalStorage();
         mostrarMensaje('Arqueo eliminado con éxito.', 'exito');
@@ -4341,8 +4405,14 @@ function exportarArqueoPDF(arqueo, esGuardadoFinal = false) {
     doc.save(`Arqueo_${arqueo.caja}_${fechaArchivo}.pdf`);
 }
 
-function eliminarUsuario(username) {
-    if (confirm(`¿Está seguro de que desea eliminar al usuario "${username}"?`)) {
+async function eliminarUsuario(username) {
+    const confirmed = await showConfirm(`¿Está seguro de que desea eliminar al usuario "${username}"?`, {
+        title: 'Eliminar Usuario',
+        confirmText: 'Sí, eliminar',
+        type: 'danger',
+        confirmButtonType: 'danger'
+    });
+    if (confirmed) {
         let usuarios = JSON.parse(localStorage.getItem('usuarios')) || [];
         usuarios = usuarios.filter(u => u.username !== username);
         localStorage.setItem('usuarios', JSON.stringify(usuarios));

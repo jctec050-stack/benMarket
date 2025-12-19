@@ -1219,3 +1219,303 @@ body {
     font-weight: 600;
     color: var(--color-primario);
 }
+
+/* ============================================ */
+/* SISTEMA DE NOTIFICACIONES MODERNO */
+/* ============================================ */
+
+/* Contenedor de notificaciones */
+#notification-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 400px;
+}
+
+/* Notificación individual */
+.notification {
+    background: white;
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15), 0 4px 10px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 320px;
+    animation: slideInRight 0.3s ease-out;
+    border-left: 4px solid;
+    position: relative;
+    overflow: hidden;
+}
+
+.notification::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: currentColor;
+    animation: progressBar 3s linear;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    to {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+}
+
+@keyframes progressBar {
+    from { width: 100%; }
+    to { width: 0%; }
+}
+
+.notification.hiding {
+    animation: slideOutRight 0.3s ease-in forwards;
+}
+
+/* Iconos de notificación */
+.notification-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+/* Contenido de notificación */
+.notification-content {
+    flex: 1;
+}
+
+.notification-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 2px;
+}
+
+.notification-message {
+    font-size: 0.875rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+/* Botón cerrar */
+.notification-close {
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.notification-close:hover {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+/* Tipos de notificación */
+.notification.success {
+    border-left-color: #10b981;
+}
+
+.notification.success .notification-icon {
+    color: #10b981;
+}
+
+.notification.error {
+    border-left-color: #ef4444;
+}
+
+.notification.error .notification-icon {
+    color: #ef4444;
+}
+
+.notification.warning {
+    border-left-color: #f59e0b;
+}
+
+.notification.warning .notification-icon {
+    color: #f59e0b;
+}
+
+.notification.info {
+    border-left-color: #3b82f6;
+}
+
+.notification.info .notification-icon {
+    color: #3b82f6;
+}
+
+/* ============================================ */
+/* DIÁLOGOS DE CONFIRMACIÓN MODERNOS */
+/* ============================================ */
+
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.dialog-box {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 450px;
+    width: 90%;
+    animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes scaleIn {
+    from {
+        transform: scale(0.9);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.dialog-header {
+    padding: 1.5rem 1.5rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dialog-icon {
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.dialog-icon.warning {
+    color: #f59e0b;
+}
+
+.dialog-icon.danger {
+    color: #ef4444;
+}
+
+.dialog-icon.info {
+    color: #3b82f6;
+}
+
+.dialog-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.dialog-body {
+    padding: 0 1.5rem 1.5rem;
+}
+
+.dialog-message {
+    color: #64748b;
+    line-height: 1.6;
+    font-size: 0.95rem;
+}
+
+.dialog-footer {
+    padding: 1rem 1.5rem;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    border-radius: 0 0 12px 12px;
+}
+
+.dialog-btn {
+    padding: 0.625rem 1.25rem;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    min-width: 80px;
+}
+
+.dialog-btn-cancel {
+    background: white;
+    color: #64748b;
+    border: 1px solid #cbd5e1;
+}
+
+.dialog-btn-cancel:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+.dialog-btn-confirm {
+    background: var(--color-primario);
+    color: white;
+}
+
+.dialog-btn-confirm:hover {
+    background: var(--color-primario-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(211, 47, 47, 0.3);
+}
+
+.dialog-btn-confirm.danger {
+    background: #ef4444;
+}
+
+.dialog-btn-confirm.danger:hover {
+    background: #dc2626;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    #notification-container {
+        left: 10px;
+        right: 10px;
+        max-width: none;
+    }
+    
+    .notification {
+        min-width: auto;
+    }
+    
+    .dialog-box {
+        width: 95%;
+    }
+}
