@@ -230,6 +230,69 @@ const db = {
         }
     },
 
+    async eliminarEgresoCaja(id) {
+        console.log('[Supabase] eliminarEgresoCaja llamado con ID:', id);
+        if (supabaseClient) {
+            console.log('[Supabase] Cliente disponible, intentando eliminar...');
+            try {
+                // Intentar eliminar y pedir que devuelva los registros eliminados
+                const { data, error, count } = await supabaseClient
+                    .from('egresos_caja')
+                    .delete()
+                    .eq('id', id)
+                    .select();
+
+                if (error) {
+                    console.error('[Supabase] Error en delete:', error);
+                    throw error;
+                }
+
+                console.log('[Supabase] Respuesta del DELETE:', { data, count });
+                console.log('[Supabase] Registros eliminados:', data?.length || 0);
+
+                // Verificar que realmente se eliminó
+                if (!data || data.length === 0) {
+                    console.error('[Supabase] ❌ PROBLEMA: DELETE no eliminó ningún registro');
+                    console.error('[Supabase] Esto indica un problema con políticas RLS');
+
+                    // Verificar si el registro aún existe
+                    const { data: verify } = await supabaseClient
+                        .from('egresos_caja')
+                        .select('*')
+                        .eq('id', id)
+                        .single();
+
+                    if (verify) {
+                        console.error('[Supabase] El registro AÚN EXISTE:', verify);
+                        return {
+                            success: false,
+                            error: {
+                                message: 'El registro no se eliminó. Las políticas RLS están bloqueando la eliminación.',
+                                code: 'RLS_POLICY_BLOCK',
+                                hint: 'Verifica las políticas de DELETE en la tabla egresos_caja'
+                            }
+                        };
+                    }
+                }
+
+                console.log('[Supabase] ✅ Eliminación exitosa y verificada');
+                return { success: true };
+            } catch (error) {
+                console.error('[Supabase] ❌ Error eliminando egreso de caja:', error);
+                console.error('[Supabase] Error code:', error.code);
+                console.error('[Supabase] Error message:', error.message);
+                console.error('[Supabase] Error details:', error.details);
+                return { success: false, error };
+            }
+        } else {
+            console.warn('[Supabase] Cliente no disponible, usando localStorage');
+            const items = JSON.parse(localStorage.getItem('egresosCaja')) || [];
+            const next = items.filter(e => e.id !== id);
+            localStorage.setItem('egresosCaja', JSON.stringify(next));
+            return { success: true };
+        }
+    },
+
     // Guardar movimiento
     async guardarMovimiento(movimiento) {
         if (supabaseClient) {

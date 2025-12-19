@@ -2203,17 +2203,6 @@ function iniciarEdicionEgresoCaja(id) {
     mostrarMensaje('Editando egreso. Realice los cambios y presione "Actualizar Egreso".', 'info');
 }
 
-/**
- * Elimina un egreso de caja
- */
-function eliminarEgresoCaja(id) {
-    if (confirm('¿Está seguro de que desea eliminar este egreso?')) {
-        estado.egresosCaja = estado.egresosCaja.filter(e => e.id !== id);
-        localStorage.setItem('egresosCaja', JSON.stringify(estado.egresosCaja));
-        cargarHistorialEgresosCaja();
-        mostrarMensaje('Egreso eliminado.', 'info');
-    }
-}
 
 /**
  * Limpia el formulario de egresos de caja
@@ -2500,15 +2489,45 @@ function iniciarEdicionEgresoCaja(id) {
     document.getElementById('egresos-caja').scrollIntoView({ behavior: 'smooth' });
 }
 
-function eliminarEgresoCaja(id) {
+async function eliminarEgresoCaja(id) {
+    console.log('=== ELIMINAR EGRESO DE CAJA ===');
+    console.log('ID a eliminar:', id);
+
     // **MEJORA UX:** Añadir confirmación antes de eliminar.
     if (confirm('¿Está seguro de que desea eliminar este egreso de caja? Esta acción no se puede deshacer.')) {
+        console.log('Usuario confirmó eliminación');
+
+        // **CORRECCIÓN:** Eliminar de Supabase primero
+        if (window.db && window.db.eliminarEgresoCaja) {
+            console.log('Llamando a window.db.eliminarEgresoCaja...');
+            const resultado = await window.db.eliminarEgresoCaja(id);
+            console.log('Resultado de Supabase:', resultado);
+
+            if (!resultado.success) {
+                console.error('Error al eliminar egreso de Supabase:', resultado.error);
+                mostrarMensaje('Error al eliminar de la base de datos: ' + resultado.error, 'peligro');
+                return;
+            }
+            console.log('✅ Eliminado de Supabase exitosamente');
+        } else {
+            console.warn('⚠️ window.db.eliminarEgresoCaja no está disponible');
+        }
+
+        // Eliminar de localStorage
+        console.log('Eliminando de localStorage...');
+        const cantidadAntes = estado.egresosCaja.length;
         estado.egresosCaja = estado.egresosCaja.filter(e => e.id !== id);
+        const cantidadDespues = estado.egresosCaja.length;
+        console.log(`Egresos antes: ${cantidadAntes}, después: ${cantidadDespues}`);
+
         guardarEnLocalStorage();
-        mostrarMensaje('Egreso de caja eliminado', 'info');
+        mostrarMensaje('Egreso de caja eliminado correctamente', 'exito');
         cargarHistorialEgresosCaja();
         actualizarArqueoFinal();
         cargarResumenDiario();
+        console.log('=== FIN ELIMINAR EGRESO ===');
+    } else {
+        console.log('Usuario canceló la eliminación');
     }
 }
 
@@ -4047,6 +4066,10 @@ function mostrarDetallesArqueo(arqueoId) {
         serviciosHTML += `<tr><td>${s.nombre}</td><td>${formatearMoneda(s.monto, 'gs')}</td><td>${formatearMoneda(s.tarjeta, 'gs')}</td></tr>`;
     });
 
+    // **NUEVO:** Verificar si el usuario es administrador para mostrar el botón de eliminar
+    const userRole = sessionStorage.getItem('userRole');
+    const esAdmin = userRole === 'admin';
+
     const detallesHTML = `
         <div class="detalle-arqueo">
             <div class="detalle-seccion">
@@ -4086,9 +4109,14 @@ function mostrarDetallesArqueo(arqueoId) {
                 <p><strong>Total Ingresos:</strong> ${formatearMoneda(arqueo.totalIngresos, 'gs')}</p>
             </div>
 
-            <!-- **NUEVO:** Botón de exportación en el modal -->
-            <div class="modal-footer" style="text-align: right; margin-top: 20px;">
-                <button class="btn" onclick="exportarArqueoPDFById('${arqueo.id}')">Exportar a PDF</button>
+            <!-- **NUEVO:** Botones de acción en el modal -->
+            <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+                <div>
+                    ${esAdmin ? `<button class="btn btn-peligro" onclick="eliminarArqueo('${arqueo.id}', event); cerrarModal();" style="background-color: var(--color-peligro);">🗑️ Eliminar Arqueo</button>` : ''}
+                </div>
+                <div>
+                    <button class="btn" onclick="exportarArqueoPDFById('${arqueo.id}')">Exportar a PDF</button>
+                </div>
             </div>
         </div>
     `;
