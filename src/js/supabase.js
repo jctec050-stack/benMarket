@@ -76,6 +76,32 @@ const db = {
         }
     },
 
+    async obtenerEmailPorUsername(username) {
+        if (supabaseClient) {
+            try {
+                // Llamar a la función RPC que hace el JOIN entre perfiles_usuarios y auth.users
+                const { data: email, error } = await supabaseClient
+                    .rpc('get_user_email_by_username', { p_username: username });
+
+                if (error) {
+                    console.error('Error obteniendo email por username:', error);
+                    return { success: false, error };
+                }
+
+                if (!email) {
+                    return { success: false, error: { message: 'Usuario no encontrado' } };
+                }
+
+                return { success: true, email: email };
+            } catch (error) {
+                console.error('Error obteniendo email por username:', error);
+                return { success: false, error };
+            }
+        } else {
+            return { success: false, error: 'Supabase no disponible' };
+        }
+    },
+
     async iniciarSesion(email, password) {
         if (supabaseClient) {
             try {

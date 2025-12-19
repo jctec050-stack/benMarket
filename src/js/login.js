@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', async () => {
     // Inicializar Supabase solo una vez
     inicializarSupabase();
-    
+
     // Referencias a elementos del DOM
     const loginForm = document.getElementById('loginForm');
     const errorMessage = document.getElementById('error-message');
@@ -23,16 +23,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         loginForm.addEventListener('submit', async (event) => {
             event.preventDefault();
 
-            const email = document.getElementById('username').value;
+            const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
             let caja = cajaSelect.value;
 
             try {
-                // Usar el nuevo sistema de autenticación
+                // Primero, obtener el email asociado al username
+                const emailResult = await db.obtenerEmailPorUsername(username);
+
+                if (!emailResult.success) {
+                    errorMessage.textContent = 'Usuario no encontrado.';
+                    console.error('Error obteniendo email:', emailResult.error);
+                    return;
+                }
+
+                const email = emailResult.email;
+
+                // Usar el email para autenticar
                 const resultado = await db.iniciarSesion(email, password);
 
                 if (!resultado.success) {
-                    errorMessage.textContent = 'Email o contraseña incorrectos.';
+                    errorMessage.textContent = 'Usuario o contraseña incorrectos.';
                     console.error('Error de login:', resultado.error);
                     return;
                 }
@@ -53,8 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
 
-                // Validar caja seleccionada (excepto para admin)
-                if (perfil.rol !== 'admin' && !caja) {
+                // Validar caja seleccionada (solo para cajeros)
+                if (perfil.rol === 'cajero' && !caja) {
                     errorMessage.textContent = 'Por favor, seleccione una caja para continuar.';
                     return;
                 }
@@ -62,7 +73,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Guardar información de sesión
                 sessionStorage.setItem('usuarioActual', perfil.username);
                 sessionStorage.setItem('userRole', perfil.rol);
-                
+
                 // Guardar caja seleccionada según el rol
                 if (perfil.rol === 'cajero') {
                     sessionStorage.setItem('cajaSeleccionada', caja);

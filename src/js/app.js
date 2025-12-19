@@ -1410,6 +1410,18 @@ function renderizarVistaArqueoFinal(totales) {
 }
 
 /**
+ * Actualiza el indicador visual de caja en el header del arqueo
+ */
+function actualizarIndicadorCaja() {
+    const cajaSelect = document.getElementById('caja');
+    const indicador = document.getElementById('cajaActivaArqueo');
+
+    if (cajaSelect && indicador) {
+        indicador.textContent = cajaSelect.value;
+    }
+}
+
+/**
  * Función coordinadora que actualiza el resumen del arqueo final.
  * 1. Filtra los movimientos.
  * 2. Llama a la función de cálculo.
@@ -1449,10 +1461,12 @@ function actualizarArqueoFinal() {
     // Combinar ambos tipos de egresos
     let todosLosEgresos = [...egresosDeCaja, ...egresosDeOperaciones];
 
-    if (cajaFiltro) {
+    // **NUEVO:** Filtrar por caja solo si NO es "Todas las cajas"
+    if (cajaFiltro && cajaFiltro !== 'Todas las cajas') {
         ingresosParaArqueo = ingresosParaArqueo.filter(m => m.caja === cajaFiltro);
         todosLosEgresos = todosLosEgresos.filter(e => e.caja === cajaFiltro);
     }
+    // Si es "Todas las cajas", no filtramos y sumamos todo
 
     const movimientosParaArqueo = [
         ...ingresosParaArqueo.map(m => ({ ...m, tipoMovimiento: 'ingreso' })),
@@ -3638,9 +3652,25 @@ function filtrarGastos() {
 function configurarVistaPorRol(rol, caja, usuario) {
     // --- Visibilidad de Pestañas por Rol ---
     const navUsuarios = document.getElementById('nav-usuarios');
-    if (navUsuarios) {
-        // Ocultar página de usuarios (deshabilitada temporalmente)
-        navUsuarios.style.display = 'none';
+    const navOperaciones = document.querySelector('a[href="operaciones.html"]')?.parentElement;
+    const navResumen = document.querySelector('a[href="resumen.html"]')?.parentElement;
+
+    // Control de visibilidad según rol
+    if (rol === 'cajero') {
+        // Cajeros solo ven: Ingresos, Egresos, Arqueo de Caja
+        if (navOperaciones) navOperaciones.style.display = 'none';
+        if (navResumen) navResumen.style.display = 'none';
+        if (navUsuarios) navUsuarios.style.display = 'none';
+    } else if (rol === 'tesoreria') {
+        // Tesorería ve todo excepto Usuarios
+        if (navOperaciones) navOperaciones.style.display = '';
+        if (navResumen) navResumen.style.display = '';
+        if (navUsuarios) navUsuarios.style.display = 'none';
+    } else if (rol === 'admin') {
+        // Admin ve todo
+        if (navOperaciones) navOperaciones.style.display = '';
+        if (navResumen) navResumen.style.display = '';
+        if (navUsuarios) navUsuarios.style.display = '';
     }
 
     // --- Configuración de Campos y Selectores por Rol ---

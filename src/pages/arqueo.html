@@ -60,7 +60,9 @@
                         </div>
                         <div class="form-grupo">
                             <label for="caja">Caja:</label>
-                            <select id="caja" name="caja" required>
+                            <select id="caja" name="caja" required
+                                onchange="actualizarIndicadorCaja(); actualizarArqueoFinal()">
+                                <option value="Todas las cajas">Todas las cajas</option>
                                 <option value="Caja 1">Caja 1</option>
                                 <option value="Caja 2">Caja 2</option>
                                 <option value="Caja 3">Caja 3</option>
@@ -97,6 +99,10 @@
     <script>
         if (window.inicializarSupabase) { window.inicializarSupabase(); }
         if (window.initSupabaseData) { window.initSupabaseData(); }
+        // Inicializar indicador de caja cuando se carga la página
+        if (window.actualizarIndicadorCaja) {
+            setTimeout(() => window.actualizarIndicadorCaja(), 100);
+        }
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
