@@ -197,23 +197,43 @@ async function initSupabaseData() {
         window.db.obtenerMovimientosTemporales() :
         { data: [] });
 
-    estado.arqueos = (a && a.data) || [];
-    estado.movimientos = (m && m.data) || [];
-    estado.egresosCaja = (e && e.data) || [];
-    estado.movimientosTemporales = (t && t.data) || [];
+    // --- LÓGICA DE SINCRONIZACIÓN (NETWORK FIRST) ---
+    // 1. Arqueos
+    if (a && a.success) {
+        estado.arqueos = a.data || [];
+        // Actualizar caché
+        localStorage.setItem('arqueos', JSON.stringify(estado.arqueos));
+    } else {
+        // Fallback offline
+        console.warn('Offline: Cargando Arqueos desde caché local.');
+        estado.arqueos = JSON.parse(localStorage.getItem('arqueos')) || [];
+    }
 
-    // Si no hay datos de Supabase, intentar cargar del localStorage
-    if (!estado.movimientosTemporales || estado.movimientosTemporales.length === 0) {
-        const datosLocales = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
-        estado.movimientosTemporales = datosLocales;
+    // 2. Movimientos (Operaciones)
+    if (m && m.success) {
+        estado.movimientos = m.data || [];
+        localStorage.setItem('movimientos', JSON.stringify(estado.movimientos));
+    } else {
+        console.warn('Offline: Cargando Movimientos desde caché local.');
+        estado.movimientos = JSON.parse(localStorage.getItem('movimientos')) || [];
     }
-    if (!estado.egresosCaja || estado.egresosCaja.length === 0) {
-        const egresosCaja = JSON.parse(localStorage.getItem('egresosCaja')) || [];
-        estado.egresosCaja = egresosCaja;
+
+    // 3. Egresos de Caja
+    if (e && e.success) {
+        estado.egresosCaja = e.data || [];
+        localStorage.setItem('egresosCaja', JSON.stringify(estado.egresosCaja));
+    } else {
+        console.warn('Offline: Cargando Egresos de Caja desde caché local.');
+        estado.egresosCaja = JSON.parse(localStorage.getItem('egresosCaja')) || [];
     }
-    if (!estado.movimientos || estado.movimientos.length === 0) {
-        const movimientos = JSON.parse(localStorage.getItem('movimientos')) || [];
-        estado.movimientos = movimientos;
+
+    // 4. Movimientos Temporales (Ingresos pendientes)
+    if (t && t.success) {
+        estado.movimientosTemporales = t.data || [];
+        localStorage.setItem('movimientosTemporales', JSON.stringify(estado.movimientosTemporales));
+    } else {
+        console.warn('Offline: Cargando Movimientos Temporales desde caché local.');
+        estado.movimientosTemporales = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
     }
 
     // **NUEVO:** Cargar fondoFijoPorCaja desde localStorage
@@ -883,8 +903,20 @@ function renderizarIngresosAgregados() {
         movimientosFiltrados = movimientosFiltrados.filter(m => m.descripcion.toLowerCase().includes(descFiltro));
     }
 
-    if (cajaFiltro && sessionStorage.getItem('userRole') === 'admin') {
-        movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaFiltro);
+
+
+    // **NUEVO:** Filtrar movimientos ya arqueados, EXCEPTO para admin y tesoreria
+    const userRole = sessionStorage.getItem('userRole');
+
+    if (userRole !== 'admin' && userRole !== 'tesoreria') {
+        // 1. Ocultar Arqueados
+        movimientosFiltrados = movimientosFiltrados.filter(m => !m.arqueado);
+
+        // 2. Ocultar movimientos de OTROS usuarios (segregación por cajero)
+        if (usuarioPerfil && usuarioPerfil.username) {
+            const nombreUsuarioActual = usuarioPerfil.username;
+            movimientosFiltrados = movimientosFiltrados.filter(m => m.cajero === nombreUsuarioActual);
+        }
     }
 
     lista.innerHTML = '';
@@ -1445,26 +1477,54 @@ function actualizarArqueoFinal() {
 
     const fechaArqueo = fechaInput.value.split('T')[0];
     const cajaFiltro = cajaInput.value;
+    const userRole = sessionStorage.getItem('userRole');
+    const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria';
+
+    // **NUEVO:** Segregación por usuario para no mezclar cajas de diferentes cajeros
+    let usuarioActualNombre = null;
+    if (!mostrarArqueados && usuarioPerfil && usuarioPerfil.username) {
+        usuarioActualNombre = usuarioPerfil.username;
+    }
 
     // 1. Obtener ingresos del día
     // **CORRECCIÓN:** Filtrar también los ingresos por la fecha seleccionada.
-    // **NUEVO:** Excluir movimientos ya arqueados
-    let ingresosParaArqueo = estado.movimientosTemporales.filter(m =>
-        m.fecha.split('T')[0] === fechaArqueo && m.arqueado !== true
-    );
+    // **NUEVO:** Excluir movimientos ya arqueados (Salvo Admins) y respetar filtro caja y USUARIO
+    let ingresosParaArqueo = estado.movimientosTemporales.filter(m => {
+        const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
+        const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
+        const visible = mostrarArqueados || !m.arqueado;
+        // User check
+        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+
+        return coincideFecha && coincideCaja && visible && coincideUsuario;
+    });
 
     // 2. Obtener egresos de la sección "Egresos"
-    // **NUEVO:** Excluir egresos ya arqueados
     let egresosDeCaja = estado.egresosCaja.filter(e => {
-        return e.fecha.split('T')[0] === fechaArqueo && e.arqueado !== true;
+        const coincideFecha = e.fecha.split('T')[0] === fechaArqueo;
+        const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
+        const visible = mostrarArqueados || !e.arqueado;
+        // User check
+        const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
+        return coincideFecha && coincideCaja && visible && coincideUsuario;
     });
 
     // **CORRECCIÓN:** 3. Obtener egresos de la sección "Operaciones" que afecten a la caja
     let egresosDeOperaciones = estado.movimientos.filter(m => {
         // Solo considerar 'gasto' y 'egreso' (pago a proveedor) que tengan una caja asignada
-        return m.fecha.split('T')[0] === fechaArqueo &&
-            (m.tipo === 'gasto' || m.tipo === 'egreso') &&
-            m.caja; // Asegurarse de que el movimiento esté asociado a una caja
+        const esEgreso = (m.tipo === 'gasto' || m.tipo === 'egreso');
+        const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
+        const coincideCaja = m.caja && (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
+        // Nota: Operaciones suelen ser historicas, no temporales, asi que 'arqueado' flag quizas no aplica igual,
+        // pero por consistencia si tuvieran flag, lo respetamos. Si no tienen flag, !undefined es true -> ocultaria?
+        // No, !undefined es true. wait. !undefined is true.
+        // Si m.arqueado es undefined, !m.arqueado es true.
+        // PERO si queremos OCULTAR los arqueados (true), !true es false.
+        // Si m.arqueado es undefined (no tiene), !undefined -> true. Visible. Correcto.
+        const visible = mostrarArqueados || !m.arqueado;
+        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+
+        return esEgreso && coincideFecha && coincideCaja && visible && coincideUsuario;
     });
 
     // Combinar ambos tipos de egresos
@@ -1507,19 +1567,39 @@ function cargarHistorialMovimientosDia() {
     console.log('Total movimientos (operaciones):', estado.movimientos.length);
 
     // Obtener movimientos
-    const ingresos = estado.movimientosTemporales.filter(m =>
-        m.fecha.startsWith(fechaFiltro) && (!cajaFiltro || m.caja === cajaFiltro)
-    ).map(m => ({ ...m, tipoMovimiento: 'ingreso' }));
+    // Obtener movimientos
+    // **CORRECCIÓN:** Manejar correctamente el filtro 'Todas las cajas'
+    // **CORRECCIÓN:** Manejar correctamente el filtro 'Todas las cajas' y USUARIO
 
-    const egresosCaja = estado.egresosCaja.filter(e =>
-        e.fecha.startsWith(fechaFiltro) && (!cajaFiltro || e.caja === cajaFiltro)
-    ).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
+    // Configurar filtro de usuario
+    const userRole = sessionStorage.getItem('userRole');
+    const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
+    let usuarioActualNombre = null;
+    if (!mostrarTodo && usuarioPerfil && usuarioPerfil.username) {
+        usuarioActualNombre = usuarioPerfil.username;
+    }
 
-    const egresosOperaciones = estado.movimientos.filter(m =>
-        m.fecha.startsWith(fechaFiltro) &&
-        (m.tipo === 'gasto' || m.tipo === 'egreso') &&
-        (!cajaFiltro || m.caja === cajaFiltro)
-    ).map(m => ({ ...m, tipoMovimiento: 'egreso' }));
+    const ingresos = estado.movimientosTemporales.filter(m => {
+        const coincideFecha = m.fecha.startsWith(fechaFiltro);
+        const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
+        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+        return coincideFecha && coincideCaja && coincideUsuario;
+    }).map(m => ({ ...m, tipoMovimiento: 'ingreso' }));
+
+    const egresosCaja = estado.egresosCaja.filter(e => {
+        const coincideFecha = e.fecha.startsWith(fechaFiltro);
+        const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
+        const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
+        return coincideFecha && coincideCaja && coincideUsuario;
+    }).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
+
+    const egresosOperaciones = estado.movimientos.filter(m => {
+        const coincideFecha = m.fecha.startsWith(fechaFiltro);
+        const esEgreso = (m.tipo === 'gasto' || m.tipo === 'egreso');
+        const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
+        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+        return coincideFecha && esEgreso && coincideCaja && coincideUsuario;
+    }).map(m => ({ ...m, tipoMovimiento: 'egreso' }));
 
     console.log('Ingresos filtrados:', ingresos.length);
     console.log('Egresos caja filtrados:', egresosCaja.length);
@@ -1718,6 +1798,21 @@ async function guardarArqueo() {
 
         if (mov.id && window.db && window.db.guardarMovimientoTemporal) {
             await window.db.guardarMovimientoTemporal(mov);
+        }
+    }
+
+    // **NUEVO:** Marcar también los Egresos de Caja como arqueados
+    const egresosArqueados = estado.egresosCaja.filter(e =>
+        e.caja === cajaFiltro && e.fecha.startsWith(fechaArqueo)
+    );
+    console.log(`Marcando ${egresosArqueados.length} egresos como arqueados...`);
+
+    for (const eg of egresosArqueados) {
+        eg.arqueado = true;
+        eg.fecha_arqueo = new Date().toISOString();
+
+        if (eg.id && window.db && window.db.guardarEgresoCaja) {
+            await window.db.guardarEgresoCaja(eg);
         }
     }
 
@@ -2144,19 +2239,31 @@ function cargarHistorialEgresosCaja() {
 
     // --- LÓGICA DE FILTRADO REVISADA ---
     const userRole = sessionStorage.getItem('userRole');
+    const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
 
-    if (userRole === 'cajero') {
+    // 1. Filtro por Usuario (Segregación)
+    if (!mostrarTodo && usuarioPerfil && usuarioPerfil.username) {
+        const nombreUsuarioActual = usuarioPerfil.username;
+        egresosFiltrados = egresosFiltrados.filter(e => !e.cajero || e.cajero === nombreUsuarioActual);
+    }
+
+    // 2. Filtro por Arqueado (Ocultar cerrados para cajeros)
+    if (!mostrarTodo) {
+        egresosFiltrados = egresosFiltrados.filter(e => !e.arqueado);
+    }
+
+    // 3. Filtro por Caja
+    if (cajaFiltro && cajaFiltro !== 'Todas las cajas') {
+        egresosFiltrados = egresosFiltrados.filter(e => e.caja === cajaFiltro);
+    } else if (!mostrarTodo) {
+        // Cajero por defecto ve su caja seleccionada si no filtra?
         const cajaAsignada = sessionStorage.getItem('cajaSeleccionada');
-        egresosFiltrados = egresosFiltrados.filter(e => e.caja === cajaAsignada);
-    } else if (userRole === 'tesoreria') {
-        egresosFiltrados = egresosFiltrados.filter(e => e.caja === 'Caja Tesoreria');
-    } else if (userRole === 'admin') {
-        // Para el admin, el filtro del <select> es el que manda.
-        if (cajaFiltro) {
-            egresosFiltrados = egresosFiltrados.filter(e => e.caja === cajaFiltro);
+        if (cajaAsignada) {
+            egresosFiltrados = egresosFiltrados.filter(e => e.caja === cajaAsignada);
         }
     }
 
+    // 4. Filtro por Fecha
     if (fechaFiltro) {
         egresosFiltrados = egresosFiltrados.filter(e => e.fecha.startsWith(fechaFiltro));
     }

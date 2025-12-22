@@ -213,7 +213,10 @@ const db = {
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {
-                return { success: false, error };
+                console.error('Error completo al guardar egreso (Offline Fallback):', error);
+                const itemOffline = { ...egreso, pending_sync: true };
+                this.guardarEnLocalStorage('egresosCaja', itemOffline);
+                return { success: true, offline: true, error };
             }
         } else {
             return this.guardarEnLocalStorage('egresosCaja', egreso);
@@ -588,8 +591,12 @@ const db = {
                 console.log('Guardado exitoso. Data devuelta:', data);
                 return { success: true, data };
             } catch (error) {
-                console.error('Error completo al guardar:', error);
-                return { success: false, error };
+                console.error('Error completo al guardar (Offline Fallback):', error);
+                // Fallback: Guardar en localStorage si falla Supabase
+                const itemOffline = { ...item, arqueado: item.arqueado !== undefined ? item.arqueado : false, pending_sync: true };
+                this.guardarEnLocalStorage('movimientosTemporales', itemOffline);
+                console.warn('Datos guardados localmente por error de red.');
+                return { success: true, offline: true, error: error };
             }
         } else {
             return this.guardarEnLocalStorage('movimientosTemporales', item);
@@ -797,7 +804,22 @@ async function guardarArqueo(datosArqueo) {
 
         return { success: true, data: data ? data[0] : null };
     } catch (error) {
-        console.error('Error al guardar arqueo:', error);
+        console.error('Error al guardar arqueo (Offline Fallback):', error);
+
+        let userId = null;
+        try {
+            const userStored = JSON.parse(localStorage.getItem('usuario_actual'));
+            userId = userStored?.id;
+        } catch (e) { console.warn('No se pudo recuperar usuario local'); }
+
+        const datosCompletosOffline = { ...datosArqueo, usuario_id: userId, pending_sync: true };
+
+        if (window.db && window.db.guardarEnLocalStorage) {
+            window.db.guardarEnLocalStorage('arqueos', datosCompletosOffline);
+            console.warn('Arqueo guardado localmente por error de red.');
+            return { success: true, offline: true, error: error.message };
+        }
+
         return { success: false, error: error.message };
     }
 }
