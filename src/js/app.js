@@ -5666,3 +5666,220 @@ window.eliminarEgresoCaja = async function (id) {
 if (document.getElementById('listaEgresosCaja')) {
     cargarHistorialEgresosCaja();
 }
+
+// ==========================================
+// LÓGICA PARA RESUMEN DE SERVICIOS
+// ==========================================
+
+// MEJOR OPCIÓN: Usar 'load' y además un pequeño reintento si falla.
+window.addEventListener('load', async () => {
+    if (document.getElementById('page-resumen-servicios')) {
+        // Dar un pequeño margen para que el otro listener de 'load' (initSupabase) termine de ejecutarse
+        setTimeout(async () => {
+            try {
+                await inicializarResumenServicios();
+            } catch (e) {
+                console.log('Reintentando inicialización...', e);
+                setTimeout(inicializarResumenServicios, 1000);
+            }
+        }, 500);
+    }
+});
+
+async function inicializarResumenServicios() {
+    console.log('Inicializando Resumen de Servicios...');
+    const grid = document.getElementById('gridServicios');
+    if (grid) grid.innerHTML = '<p class="cargando">Cargando datos...</p>';
+
+    // Asegurar que los movimientos estén cargados
+    if (!estado.movimientos || estado.movimientos.length === 0) {
+        if (typeof window.initSupabaseData === 'function') {
+            await window.initSupabaseData();
+        } else {
+            console.error('No se encontró función para cargar datos.');
+            grid.innerHTML = '<p class="error-msg">Error al cargar datos.</p>';
+            return;
+        }
+    }
+
+    // Establecer fechas iniciales si están vacías
+    const fechaDesde = document.getElementById('fechaServiciosDesde');
+    const fechaHasta = document.getElementById('fechaServiciosHasta');
+    const hoy = new Date().toISOString().slice(0, 10);
+
+    if (fechaDesde && !fechaDesde.value) fechaDesde.value = hoy;
+    if (fechaHasta && !fechaHasta.value) fechaHasta.value = hoy;
+
+    renderizarResumenServicios();
+}
+
+function renderizarResumenServicios() {
+    const grid = document.getElementById('gridServicios');
+    const fechaDesde = document.getElementById('fechaServiciosDesde')?.value;
+    const fechaHasta = document.getElementById('fechaServiciosHasta')?.value;
+    const cajaFiltro = document.getElementById('filtroCajaServicios')?.value;
+
+    if (!grid) return;
+
+    // **CORRECCIÓN:** Combinar movimientos históricos y temporales y filtrar
+    let todosLosMovimientos = [
+        ...(estado.movimientos || []),
+        ...(estado.movimientosTemporales || [])
+    ];
+
+    // Aplicar filtros
+    if (fechaDesde) {
+        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha.split('T')[0] >= fechaDesde);
+    }
+    if (fechaHasta) {
+        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha.split('T')[0] <= fechaHasta);
+    }
+    if (cajaFiltro && cajaFiltro !== 'Todas las Cajas') {
+        todosLosMovimientos = todosLosMovimientos.filter(m => m.caja === cajaFiltro);
+    }
+
+    const datosServicios = agruparMovimientosPorServicio(todosLosMovimientos);
+    grid.innerHTML = '';
+
+
+    if (Object.keys(datosServicios).length === 0) {
+        grid.innerHTML = '<p class="sin-resultados">No hay movimientos de servicios registrados.</p>';
+        return;
+    }
+
+    Object.keys(datosServicios).sort().forEach(nombreServicio => {
+        const datos = datosServicios[nombreServicio];
+        const card = document.createElement('div');
+        card.className = 'card-resumen';
+        card.style.cursor = 'pointer';
+        card.style.transition = 'transform 0.2s';
+        card.onclick = () => abrirModalDetalleServicio(nombreServicio, datos.items);
+
+        card.innerHTML = `
+            <div style="padding: 1.5rem; background: var(--color-fondo-tarjeta, white); border-radius: 8px; box-shadow: var(--sombra-tarjeta, 0 2px 4px rgba(0,0,0,0.1)); border-left: 5px solid var(--color-primario);">
+                <h3 style="margin-top: 0; color: var(--color-primario); font-size: 1.2rem;">${nombreServicio}</h3>
+                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 1rem;">
+                    <div>
+                        <span style="font-size: 0.9rem; color: var(--color-texto-secundario);">Transacciones</span>
+                        <div style="font-size: 1.5rem; font-weight: bold;">${datos.items.length}</div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 0.9rem; color: var(--color-texto-secundario);">Total</span>
+                        <div style="font-size: 1.5rem; font-weight: bold; color: var(--color-exito);">${formatearMoneda(datos.total, 'gs')}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        card.addEventListener('mouseenter', () => card.style.transform = 'translateY(-5px)');
+        card.addEventListener('mouseleave', () => card.style.transform = 'translateY(0)');
+
+        grid.appendChild(card);
+    });
+}
+
+function agruparMovimientosPorServicio(movimientos) {
+    const agrupado = {};
+
+    movimientos.forEach(mov => {
+        // 1. Servicios estáticos
+        if (mov.servicios) {
+            Object.entries(mov.servicios).forEach(([key, serv]) => {
+                const montoTotal = (serv.monto || 0) + (serv.tarjeta || 0);
+                if (montoTotal > 0 || (serv.lote && serv.lote.trim() !== '')) {
+                    const nombres = {
+                        apLote: 'Aca Puedo',
+                        aquiPago: 'Aquí Pago',
+                        expressLote: 'Pago Express',
+                        wepa: 'WEPA',
+                        pasajeNsa: 'Pasaje NSA',
+                        encomiendaNsa: 'Encomienda NSA',
+                        apostala: 'Apostala'
+                    };
+                    const nombreReal = nombres[key] || key;
+
+                    if (!agrupado[nombreReal]) agrupado[nombreReal] = { total: 0, items: [] };
+
+                    agrupado[nombreReal].items.push({
+                        fecha: mov.fecha,
+                        caja: mov.caja,
+                        cajero: mov.cajero,
+                        lote: serv.lote,
+                        monto: montoTotal
+                    });
+                    agrupado[nombreReal].total += montoTotal;
+                }
+            });
+        }
+
+        // 2. Servicios dinámicos
+        if (mov.otrosServicios && Array.isArray(mov.otrosServicios)) {
+            mov.otrosServicios.forEach(serv => {
+                const montoTotal = (serv.monto || 0) + (serv.tarjeta || 0);
+                const nombreReal = serv.nombre || 'Otro Servicio';
+
+                if (!agrupado[nombreReal]) agrupado[nombreReal] = { total: 0, items: [] };
+
+                agrupado[nombreReal].items.push({
+                    fecha: mov.fecha,
+                    caja: mov.caja,
+                    cajero: mov.cajero,
+                    lote: serv.lote,
+                    monto: montoTotal
+                });
+                agrupado[nombreReal].total += montoTotal;
+            });
+        }
+    });
+
+    return agrupado;
+}
+
+function abrirModalDetalleServicio(nombreServicio, items) {
+    const modal = document.getElementById('modalDetalleServicio');
+    const titulo = document.getElementById('tituloModalServicio');
+    const tbody = document.getElementById('tablaDetalleServicioBody');
+    const totalFooter = document.getElementById('totalDetalleServicio');
+
+    if (!modal || !tbody) return;
+
+    titulo.textContent = `Detalle de Comprobantes: ${nombreServicio}`;
+    tbody.innerHTML = '';
+
+    let total = 0;
+
+    items.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    items.forEach(item => {
+        total += item.monto;
+        const fila = document.createElement('tr');
+        fila.innerHTML = `
+            <td>${formatearFecha(item.fecha)}</td>
+            <td>${item.caja || '-'}</td>
+            <td>${item.cajero || 'Desconocido'}</td>
+            <td>${item.lote || '-'}</td>
+            <td>${formatearMoneda(item.monto, 'gs')}</td>
+        `;
+        tbody.appendChild(fila);
+    });
+
+    if (totalFooter) {
+        totalFooter.textContent = formatearMoneda(total, 'gs');
+    }
+
+    modal.style.display = 'block';
+}
+
+function cerrarModalDetalleServicio() {
+    const modal = document.getElementById('modalDetalleServicio');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+window.onclick = function (event) {
+    const modal = document.getElementById('modalDetalleServicio');
+    if (event.target == modal) {
+        cerrarModalDetalleServicio();
+    }
+};

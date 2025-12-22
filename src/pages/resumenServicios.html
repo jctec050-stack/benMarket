@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BenMark - Resumen de Servicios</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../js/supabase.js"></script>
+    <script src="../js/notifications.js"></script>
+</head>
+
+<body id="page-resumen-servicios">
+    <nav class="navbar">
+        <div class="nav-container">
+            <img src="../images/logo-benmarket.jpg" alt="BenMarket" class="navbar-logo">
+            <ul class="nav-menu">
+                <li><a href="index.html" class="nav-link">Ingresos</a></li>
+                <li><a href="egresosCaja.html" class="nav-link">Egresos</a></li>
+                <li><a href="operaciones.html" class="nav-link">Operaciones</a></li>
+                <li><a href="arqueo.html" class="nav-link">Arqueo de Caja</a></li>
+                <li><a href="resumenServicios.html" class="nav-link activo">Resumen Servicios</a></li>
+                <li><a href="resumen.html" class="nav-link">Resumen Tesoreria</a></li>
+                <li id="nav-usuarios"><a href="usuarios.html" class="nav-link">Usuarios</a></li>
+            </ul>
+            <div class="nav-usuario">
+                <span id="nombreUsuarioNav"></span>
+                <a href="#" onclick="event.preventDefault(); cerrarSesion()" class="nav-link-logout">Cerrar Sesión</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <!-- Sección de Resumen de Servicios -->
+        <section id="resumen-servicios" class="seccion activa">
+            <div class="header-seccion">
+                <h2>Resumen de Comprobantes por Servicios</h2>
+            </div>
+
+            <!-- Filtros -->
+            <div class="resumen-filtros" style="margin-top: 1rem;">
+                <div class="form-grupo">
+                    <label for="fechaServiciosDesde">Desde:</label>
+                    <input type="date" id="fechaServiciosDesde" onchange="renderizarResumenServicios()">
+                </div>
+                <div class="form-grupo">
+                    <label for="fechaServiciosHasta">Hasta:</label>
+                    <input type="date" id="fechaServiciosHasta" onchange="renderizarResumenServicios()">
+                </div>
+                <div class="form-grupo">
+                    <label for="filtroCajaServicios">Caja:</label>
+                    <select id="filtroCajaServicios" onchange="renderizarResumenServicios()">
+                        <option value="">Todas las Cajas</option>
+                        <option value="Caja 1">Caja 1</option>
+                        <option value="Caja 2">Caja 2</option>
+                        <option value="Caja 3">Caja 3</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Grid de Tarjetas de Servicios -->
+            <div id="gridServicios"
+                style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 2rem;">
+                <!-- Las tarjetas se generan dinámicamente -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal de Detalles del Servicio -->
+    <div id="modalDetalleServicio" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 900px;">
+            <span class="cerrar-modal" onclick="cerrarModalDetalleServicio()">&times;</span>
+            <h3 id="tituloModalServicio" style="margin-top: 0;">Detalle de Comprobantes</h3>
+            <div style="overflow-x: auto; margin-top: 1rem;">
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th>Fecha y Hora</th>
+                            <th>Caja</th>
+                            <th>Cajero</th>
+                            <th>Lote/Referencia</th>
+                            <th>Monto (G$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaDetalleServicioBody">
+                        <!-- Filas generadas dinámicamente -->
+                    </tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background-color: var(--color-fondo-secundario);">
+                            <td colspan="4" style="text-align: right;">TOTAL:</td>
+                            <td id="totalDetalleServicio">0 Gs</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script principal -->
+    <script src="../js/app.js"></script>
+</body>
+
+</html>
