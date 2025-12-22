@@ -30,6 +30,7 @@ body {
 
 /* Navegación */
 .navbar {
+    width: 100%;
     background: linear-gradient(135deg, #D32F2F 0%, #B71C1C 100%);
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     position: sticky;
@@ -39,6 +40,7 @@ body {
 }
 
 .nav-container {
+    width: 100%;
     max-width: 1400px;
     margin: 0 auto;
     padding: 1.5rem 1.5rem 1rem;
@@ -69,6 +71,8 @@ body {
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
+    width: 100%;
+    max-width: 100%;
     margin: 0;
     padding: 0;
 }
