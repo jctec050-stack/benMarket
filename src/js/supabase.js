@@ -9,6 +9,7 @@ let usuarioActual = null;
 let supabaseInicializado = false;
 
 // Función para inicializar Supabase cuando esté disponible
+console.log("CARGANDO SUPABASE JS VERSION 5 (FIX CAMPOS FALTANTES)");
 function inicializarSupabase() {
     // Si ya se inicializó, no hacer nada
     if (supabaseInicializado) {
@@ -212,6 +213,43 @@ const db = {
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {
+                return { success: false, error };
+            }
+        } else {
+            return this.guardarEnLocalStorage('egresosCaja', egreso);
+        }
+    },
+    async guardarEgresoCajaV5(egreso) {
+        if (supabaseClient) {
+            try {
+                // Forzamos un objeto limpio con TODOS los campos que existen en la tabla
+                const payload = {
+                    id: egreso.id,
+                    fecha: egreso.fecha,
+                    caja: egreso.caja,
+                    categoria: egreso.categoria,
+                    descripcion: egreso.descripcion,
+                    monto: egreso.monto,
+                    referencia: egreso.referencia,
+                    cajero: egreso.usuario,
+                    // Agregamos valores por defecto para evitar errores NOT NULL
+                    efectivo: null,
+                    arqueado: false
+                };
+
+                // Debug Payload
+                console.log('Payload V5:', JSON.stringify(payload));
+
+                // Usamos insert sin select
+                const { error } = await supabaseClient
+                    .from('egresos_caja')
+                    .insert([payload]);
+
+                if (error) throw error;
+                return { success: true };
+            } catch (error) {
+                console.error("Error guardarEgresoCajaV5:", error);
+                alert("Error Supabase V5: " + JSON.stringify(error, null, 2));
                 return { success: false, error };
             }
         } else {

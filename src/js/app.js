@@ -511,20 +511,25 @@ function cargarFondoFijoEnArqueo() {
     }
 
     const cajaSeleccionada = cajaInput.value;
-    const fondoFijo = estado.fondoFijoPorCaja[cajaSeleccionada];
+    let totalFondoFijo = 0;
 
-    // **DEBUG:** Verificar qué se está cargando
-    console.log('cargarFondoFijoEnArqueo:', { cajaSeleccionada, fondoFijo, estado: estado.fondoFijoPorCaja });
-
-    if (fondoFijo && fondoFijo.monto) {
-        // Aplicar formato con separador de miles
-        const montoFormateado = fondoFijo.monto.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-        fondoFijoInput.value = montoFormateado;
-        console.log('Fondo fijo cargado:', montoFormateado);
+    if (cajaSeleccionada === 'Todas las cajas') {
+        // Sumar el fondo fijo de todas las cajas disponibles
+        Object.values(estado.fondoFijoPorCaja).forEach(caja => {
+            if (caja && caja.monto) {
+                totalFondoFijo += caja.monto;
+            }
+        });
+        console.log('Fondo fijo total (Todas las cajas):', totalFondoFijo);
     } else {
-        fondoFijoInput.value = '0';
-        console.log('No hay fondo fijo para esta caja');
+        const fondoFijo = estado.fondoFijoPorCaja[cajaSeleccionada];
+        if (fondoFijo && fondoFijo.monto) {
+            totalFondoFijo = fondoFijo.monto;
+        }
     }
+
+    const montoFormateado = totalFondoFijo.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    fondoFijoInput.value = montoFormateado;
 
     // Recalcular arqueo con el nuevo fondo fijo
     if (typeof actualizarArqueoFinal === 'function') {
@@ -871,7 +876,7 @@ function renderizarIngresosAgregados() {
     if (fechaFiltro) {
         movimientosFiltrados = movimientosFiltrados.filter(m => m.fecha.startsWith(fechaFiltro));
     }
-    if (cajaFiltro) {
+    if (cajaFiltro && cajaFiltro !== 'Todas las cajas') {
         movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaFiltro);
     }
     if (descFiltro) {
@@ -1145,19 +1150,14 @@ function calcularTotalesArqueo(movimientosParaArqueo) {
         // **DEBUG:** Log para verificar procesamiento de billetes
         console.log('Mov ID:', mov.id, 'Tipo:', mov.tipoMovimiento, 'Tiene efectivo:', !!mov.efectivo, 'Keys:', mov.efectivo ? Object.keys(mov.efectivo) : []);
 
-        if (mov.efectivo) {
+        if (mov.efectivo && mov.tipoMovimiento === 'ingreso') {
             for (const [denominacion, cantidad] of Object.entries(mov.efectivo)) {
                 if (!totales.efectivo[denominacion]) totales.efectivo[denominacion] = { ingreso: 0, egreso: 0, neto: 0 };
 
-                console.log(`  Procesando denom ${denominacion}: cantidad=${cantidad}, tipo=${mov.tipoMovimiento}`);
+                // console.log(`  Procesando denom ${denominacion}: cantidad=${cantidad}, tipo=${mov.tipoMovimiento}`);
 
-                if (mov.tipoMovimiento === 'egreso') {
-                    totales.efectivo[denominacion].egreso += cantidad;
-                    totales.efectivo[denominacion].neto -= cantidad;
-                } else {
-                    totales.efectivo[denominacion].ingreso += cantidad;
-                    totales.efectivo[denominacion].neto += cantidad;
-                }
+                totales.efectivo[denominacion].ingreso += cantidad;
+                totales.efectivo[denominacion].neto += cantidad;
             }
         }
         // Restar efectivo por vuelto (siempre es egreso)
@@ -1229,19 +1229,15 @@ function renderizarVistaArqueoFinal(totales) {
 
     CONFIG.denominaciones.forEach(denom => {
         const data = totales.efectivo[denom.valor];
-        const cantidad = data ? data.neto : 0;
-        const ingreso = data ? data.ingreso : 0;
-        const egreso = data ? data.egreso : 0;
+        // **NUEVO:** Solo contar lo que entró (Existencia basada en ingresos)
+        const cantidad = data ? data.ingreso : 0;
 
-        // Mostrar si hay movimiento (ingreso o egreso) o si hay cantidad neta
-        if (ingreso === 0 && egreso === 0 && cantidad === 0) return;
+        if (cantidad === 0) return;
 
         const monto = cantidad * denom.valor;
         totalEfectivoFinal += monto;
         efectivoHTML += `<tr>
             <td>${denom.nombre}</td>
-            <td style="color: var(--color-exito);">${ingreso || 0}</td>
-            <td style="color: var(--color-peligro);">${egreso || 0}</td>
             <td><strong>${cantidad}</strong></td>
             <td>${formatearMoneda(monto, 'gs')}</td>
         </tr>`;
@@ -1254,9 +1250,9 @@ function renderizarVistaArqueoFinal(totales) {
             totalMonedasExtranjerasGs += montoGs;
             efectivoHTML += `<tr>
                 <td>${moneda.toUpperCase()}</td>
-                <td colspan="3" style="text-align: center;">${cantidad.toFixed(2)}</td>
+                <td style="text-align: center;">${cantidad.toFixed(2)}</td>
                 <td>${formatearMoneda(montoGs, 'gs')}</td>
-            </tr>`;
+            </tr>`; // Adjusted colspan removed since we have 3 columns now
         }
     });
 
@@ -1298,15 +1294,24 @@ function renderizarVistaArqueoFinal(totales) {
     const totalAEntregar = totalEfectivoBruto;
     const totalIngresoEfectivo = totalServiciosEfectivo; // **NUEVA LÓGICA:** El total de ingreso efectivo es solo el efectivo de servicios.
 
-    const egresosDeCajaFiltrados = estado.egresosCaja.filter(e => e.fecha.startsWith(document.getElementById('fecha').value.split('T')[0]) && e.caja === cajaFiltro);
+    const egresosDeCajaFiltrados = estado.egresosCaja.filter(e =>
+        e.fecha.startsWith(document.getElementById('fecha').value.split('T')[0]) &&
+        (cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro)
+    );
     const egresosDeOperacionesFiltrados = estado.movimientos.filter(m =>
         m.fecha.startsWith(document.getElementById('fecha').value.split('T')[0]) &&
         (m.tipo === 'gasto' || m.tipo === 'egreso') &&
-        m.caja === cajaFiltro
+        (cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro)
     );
 
     const totalEgresosCaja = egresosDeCajaFiltrados.reduce((sum, e) => sum + e.monto, 0) +
         egresosDeOperacionesFiltrados.reduce((sum, m) => sum + m.monto, 0);
+
+    // **NUEVO:** Total a declarar = Egresos (positivo) + (Total Efectivo Bruto + Fondo Fijo)
+    const totalADeclarar = totalEgresosCaja + totalEfectivoBruto;
+
+    // **NUEVO REQUERIMIENTO:** Total Ingresos Tienda = Total a declarar - Total efectivo servicios - Fondo Fijo
+    const totalIngresosTiendaCalculado = totalADeclarar - totalIngresoEfectivo - fondoFijo;
 
     const totalNeto = (totales.totalIngresosTienda + totalIngresoEfectivo) - totalEgresosCaja;
 
@@ -1322,6 +1327,22 @@ function renderizarVistaArqueoFinal(totales) {
         totalesMonedasHTML += `<div class="total-item final" style="margin-top: 0.5rem;"><strong>Total a Entregar (ARS):</strong><strong>${totales.monedasExtranjeras.ars.cantidad.toFixed(0)}</strong></div>`;
     }
 
+    // **NUEVO:** Preparar HTML para la tabla de Egresos
+    let egresosHTML = '';
+    const todosLosEgresos = [...egresosDeCajaFiltrados, ...egresosDeOperacionesFiltrados];
+
+    if (todosLosEgresos.length > 0) {
+        todosLosEgresos.forEach(egreso => {
+            const desc = egreso.descripcion || egreso.categoria || 'Egreso';
+            egresosHTML += `<tr>
+                <td>${desc}</td>
+                <td>${formatearMoneda(egreso.monto, 'gs')}</td>
+             </tr>`;
+        });
+    } else {
+        egresosHTML = '<tr><td colspan="2">No hay egresos registrados.</td></tr>';
+    }
+
     // Construir el HTML final para la vista
     contenedorVista.innerHTML = `
         <!-- **NUEVO:** Información General del Arqueo -->
@@ -1335,28 +1356,26 @@ function renderizarVistaArqueoFinal(totales) {
         <div class="detalle-arqueo">
             <!-- Columna 1: Efectivo y Resumen de Efectivo -->
             <div class="detalle-seccion">
-                <h5>Conteo de Efectivo</h5>
+                <h5>Conteo de Efectivo (Ingresos)</h5>
                 <table class="tabla-detalle">
                     <thead>
                         <tr>
                             <th>Denominación</th>
-                            <th>Ingresos</th>
-                            <th>Egresos</th>
                             <th>Existencia</th>
                             <th>Monto (G$)</th>
                         </tr>
                     </thead>
-                    <tbody>${efectivoHTML || '<tr><td colspan="5">No hay movimientos en efectivo.</td></tr>'}</tbody>
+                    <tbody>${efectivoHTML || '<tr><td colspan="3">No hay ingresos en efectivo.</td></tr>'}</tbody>
                 </table>
                 <div class="resumen-totales" style="margin-top: 1rem;">
-                    <div class="total-item" style="color: var(--color-info);"><span>Total Efectivo Bruto + Fondo Fijo:</span><span>${formatearMoneda(totalEfectivoBruto + fondoFijo, 'gs')}</span></div>
+                    <div class="total-item" style="color: var(--color-info);"><span>Total Efectivo Bruto + Fondo Fijo:</span><span>${formatearMoneda(totalEfectivoBruto, 'gs')}</span></div>
                     <div class="total-item negativo"><span>- Fondo Fijo:</span><span>${formatearMoneda(fondoFijo, 'gs')}</span></div>
-                    <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalEfectivoBruto, 'gs')}</strong></div>
+                    <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalEfectivoBruto - fondoFijo, 'gs')}</strong></div>
                     ${totalesMonedasHTML}
                 </div>
             </div>
 
-            <!-- Columna 2: Otros Ingresos y Servicios -->
+            <!-- Columna 2: Otros Ingresos, Servicios y Egresos -->
             <div class="detalle-seccion">
                 <h5>Ingresos No Efectivo</h5>
                 <p><strong>Pagos con Tarjeta:</strong> ${formatearMoneda(totales.pagosTarjeta, 'gs')}</p>
@@ -1368,16 +1387,33 @@ function renderizarVistaArqueoFinal(totales) {
                 <table class="tabla-detalle">
                     <thead><tr><th>Servicio</th><th>Lote/Fecha</th><th>Efectivo (G$)</th><th>Tarjeta (G$)</th></tr></thead>
                     <tbody>${serviciosHTML || '<tr><td colspan="4">No hay servicios registrados.</td></tr>'}</tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background-color: var(--color-fondo-secundario, #f3f4f6);">
+                            <td colspan="2" style="text-align: right;">TOTALES:</td>
+                            <td>${formatearMoneda(totalServiciosEfectivo, 'gs')}</td>
+                            <td>${formatearMoneda(totalServiciosArqueo - totalServiciosEfectivo, 'gs')}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <h5 style="margin-top: 2rem;">Detalle de Egresos</h5>
+                <table class="tabla-detalle">
+                    <thead><tr><th>Descripción</th><th>Monto (G$)</th></tr></thead>
+                    <tbody>${egresosHTML}</tbody>
+                    <tfoot>
+                        <tr style="font-weight: bold; background-color: var(--color-fondo-secundario, #f3f4f6);">
+                            <td style="text-align: right;">TOTAL EGRESOS:</td>
+                            <td>${formatearMoneda(totalEgresosCaja, 'gs')}</td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>
 
         <!-- Resumen Final del Arqueo -->
         <div class="resumen-totales" style="margin-top: 2rem; border-top: 1px solid var(--color-borde); padding-top: 1rem;">
-            <div class="total-item positivo"><span>Total Ingresos Tienda:</span><span>${formatearMoneda(totales.totalIngresosTienda, 'gs')}</span></div>
-            <div class="total-item positivo"><span>Total Efectivo Servicios:</span><span>${formatearMoneda(totalIngresoEfectivo, 'gs')}</span></div>
-            <div class="total-item negativo"><span>- Total Egresos de Caja:</span><span>${formatearMoneda(totalEgresosCaja, 'gs')}</span></div>
-            <div class="total-item ${totalNeto >= 0 ? 'positivo' : 'negativo'}"><strong>Total Neto del Arqueo:</strong><strong>${formatearMoneda(totalNeto, 'gs')}</strong></div>
+            <div class="total-item" style="color: var(--color-advertencia); font-weight: bold;"><span>Total a declarar en Sistema:</span><span>${formatearMoneda(totalADeclarar, 'gs')}</span></div>
+            <div class="total-item positivo"><span>Total Ingresos Tienda:</span><span>${formatearMoneda(totalIngresosTiendaCalculado, 'gs')}</span></div>
         </div>
     `;
 }
@@ -5461,18 +5497,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 fecha: new Date(fecha).toISOString(),
                 caja: caja,
                 categoria: categoria,
-                descripcion: descripcion,
+                descripcion: proveedor ? `${proveedor} - ${descripcion}` : descripcion,
                 monto: monto,
                 referencia: referencia,
-                proveedor: proveedor, // Nuevo campo
-                usuario: sessionStorage.getItem('usuarioActual') || 'Desconocido',
-                tipo: 'egreso', // Para consistencia
-                moneda: 'gs' // Moneda por defecto
+                usuario: sessionStorage.getItem('usuarioActual') || 'Desconocido'
             };
 
-            // Guardar usando la API de Supabase
-            if (window.db && window.db.guardarEgresoCaja) {
-                const resultado = await window.db.guardarEgresoCaja(nuevoEgreso);
+            // Guardar usando la API de Supabase V5 Segura
+            if (window.db && (window.db.guardarEgresoCajaV5 || window.db.guardarEgresoCaja)) {
+                // Preferir V5 si existe
+                const funcionGuardar = window.db.guardarEgresoCajaV5 || window.db.guardarEgresoCaja;
+
+                console.log('=== INTENTANDO GUARDAR EGRESO (V5) ===');
+                console.log('Payload original:', nuevoEgreso);
+                console.log('Usando funcion:', window.db.guardarEgresoCajaV5 ? 'guardarEgresoCajaV5' : 'guardarEgresoCaja');
+
+                const resultado = await funcionGuardar(nuevoEgreso);
                 if (resultado.success) {
                     mostrarMensaje('Egreso registrado correctamente.', 'exito');
                     limpiarFormularioEgresoCaja();
@@ -5535,6 +5575,11 @@ window.cargarHistorialEgresosCaja = async function () {
             const resultado = await window.db.obtenerEgresosCaja();
             if (resultado.success) {
                 egresos = resultado.data || [];
+                if (egresos.length > 0) {
+                    console.log('=== ESTRUCTURA REAL DE EGRESOS_CAJA ===');
+                    console.log('Ejemplo de registro existente:', egresos[0]);
+                    console.log('Columnas disponibles:', Object.keys(egresos[0]));
+                }
             } else {
                 throw new Error(resultado.error);
             }
