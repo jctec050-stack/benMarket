@@ -532,12 +532,25 @@ const db = {
                 // **NUEVO:** Asegurar que el campo arqueado esté presente
                 const itemConEstado = { ...item, arqueado: item.arqueado !== undefined ? item.arqueado : false };
 
+                // **DEBUG:** Log para verificar qué se está guardando
+                console.log('=== GUARDANDO EN SUPABASE ===');
+                console.log('Item completo:', itemConEstado);
+                console.log('Efectivo a guardar:', itemConEstado.efectivo);
+                console.log('Keys de efectivo:', Object.keys(itemConEstado.efectivo || {}));
+
                 const { data, error } = await supabaseClient
                     .from('movimientos_temporales')
                     .upsert([itemConEstado]);
-                if (error) throw error;
+
+                if (error) {
+                    console.error('Error de Supabase:', error);
+                    throw error;
+                }
+
+                console.log('Guardado exitoso. Data devuelta:', data);
                 return { success: true, data };
             } catch (error) {
+                console.error('Error completo al guardar:', error);
                 return { success: false, error };
             }
         } else {
@@ -551,6 +564,16 @@ const db = {
                     .from('movimientos_temporales')
                     .select('*')
                     .order('fecha', { ascending: false });
+
+                // **DEBUG:** Log para verificar qué se está recuperando
+                console.log('=== RECUPERANDO DE SUPABASE ===');
+                console.log('Total movimientos recuperados:', data?.length || 0);
+                if (data && data.length > 0) {
+                    console.log('Primer movimiento:', data[0]);
+                    console.log('Efectivo del primer movimiento:', data[0].efectivo);
+                    console.log('Tipo de efectivo:', typeof data[0].efectivo);
+                }
+
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {

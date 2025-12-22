@@ -458,63 +458,44 @@ function calcularTotalFondoFijo() {
  * Guardar Fondo Fijo para la caja actual
  */
 window.guardarFondoFijo = function () {
-    // Obtener la caja actual - CORREGIDO: usar 'cajaSeleccionada' en lugar de 'cajaActual'
+    // Obtener la caja actual
     const cajaActual = sessionStorage.getItem('cajaSeleccionada') || 'Caja 1';
 
-    // Capturar denominaciones
-    const billetes = {};
-    document.querySelectorAll('.cantidad-denominacion-fondo-fijo').forEach(input => {
-        const denominacion = input.dataset.denominacion;
-        const cantidad = parseInt(input.value) || 0;
-        if (cantidad > 0) {
-            billetes[denominacion] = cantidad;
-        }
-    });
+    // Obtener el monto del campo de input
+    const montoInput = document.getElementById('montoFondoFijo');
+    if (!montoInput) {
+        console.error('Campo montoFondoFijo no encontrado');
+        return;
+    }
 
-    // Calcular total
-    const total = calcularTotalFondoFijo();
+    const total = parsearMoneda(montoInput.value);
 
     if (total === 0) {
-        mostrarMensaje('Debe ingresar al menos un billete para el fondo fijo', 'peligro');
+        // Si el monto es 0, eliminar el fondo fijo de esta caja
+        delete estado.fondoFijoPorCaja[cajaActual];
+        guardarEnLocalStorage();
+        console.log('Fondo Fijo eliminado para', cajaActual);
         return;
     }
 
     // Guardar en estado
     estado.fondoFijoPorCaja[cajaActual] = {
         monto: total,
-        billetes: billetes,
         fecha: new Date().toISOString()
     };
 
-    console.log('Antes de guardarEnLocalStorage');
-    console.log('estado.fondoFijoPorCaja:', estado.fondoFijoPorCaja);
+    console.log('Fondo Fijo guardado:', cajaActual, total, estado.fondoFijoPorCaja);
 
     // Guardar en localStorage
     try {
         guardarEnLocalStorage();
-        console.log('Después de guardarEnLocalStorage');
+        console.log('Fondo Fijo guardado en localStorage');
     } catch (error) {
         console.error('Error al guardar en localStorage:', error);
     }
 
-    // **DEBUG:** Verificar que se guardó correctamente
-    console.log('Fondo Fijo guardado:', cajaActual, total, estado.fondoFijoPorCaja);
-
-    // Verificar directamente en localStorage
-    const verificacion = localStorage.getItem('fondoFijoPorCaja');
-    console.log('Verificación directa de localStorage:', verificacion);
-
     // Mostrar mensaje de confirmación
     mostrarMensaje(`Fondo Fijo de ${formatearMoneda(total, 'gs')} guardado para ${cajaActual}`, 'exito');
-
-    // Limpiar campos
-    document.querySelectorAll('.cantidad-denominacion-fondo-fijo').forEach(input => {
-        input.value = 0;
-    });
-    calcularTotalFondoFijo();
-
-    // Cerrar modal
-    cerrarModal();
 };
 
 /**
@@ -553,9 +534,9 @@ function cargarFondoFijoEnArqueo() {
 
 function inicializarModalEfectivo() {
     const tablaMovimiento = document.getElementById('tablaDenominacionesMovimiento');
-    const tablaVuelto = document.getElementById('tablaVueltoMovimiento');
+    if (!tablaMovimiento) return; // Safety check
+
     tablaMovimiento.innerHTML = '';
-    tablaVuelto.innerHTML = '';
 
     CONFIG.denominaciones.forEach(denom => {
         // Fila para Ingresar Movimiento (editable)
@@ -566,15 +547,6 @@ function inicializarModalEfectivo() {
             <td class="monto-parcial-movimiento" data-denominacion="${denom.valor}">0</td>
         `;
         tablaMovimiento.appendChild(filaMovimiento);
-
-        // Fila para el Vuelto del Movimiento (editable)
-        const filaVuelto = document.createElement('tr');
-        filaVuelto.innerHTML = `
-            <td>${denom.nombre}</td>
-            <td><input type="number" class="cantidad-denominacion-vuelto" data-denominacion="${denom.valor}" min="0" value="0"></td>
-            <td class="monto-parcial-vuelto" data-denominacion="${denom.valor}">0</td>
-        `;
-        tablaVuelto.appendChild(filaVuelto);
     });
 
     const filasMonedas = [
@@ -590,7 +562,7 @@ function inicializarModalEfectivo() {
             <td><input type="number" class="${moneda.clase}-movimiento" ${moneda.data} min="0" step="0.01" value="0"></td>
             <td class="monto-moneda-movimiento" ${moneda.data}>0</td>
         `;
-        tablaMovimiento.appendChild(filaMovimiento); // Para el formulario de movimiento
+        tablaMovimiento.appendChild(filaMovimiento);
     });
 
     // Re-asignar event listeners que se pierden al limpiar el innerHTML
@@ -607,16 +579,6 @@ function inicializarModalEfectivo() {
             const monto = (parseFloat(input.value) || 0) * cotizacion;
             input.closest('tr').querySelector('.monto-moneda-movimiento').textContent = formatearMoneda(monto, 'gs');
             calcularTotalEfectivoMovimiento();
-        }
-    });
-
-    // **CORRECCIÓN:** Mover el listener de la tabla de vuelto aquí, ya que es donde se genera.
-    tablaVuelto.addEventListener('input', function (e) {
-        if (e.target.classList.contains('cantidad-denominacion-vuelto')) {
-            const input = e.target;
-            const monto = (parseInt(input.value) || 0) * parseInt(input.dataset.denominacion);
-            input.closest('tr').querySelector('.monto-parcial-vuelto').textContent = formatearMoneda(monto, 'gs');
-            calcularTotalVueltoRegistrado();
         }
     });
 }
@@ -704,20 +666,6 @@ function calcularTotalEfectivo() {
 
 // Agregar un movimiento de caja a la lista temporal (desde el formulario de Ingresar Movimiento)
 async function agregarMovimiento() {
-    // Función para obtener valor parseado de un campo
-    const totalVenta = parsearMoneda(document.getElementById('totalVentaEfectivo').value);
-    const montoRecibido = parsearMoneda(document.getElementById('montoRecibidoCliente').value);
-
-    // **NUEVA LÓGICA:** Si se usó el cálculo de vuelto, el ingreso de efectivo es el total de la venta, no el monto recibido.
-    const esVentaConVuelto = totalVenta > 0 && montoRecibido > 0;
-
-    if (esVentaConVuelto) {
-        // Si es una venta con vuelto, el valor del movimiento es el total de la venta.
-        // El desglose de billetes que se guarda es el que se recibió.
-        // El arqueo final se balanceará porque el total de ingresos (valor de la venta) será menor
-        // que el efectivo contado (dinero recibido), y la diferencia es el vuelto que salió de caja.
-    }
-
     // **CORRECCIÓN:** Identificar qué modal está activo para limpiar los datos de los otros.
     const modalBody = document.getElementById('modal-body');
     const contenidoActivoId = modalBody.firstChild ? modalBody.firstChild.id : null;
@@ -741,6 +689,16 @@ async function agregarMovimiento() {
             if (input.type === 'text' && input.value.startsWith('0')) input.value = '0';
         });
         limpiarFilasServiciosDinamicos();
+    }
+    if (contenidoActivoId !== 'contenido-servicios-efectivo') {
+        // Si no estamos guardando desde el modal de servicios con efectivo, limpiar sus campos.
+        document.querySelectorAll('#tbodyServiciosEfectivoMovimiento input').forEach(input => {
+            if (input.type === 'text') input.value = '';
+            if (input.type === 'text' && input.value.startsWith('0')) input.value = '0';
+        });
+        if (typeof limpiarFilasServicioEfectivoDinamicos === 'function') {
+            limpiarFilasServicioEfectivoDinamicos();
+        }
     }
 
     const indiceEditar = document.getElementById('indiceMovimientoEditar').value;
@@ -772,8 +730,6 @@ async function agregarMovimiento() {
             : (sessionStorage.getItem('cajaSeleccionada') || 'Caja 1'),
         historialEdiciones: [], // Inicializamos el historial de ediciones
         arqueado: false, // **NUEVO:** Inicializar como no arqueado
-        valorVenta: esVentaConVuelto ? totalVenta : 0, // **NUEVO:** Guardar el valor real de la venta
-        efectivoVuelto: {}, // **NUEVO:** Para guardar el desglose del vuelto
         descripcion: document.getElementById('descripcionMovimiento').value || '',
         efectivo: {},
         monedasExtranjeras: {
@@ -786,34 +742,35 @@ async function agregarMovimiento() {
         pedidosYa: obtenerValorParseado('pedidosYaMovimiento'),
         ventas_transferencia: obtenerValorParseado('ventasTransfMovimiento'), // CORREGIDO: Coincidir con nombre de columna
         servicios: {
-            apLote: { lote: obtenerValorTexto('apLoteCantMovimiento'), monto: 0, tarjeta: obtenerValorParseado('apLoteTarjetaMovimiento') || 0 },
-            aquiPago: { lote: obtenerValorTexto('aquiPagoLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('aquiPagoTarjetaMovimiento') || 0 },
-            expressLote: { lote: obtenerValorTexto('expressCantMovimiento'), monto: 0, tarjeta: obtenerValorParseado('expressTarjetaMovimiento') || 0 },
-            wepa: { lote: obtenerValorTexto('wepaFechaMovimiento'), monto: 0, tarjeta: obtenerValorParseado('wepaTarjetaMovimiento') || 0 },
-            pasajeNsa: { lote: obtenerValorTexto('pasajeNsaLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('pasajeNsaTarjetaMovimiento') || 0 },
-            encomiendaNsa: { lote: obtenerValorTexto('encomiendaNsaLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('encomiendaNsaTarjetaMovimiento') || 0 },
-            apostala: { lote: obtenerValorTexto('apostalaLoteMovimiento'), monto: 0, tarjeta: obtenerValorParseado('apostalaTarjetaMovimiento') || 0 }
+            apLote: { lote: obtenerValorTexto('apLoteCantMovimiento'), monto: obtenerValorParseado('apLoteEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('apLoteTarjetaMovimiento') || 0 },
+            aquiPago: { lote: obtenerValorTexto('aquiPagoLoteMovimiento'), monto: obtenerValorParseado('aquiPagoEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('aquiPagoTarjetaMovimiento') || 0 },
+            expressLote: { lote: obtenerValorTexto('expressCantMovimiento'), monto: obtenerValorParseado('expressEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('expressTarjetaMovimiento') || 0 },
+            wepa: { lote: obtenerValorTexto('wepaFechaMovimiento'), monto: obtenerValorParseado('wepaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('wepaTarjetaMovimiento') || 0 },
+            pasajeNsa: { lote: obtenerValorTexto('pasajeNsaLoteMovimiento'), monto: obtenerValorParseado('pasajeNsaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('pasajeNsaTarjetaMovimiento') || 0 },
+            encomiendaNsa: { lote: obtenerValorTexto('encomiendaNsaLoteMovimiento'), monto: obtenerValorParseado('encomiendaNsaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('encomiendaNsaTarjetaMovimiento') || 0 },
+            apostala: { lote: obtenerValorTexto('apostalaLoteMovimiento'), monto: obtenerValorParseado('apostalaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('apostalaTarjetaMovimiento') || 0 }
         },
         otrosServicios: []
     };
 
     // Capturar desglose de efectivo
-    document.querySelectorAll('#tablaDenominacionesMovimiento .cantidad-denominacion-movimiento').forEach(input => {
+    // **DEBUG:** Verificar que los inputs existan
+    const inputsEfectivo = document.querySelectorAll('#tablaDenominacionesMovimiento .cantidad-denominacion-movimiento');
+    console.log('=== CAPTURANDO EFECTIVO ===');
+    console.log('Inputs encontrados:', inputsEfectivo.length);
+
+    inputsEfectivo.forEach(input => {
         const denominacion = input.dataset.denominacion;
         const cantidad = parseInt(input.value) || 0;
+        console.log(`Denom ${denominacion}: cantidad=${cantidad}`);
         if (cantidad > 0) {
             movimiento.efectivo[denominacion] = cantidad;
         }
     });
 
-    // Capturar desglose de vuelto
-    if (esVentaConVuelto) {
-        document.querySelectorAll('#tablaVueltoMovimiento .cantidad-denominacion-vuelto').forEach(input => {
-            const denominacion = input.dataset.denominacion;
-            const cantidad = parseInt(input.value) || 0;
-            if (cantidad > 0) movimiento.efectivoVuelto[denominacion] = cantidad;
-        });
-    }
+    console.log('Efectivo capturado:', movimiento.efectivo);
+
+
 
     // Capturar otros servicios dinámicos
     document.querySelectorAll('.fila-servicio-dinamico').forEach(fila => {
@@ -828,7 +785,7 @@ async function agregarMovimiento() {
 
     if (esEdicion) {
         // **REFACTORIZADO:** Usar la nueva función auxiliar
-        if (!registrarEdicion(movimiento)) {
+        if (!await registrarEdicion(movimiento)) {
             return; // Si el usuario canceló, no continuar
         }
         const original = estado.movimientosTemporales[indiceEditar];
@@ -899,27 +856,6 @@ function limpiarFormularioMovimiento() {
     camposFormateados.forEach(id => document.getElementById(id).value = '0');
 
     limpiarFilasServiciosDinamicos();
-
-    // Poner el foco en el campo de descripción para el siguiente movimiento
-    document.getElementById('descripcionMovimiento').focus();
-
-    // **Mejora UX:** Mantener el cajero y la caja para el siguiente movimiento,
-    // pero limpiar la descripción y el índice de edición.
-    document.getElementById('descripcionMovimiento').value = '';
-    document.getElementById('indiceMovimientoEditar').value = '';
-
-    // **CORRECCIÓN:** Reinicializar la fecha al momento actual para el siguiente movimiento.
-    document.getElementById('fechaMovimiento').value = obtenerFechaHoraLocalISO();
-
-    // Limpiar campos de vuelto
-    document.getElementById('totalVentaEfectivo').value = '0';
-    document.getElementById('montoRecibidoCliente').value = '0';
-    document.getElementById('vueltoCalculado').textContent = formatearMoneda(0, 'gs');
-    document.getElementById('registroVueltoSeccion').style.display = 'none';
-    document.querySelectorAll('#tablaVueltoMovimiento input').forEach(input => input.value = '0');
-    document.querySelectorAll('#tablaVueltoMovimiento .monto-parcial-vuelto').forEach(celda => celda.textContent = '0');
-    document.getElementById('totalVueltoVerificacion').textContent = 'Total Vuelto Registrado: G$ 0';
-    document.getElementById('totalVueltoVerificacion').style.color = 'inherit';
 }
 
 function renderizarIngresosAgregados() {
@@ -1072,7 +1008,9 @@ function iniciarEdicionMovimiento(index) {
     document.getElementById('indiceMovimientoEditar').value = index;
 
     // Cargar datos generales
-    document.getElementById('fechaMovimiento').value = movimiento.fecha;
+    // Convertir fecha al formato correcto para datetime-local (sin zona horaria)
+    const fechaISO = movimiento.fecha.split('+')[0].split('Z')[0].substring(0, 16);
+    document.getElementById('fechaMovimiento').value = fechaISO;
     document.getElementById('descripcionMovimiento').value = movimiento.descripcion;
 
     // Cargar desglose de efectivo
@@ -1199,13 +1137,19 @@ function calcularTotalesArqueo(movimientosParaArqueo) {
             }
 
             if (!esServicio) {
-                totales.totalIngresosTienda += mov.valorVenta > 0 ? mov.valorVenta : Object.entries(mov.efectivo).reduce((sum, [denom, cant]) => sum + (parseInt(denom) * cant), 0);
+                const montoEfectivo = mov.efectivo ? Object.entries(mov.efectivo).reduce((sum, [denom, cant]) => sum + (parseInt(denom) * cant), 0) : 0;
+                totales.totalIngresosTienda += mov.valorVenta > 0 ? mov.valorVenta : montoEfectivo;
             }
         }
         // Sumar/Restar efectivo por denominación
+        // **DEBUG:** Log para verificar procesamiento de billetes
+        console.log('Mov ID:', mov.id, 'Tipo:', mov.tipoMovimiento, 'Tiene efectivo:', !!mov.efectivo, 'Keys:', mov.efectivo ? Object.keys(mov.efectivo) : []);
+
         if (mov.efectivo) {
             for (const [denominacion, cantidad] of Object.entries(mov.efectivo)) {
                 if (!totales.efectivo[denominacion]) totales.efectivo[denominacion] = { ingreso: 0, egreso: 0, neto: 0 };
+
+                console.log(`  Procesando denom ${denominacion}: cantidad=${cantidad}, tipo=${mov.tipoMovimiento}`);
 
                 if (mov.tipoMovimiento === 'egreso') {
                     totales.efectivo[denominacion].egreso += cantidad;
@@ -1434,11 +1378,6 @@ function renderizarVistaArqueoFinal(totales) {
             <div class="total-item positivo"><span>Total Efectivo Servicios:</span><span>${formatearMoneda(totalIngresoEfectivo, 'gs')}</span></div>
             <div class="total-item negativo"><span>- Total Egresos de Caja:</span><span>${formatearMoneda(totalEgresosCaja, 'gs')}</span></div>
             <div class="total-item ${totalNeto >= 0 ? 'positivo' : 'negativo'}"><strong>Total Neto del Arqueo:</strong><strong>${formatearMoneda(totalNeto, 'gs')}</strong></div>
-        </div>
-
-        <!-- **NUEVO:** Botón para exportar el arqueo actual a PDF -->
-        <div class="acciones-arqueo" style="text-align: center; margin-top: 2rem;">
-            <button class="btn" onclick="exportarArqueoActualPDF()">📄 Exportar Vista a PDF</button>
         </div>
     `;
 }
@@ -1786,7 +1725,8 @@ function abrirModal(contenidoId, titulo) {
         'pasajeNsaMovimiento', 'encomiendaNsaMovimiento', 'apostalaMontoMovimiento',
         'apLoteTarjetaMovimiento', 'aquiPagoTarjetaMovimiento', 'expressTarjetaMovimiento', 'wepaTarjetaMovimiento',
         'pasajeNsaTarjetaMovimiento', 'encomiendaNsaTarjetaMovimiento', 'apostalaTarjetaMovimiento',
-        'totalVentaEfectivo', 'montoRecibidoCliente'
+        'apLoteEfectivoMontoMovimiento', 'aquiPagoEfectivoMontoMovimiento', 'expressEfectivoMontoMovimiento', 'wepaEfectivoMontoMovimiento',
+        'pasajeNsaEfectivoMontoMovimiento', 'encomiendaNsaEfectivoMontoMovimiento', 'apostalaEfectivoMontoMovimiento'
     ];
 
     camposFormateados.forEach(id => {
@@ -1797,13 +1737,6 @@ function abrirModal(contenidoId, titulo) {
             // input.removeEventListener('blur', ...);
             aplicarFormatoMiles(input);
         }
-    });
-
-    // **CORRECCIÓN:** Volver a aplicar los listeners para el cálculo de vuelto.
-    const camposVuelto = ['totalVentaEfectivo', 'montoRecibidoCliente'];
-    camposVuelto.forEach(id => {
-        const input = modalBody.querySelector(`#${id}`);
-        if (input) input.addEventListener('input', calcularVuelto);
     });
 }
 
@@ -4027,10 +3960,13 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // **NUEVA FUNCIÓN AUXILIAR PARA REGISTRAR EDICIONES**
-function registrarEdicion(item) {
-    const motivoEdicion = prompt('Por favor, ingrese el motivo de la edición:');
+async function registrarEdicion(item) {
+    const motivoEdicion = await window.showPrompt('Por favor, ingrese el motivo de la edición:', {
+        title: 'Motivo de Edición',
+        placeholder: 'Ej: Error en el monto'
+    });
 
-    if (motivoEdicion === null) { // El usuario presionó "Cancelar"
+    if (motivoEdicion === null) { // El usuario presionó "Cancelar" o ESC
         mostrarMensaje('Edición cancelada.', 'info');
         return false;
     }
@@ -5418,3 +5354,270 @@ window.actualizarMetricasEgresos = function () {
     document.getElementById('metricTotalMovimientos').textContent = totalMovimientos;
     document.getElementById('metricUltimoRegistro').textContent = ultimoRegistro;
 };
+
+// ============================================
+// LÓGICA PARA EGRESOS DE CAJA (SIMPLIFICADA)
+// ============================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Referencias
+    const formularioEgreso = document.getElementById('formularioEgresoCaja');
+    const montoInput = document.getElementById('montoEgresoCaja');
+
+    // Inicializar fecha con datetime-local compatible
+    const fechaInput = document.getElementById('fechaEgresoCaja');
+    if (fechaInput) {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        fechaInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+    }
+
+    // **NUEVO:** Lógica para sincronizar la Caja Activa (igual que Ingresos)
+    const cajaActivaDisplay = document.getElementById('cajaActivaEgresos');
+    const cajaInput = document.getElementById('cajaEgreso');
+
+    if (cajaActivaDisplay && cajaInput) {
+        // Obtener datos de sesión
+        const userRole = sessionStorage.getItem('userRole');
+        let cajaSeleccionada = sessionStorage.getItem('cajaSeleccionada');
+
+        // Si es tesorería, forzar Caja Tesorería
+        if (userRole === 'tesoreria') {
+            cajaSeleccionada = 'Caja Tesoreria';
+            sessionStorage.setItem('cajaSeleccionada', cajaSeleccionada);
+        }
+        // Si no hay caja seleccionada, usar por defecto Caja 1
+        else if (!cajaSeleccionada) {
+            cajaSeleccionada = 'Caja 1';
+            sessionStorage.setItem('cajaSeleccionada', cajaSeleccionada);
+        }
+
+        // Actualizar UI y campo oculto
+        cajaActivaDisplay.textContent = cajaSeleccionada;
+        cajaInput.value = cajaSeleccionada;
+    }
+
+    // **NUEVO:** Lógica para mostrar/ocultar Proveedor
+    const categoriaSelect = document.getElementById('categoriaEgresoCaja');
+    const grupoProveedor = document.getElementById('grupoProveedorEgreso');
+
+    if (categoriaSelect && grupoProveedor) {
+        categoriaSelect.addEventListener('change', () => {
+            if (categoriaSelect.value === 'Pago a Proveedor') {
+                grupoProveedor.style.display = 'block';
+                document.getElementById('proveedorEgresoCaja').required = true;
+            } else {
+                grupoProveedor.style.display = 'none';
+                document.getElementById('proveedorEgresoCaja').value = '';
+                document.getElementById('proveedorEgresoCaja').required = false;
+            }
+        });
+    }
+
+    if (formularioEgreso && montoInput) {
+        // Aplicar formato de miles al input de monto
+        if (typeof aplicarFormatoMiles === 'function') {
+            aplicarFormatoMiles(montoInput);
+        }
+
+        // Listener para envío del formulario
+        formularioEgreso.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const fecha = document.getElementById('fechaEgresoCaja').value;
+            const caja = document.getElementById('cajaEgreso').value;
+            const categoria = document.getElementById('categoriaEgresoCaja').value;
+            const descripcion = document.getElementById('descripcionEgresoCaja').value.trim();
+            const montoStr = montoInput.value;
+            const referencia = document.getElementById('referenciaEgresoCaja').value.trim();
+
+            // Dato opcional de proveedor
+            let proveedor = '';
+            if (categoria === 'Pago a Proveedor') {
+                proveedor = document.getElementById('proveedorEgresoCaja').value.trim();
+                if (!proveedor) {
+                    mostrarMensaje('Por favor, ingrese el nombre del proveedor.', 'advertencia');
+                    return;
+                }
+            }
+
+            if (!fecha || !caja || !categoria || !descripcion || !montoStr) {
+                mostrarMensaje('Por favor, complete todos los campos obligatorios.', 'advertencia');
+                return;
+            }
+
+            const monto = parsearMoneda(montoStr);
+            if (monto <= 0) {
+                mostrarMensaje('El monto debe ser mayor a 0.', 'advertencia');
+                return;
+            }
+
+            const nuevoEgreso = {
+                id: generarId(),
+                fecha: new Date(fecha).toISOString(),
+                caja: caja,
+                categoria: categoria,
+                descripcion: descripcion,
+                monto: monto,
+                referencia: referencia,
+                proveedor: proveedor, // Nuevo campo
+                usuario: sessionStorage.getItem('usuarioActual') || 'Desconocido',
+                tipo: 'egreso', // Para consistencia
+                moneda: 'gs' // Moneda por defecto
+            };
+
+            // Guardar usando la API de Supabase
+            if (window.db && window.db.guardarEgresoCaja) {
+                const resultado = await window.db.guardarEgresoCaja(nuevoEgreso);
+                if (resultado.success) {
+                    mostrarMensaje('Egreso registrado correctamente.', 'exito');
+                    limpiarFormularioEgresoCaja();
+                    // Actualizar historial si existe la función
+                    if (typeof cargarHistorialEgresosCaja === 'function') {
+                        cargarHistorialEgresosCaja();
+                    }
+                    // Actualizar métricas si existe
+                    if (typeof actualizarMetricasEgresos === 'function') {
+                        actualizarMetricasEgresos();
+                    }
+                } else {
+                    mostrarMensaje('Error al guardar el egreso: ' + (resultado.error.message || resultado.error), 'error');
+                }
+            } else {
+                mostrarMensaje('Error: No se encontró la función para guardar el egreso.', 'error');
+            }
+        });
+    }
+});
+
+// Función global para limpiar el formulario
+window.limpiarFormularioEgresoCaja = function () {
+    const formulario = document.getElementById('formularioEgresoCaja');
+    if (formulario) {
+        formulario.reset();
+        // Restaurar fecha actual
+        const fechaInput = document.getElementById('fechaEgresoCaja');
+        if (fechaInput) {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            fechaInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+        // Reset manual de visibilidad
+        const grupoProveedor = document.getElementById('grupoProveedorEgreso');
+        if (grupoProveedor) grupoProveedor.style.display = 'none';
+
+        // Limpiar estilos de validación si los hubiera
+        document.getElementById('montoEgresoCaja').value = '';
+    }
+};
+
+// Función para cargar el historial de egresos
+window.cargarHistorialEgresosCaja = async function () {
+    const listaContainer = document.getElementById('listaEgresosCaja');
+    const fechaFiltro = document.getElementById('fechaFiltroEgresos')?.value;
+    const cajaFiltro = document.getElementById('filtroCajaEgresos')?.value;
+
+    if (!listaContainer) return;
+
+    listaContainer.innerHTML = '<div class="cargando">Cargando egresos...</div>';
+
+    try {
+        let egresos = [];
+        if (window.db && window.db.obtenerEgresosCaja) {
+            const resultado = await window.db.obtenerEgresosCaja();
+            if (resultado.success) {
+                egresos = resultado.data || [];
+            } else {
+                throw new Error(resultado.error);
+            }
+        }
+
+        // Filtrar
+        if (fechaFiltro) {
+            egresos = egresos.filter(e => e.fecha.startsWith(fechaFiltro));
+        }
+        if (cajaFiltro) {
+            egresos = egresos.filter(e => e.caja === cajaFiltro);
+        }
+
+        // Ordenar por fecha descendente
+        egresos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+        listaContainer.innerHTML = '';
+
+        if (egresos.length === 0) {
+            listaContainer.innerHTML = '<p class="sin-resultados">No se encontraron egresos registrados.</p>';
+            return;
+        }
+
+        egresos.forEach(egreso => {
+            const div = document.createElement('div');
+            div.className = 'movimiento-item tipo-gasto';
+
+            // Formatear fecha
+            const fecha = new Date(egreso.fecha).toLocaleString('es-PY', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+
+            const montoFormateado = formatearMoneda(egreso.monto, 'gs');
+
+            div.innerHTML = `
+                <div class="movimiento-header">
+                    <span class="movimiento-categoria">${egreso.categoria}</span>
+                    <span class="movimiento-monto">-${montoFormateado}</span>
+                </div>
+                <div class="movimiento-detalles">
+                    <small>${fecha} | ${egreso.caja} | Por: ${egreso.usuario || 'Desconocido'}</small>
+                    <p class="movimiento-descripcion">${egreso.descripcion}</p>
+                    ${egreso.referencia ? `<small class="referencia">Ref: ${egreso.referencia}</small>` : ''}
+                </div>
+                ${window.sessionStorage.getItem('userRole') === 'admin' ?
+                    `<button class="btn-eliminar-sm" onclick="eliminarEgresoCaja('${egreso.id}')" title="Eliminar">🗑️</button>` : ''}
+            `;
+            listaContainer.appendChild(div);
+        });
+
+    } catch (error) {
+        console.error('Error al cargar historial de egresos:', error);
+        listaContainer.innerHTML = '<p class="error-msg">Error al cargar el historial.</p>';
+    }
+};
+
+// Función para eliminar egreso (solo admin)
+window.eliminarEgresoCaja = async function (id) {
+    const confirmado = await window.showConfirm('¿Está seguro de eliminar este egreso? Esta acción no se puede deshacer.', {
+        title: 'Eliminar Egreso',
+        type: 'danger',
+        confirmButtonType: 'danger',
+        confirmText: 'Eliminar'
+    });
+
+    if (confirmado) {
+        if (window.db && window.db.eliminarEgresoCaja) {
+            const resultado = await window.db.eliminarEgresoCaja(id);
+            if (resultado.success) {
+                mostrarMensaje('Egreso eliminado correctamente.', 'exito');
+                cargarHistorialEgresosCaja();
+                if (typeof actualizarMetricasEgresos === 'function') {
+                    actualizarMetricasEgresos();
+                }
+            } else {
+                mostrarMensaje('Error al eliminar: ' + (resultado.error.message || 'Error desconocido'), 'error');
+            }
+        }
+    }
+};
+
+// Cargar historial al inicio si estamos en la página correcta
+if (document.getElementById('listaEgresosCaja')) {
+    cargarHistorialEgresosCaja();
+}

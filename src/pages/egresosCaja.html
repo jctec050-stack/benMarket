@@ -34,70 +34,46 @@
     <main class="container">
         <!-- Sección de Egresos de Caja -->
         <section id="egresos-caja" class="seccion activa">
-            <h2>Egresos de Caja</h2>
 
-            <!-- **NUEVO:** Quick Stats Dashboard -->
-            <div class="dashboard-metrics" style="margin-bottom: 2rem;">
-                <div class="metric-card metric-efectivo">
-                    <div class="metric-icon">💰</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Total Ingresos</div>
-                        <div class="metric-value" id="metricTotalIngresosDia">G$ 0</div>
-                        <div class="metric-subtitle">Ingresos del día</div>
-                    </div>
-                </div>
 
-                <div class="metric-card metric-egresos">
-                    <div class="metric-icon">💸</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Total Egresos</div>
-                        <div class="metric-value" id="metricTotalEgresosDia">G$ 0</div>
-                        <div class="metric-subtitle">Egresos del día</div>
-                    </div>
-                </div>
-
-                <div class="metric-card metric-tarjeta">
-                    <div class="metric-icon">📝</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Movimientos</div>
-                        <div class="metric-value" id="metricTotalMovimientos">0</div>
-                        <div class="metric-subtitle">Registros del día</div>
-                    </div>
-                </div>
-
-                <div class="metric-card metric-credito">
-                    <div class="metric-icon">🕐</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Último Registro</div>
-                        <div class="metric-value" id="metricUltimoRegistro" style="font-size: 1.25rem;">-</div>
-                        <div class="metric-subtitle">Hora del último movimiento</div>
-                    </div>
+            <!-- **NUEVO:** Caja Activa (Estilo Ingresos) -->
+            <div id="header-egresos"
+                style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
+                <div
+                    style="background: var(--color-primario); color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold;">
+                    <span>📦 Caja: </span><span id="cajaActivaEgresos">-</span>
                 </div>
             </div>
 
             <form id="formularioEgresoCaja" class="formulario-gastos">
                 <input type="hidden" id="idEgresoCajaEditar">
-                <div class="form-grid">
+                <!-- Campo oculto para la caja seleccionada -->
+                <input type="hidden" id="cajaEgreso" value="">
+                <!-- Fecha y Hora (Estilo Ingresos) -->
+                <div style="max-width: 300px; margin-bottom: 1.5rem;">
                     <div class="form-grupo">
-                        <label for="fechaEgresoCaja">Fecha y Hora:</label>
-                        <input type="datetime-local" id="fechaEgresoCaja" required>
-                    </div>
-                    <div class="form-grupo">
-                        <label for="cajaEgreso">Caja:</label>
-                        <select id="cajaEgreso" required>
-                            <option value="Caja 1">Caja 1</option>
-                            <option value="Caja 2">Caja 2</option>
-                            <option value="Caja 3">Caja 3</option>
-                            <option value="Caja Tesoreria">Caja Tesoreria</option>
-                        </select>
+                        <label for="fechaEgresoCaja" style="font-weight: bold; font-size: 1.1rem;">📅 Fecha y
+                            Hora:</label>
+                        <input type="datetime-local" id="fechaEgresoCaja" required
+                            style="font-size: 1rem; padding: 0.6rem; border: 2px solid var(--color-primario);">
                     </div>
                 </div>
                 <div class="form-grid">
                     <div class="form-grupo">
                         <label for="categoriaEgresoCaja">Categoría:</label>
-                        <input type="text" id="categoriaEgresoCaja"
-                            placeholder="Ej: Compra de insumos, Pago a proveedor" required>
+                        <select id="categoriaEgresoCaja" required>
+                            <option value="">Seleccione una categoría</option>
+                            <option value="Pago a Proveedor">Pago a Proveedor</option>
+                            <option value="Gastos administrativos">Gastos administrativos</option>
+                        </select>
                     </div>
+                    <!-- Campo de Proveedor (Condicional) -->
+                    <div class="form-grupo" id="grupoProveedorEgreso" style="display: none;">
+                        <label for="proveedorEgresoCaja">Proveedor:</label>
+                        <input type="text" id="proveedorEgresoCaja" placeholder="Nombre del proveedor">
+                    </div>
+                </div>
+                <div class="form-grid">
                     <div class="form-grupo">
                         <label for="descripcionEgresoCaja">Descripción:</label>
                         <input type="text" id="descripcionEgresoCaja" placeholder="Descripción detallada del egreso"
@@ -107,11 +83,7 @@
                 <div class="form-grid">
                     <div class="form-grupo">
                         <label for="montoEgresoCaja">Monto (G$):</label>
-                        <input type="text" inputmode="numeric" id="montoEgresoCaja" required readonly
-                            style="background-color: #e9ecef;">
-                        <button type="button" class="btn btn-secundario" style="margin-top: 5px; width: 100%;"
-                            onclick="abrirModal('contenido-egreso-caja', 'Egresar Billetes')">Registrar
-                            Billetes</button>
+                        <input type="text" inputmode="numeric" id="montoEgresoCaja" required>
                     </div>
                     <div class="form-grupo">
                         <label for="referenciaEgresoCaja">Referencia (opcional):</label>
@@ -156,43 +128,14 @@
     </div>
 
     <!-- Contenido oculto para el modal de desglose de egreso -->
-    <div id="contenedores-modales" style="display: none;">
-        <div id="contenido-egreso-caja">
-            <table class="tabla-conteo">
-                <thead>
-                    <tr>
-                        <th>Denominación</th>
-                        <th>Cantidad</th>
-                        <th>Monto</th>
-                    </tr>
-                </thead>
-                <tbody id="tablaDenominacionesEgresoCaja">
-                    <!-- Se llenará dinámicamente desde app.js -->
-                </tbody>
-            </table>
-            <div class="total-efectivo">
-                <strong>Total a Egresar: <span id="totalEgresoCajaDisplay">G$ 0</span></strong>
-            </div>
-            <div class="form-botones" style="text-align: right; margin-top: 1rem;">
-                <button type="button" class="btn btn-primario" onclick="cerrarModal()">Confirmar</button>
-            </div>
-        </div>
-    </div>
+    <div id="contenedores-modales" style="display: none;"></div>
 
     <script src="../js/app.js"></script>
     <script>
         if (window.inicializarSupabase) { window.inicializarSupabase(); }
         if (window.initSupabaseData) { window.initSupabaseData(); }
 
-        // Inicializar métricas cuando se carga la página
-        window.addEventListener('DOMContentLoaded', function () {
-            if (typeof window.actualizarMetricasEgresos === 'function') {
-                // Esperar un momento para que los datos se carguen
-                setTimeout(() => {
-                    window.actualizarMetricasEgresos();
-                }, 500);
-            }
-        });
+
     </script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>

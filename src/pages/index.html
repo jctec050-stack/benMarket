@@ -35,70 +35,37 @@
         <!-- Sección para Ingresar Movimientos Individuales -->
         <section id="ingreso-movimiento" class="seccion activa">
             <div id="header-ingresos"
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h2>Ingresos</h2>
+                style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
                 <div
                     style="background: var(--color-primario); color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold;">
                     <span>📦 Caja: </span><span id="cajaActivaIngresos">-</span>
                 </div>
             </div>
 
-            <!-- **NUEVO:** Quick Stats Dashboard -->
-            <div class="dashboard-metrics" style="margin-bottom: 2rem;">
-                <div class="metric-card metric-efectivo">
-                    <div class="metric-icon">💰</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Total Ingresos</div>
-                        <div class="metric-value" id="metricTotalIngresosDia">G$ 0</div>
-                        <div class="metric-subtitle">Ingresos del día</div>
-                    </div>
+            <!-- **NUEVO:** Fecha y Hora y Fondo Fijo -->
+            <div style="max-width: 300px; margin-bottom: 1.5rem;">
+                <div class="form-grupo">
+                    <label for="fechaMovimiento" style="font-weight: bold; font-size: 1.1rem;">📅 Fecha y Hora:</label>
+                    <input type="datetime-local" id="fechaMovimiento" required
+                        style="font-size: 1rem; padding: 0.6rem; border: 2px solid var(--color-primario);">
                 </div>
-
-                <div class="metric-card metric-egresos">
-                    <div class="metric-icon">💸</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Total Egresos</div>
-                        <div class="metric-value" id="metricTotalEgresosDia">G$ 0</div>
-                        <div class="metric-subtitle">Egresos del día</div>
-                    </div>
-                </div>
-
-                <div class="metric-card metric-tarjeta">
-                    <div class="metric-icon">📝</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Movimientos</div>
-                        <div class="metric-value" id="metricTotalMovimientos">0</div>
-                        <div class="metric-subtitle">Registros del día</div>
-                    </div>
-                </div>
-
-                <div class="metric-card metric-credito">
-                    <div class="metric-icon">🕐</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Último Registro</div>
-                        <div class="metric-value" id="metricUltimoRegistro" style="font-size: 1.25rem;">-</div>
-                        <div class="metric-subtitle">Hora del último movimiento</div>
-                    </div>
+                <div class="form-grupo" style="margin-top: 0.5rem;">
+                    <label for="montoFondoFijo" style="font-weight: bold; font-size: 1.1rem;">💰 Fondo Fijo
+                        (G$):</label>
+                    <input type="text" inputmode="numeric" id="montoFondoFijo" placeholder="0"
+                        style="font-size: 1rem; padding: 0.6rem; border: 2px solid var(--color-adicional);">
                 </div>
             </div>
 
-            <!-- **NUEVO:** Fecha y Hora fuera de las columnas para mayor visibilidad -->
-            <div class="form-grupo" style="max-width: 300px; margin-bottom: 1.5rem;">
-                <label for="fechaMovimiento" style="font-weight: bold; font-size: 1.1rem;">📅 Fecha y Hora:</label>
-                <input type="datetime-local" id="fechaMovimiento" required
-                    style="font-size: 1rem; padding: 0.6rem; border: 2px solid var(--color-primario);">
-            </div>
-
-            <!-- **NUEVO:** Layout de dos columnas para los formularios -->
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+            <!-- Layout centrado para el formulario -->
+            <div style="max-width: 800px; margin: 0 auto 2rem auto;">
                 <!-- COLUMNA 1: MOVIMIENTOS GENERALES -->
                 <div>
-                    <h3 onclick="toggleSeccion('contenidoMovimientosGenerales')"
-                        style="color: var(--color-primario); margin-bottom: 1rem; border-bottom: 2px solid var(--color-primario); padding-bottom: 0.5rem; cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center;">
+                    <h3
+                        style="color: var(--color-primario); margin-bottom: 1rem; border-bottom: 2px solid var(--color-primario); padding-bottom: 0.5rem;">
                         <span>Movimientos Generales</span>
-                        <span id="iconoMovimientosGenerales" style="font-size: 1.2rem;">▶</span>
                     </h3>
-                    <div id="contenidoMovimientosGenerales" style="display: none;">
+                    <div id="contenidoMovimientosGenerales">
                         <form id="formularioMovimiento" class="formulario-arqueo">
                             <!-- Descripción -->
                             <div class="form-grid">
@@ -111,7 +78,7 @@
 
                             <!-- Cotizaciones -->
                             <div class="cotizaciones">
-                                <h4>Cotizaciones</h4>
+                                <h4 style="text-align: center;">Cotizaciones</h4>
                                 <!-- Campo oculto para saber si estamos editando un movimiento -->
                                 <input type="hidden" id="indiceMovimientoEditar" value="">
 
@@ -142,54 +109,19 @@
                                 <button type="button" class="btn btn-secundario"
                                     onclick="abrirModal('contenido-servicios', 'Servicios')">Servicios c/
                                     Tarjeta</button>
-                                <button type="button" class="btn btn-adicional"
-                                    onclick="abrirModal('contenido-fondo-fijo', 'Registrar Fondo Fijo')">💰 Fondo
-                                    Fijo</button>
+                                <button type="button" class="btn btn-secundario"
+                                    onclick="abrirModal('contenido-servicios-efectivo', 'Servicios con Efectivo')">Servicios
+                                    c/
+                                    Efectivo</button>
+                                <button type="button" class="btn btn-secundario"
+                                    onclick="abrirModal('contenido-ventas-credito', 'Ventas a Crédito')">Ventas a
+                                    Crédito</button>
                             </div>
 
                             <!-- Contenido oculto para los modales -->
                             <div id="contenedores-modales" style="display: none;">
                                 <div id="contenido-efectivo">
-                                    <!-- **NUEVO:** Sección para cálculo de vuelto -->
-                                    <div class="vuelto-seccion">
-                                        <div class="form-grupo">
-                                            <label for="totalVentaEfectivo">Total Venta (G$):</label>
-                                            <input type="text" id="totalVentaEfectivo"
-                                                placeholder="Monto total de la venta">
-                                        </div>
-                                        <div class="form-grupo">
-                                            <label for="montoRecibidoCliente">Monto Recibido (G$):</label>
-                                            <input type="text" id="montoRecibidoCliente"
-                                                placeholder="Dinero entregado por el cliente">
-                                        </div>
-                                        <div class="vuelto-display">
-                                            <span>Vuelto a Entregar:</span>
-                                            <strong id="vueltoCalculado">G$ 0</strong>
-                                        </div>
-                                    </div>
-
-                                    <!-- **NUEVO:** Sección para registrar el vuelto entregado -->
-                                    <div id="registroVueltoSeccion"
-                                        style="display: none; margin-top: 1rem; border-top: 2px dashed var(--color-borde); padding-top: 1rem;">
-                                        <h4>Registrar Billetes del Vuelto</h4>
-                                        <table class="tabla-conteo">
-                                            <thead>
-                                                <tr>
-                                                    <th>Denominación</th>
-                                                    <th>Cantidad</th>
-                                                    <th>Monto</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="tablaVueltoMovimiento">
-                                                <!-- Se llenará dinámicamente -->
-                                            </tbody>
-                                        </table>
-                                        <div class="total-efectivo"><strong id="totalVueltoVerificacion">Total Vuelto
-                                                Registrado: G$
-                                                0</strong></div>
-                                    </div>
-
-                                    <!-- **NUEVO:** Tabla para el conteo de efectivo del movimiento -->
+                                    <!-- Tabla para el conteo de efectivo del movimiento -->
                                     <div id="contenido-efectivo-movimiento">
                                         <table class="tabla-conteo">
                                             <thead>
@@ -218,10 +150,7 @@
                                         <label for="pagosTarjetaMovimiento">Pagos con Tarjeta (G$):</label>
                                         <input type="text" inputmode="numeric" id="pagosTarjetaMovimiento" value="0">
                                     </div>
-                                    <div class="form-grupo">
-                                        <label for="ventasCreditoMovimiento">Ventas a Crédito (G$):</label>
-                                        <input type="text" inputmode="numeric" id="ventasCreditoMovimiento" value="0">
-                                    </div>
+
                                     <div class="form-grupo">
                                         <label for="pedidosYaMovimiento">Pedidos YA (G$):</label>
                                         <input type="text" inputmode="numeric" id="pedidosYaMovimiento" value="0">
@@ -308,6 +237,101 @@
                                     </div>
                                 </div>
 
+                                <div id="contenido-servicios-efectivo">
+                                    <table class="tabla-conteo">
+                                        <thead>
+                                            <tr>
+                                                <th>Servicio</th>
+                                                <th>Ref/Lote</th>
+                                                <th>Efectivo (G$)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbodyServiciosEfectivoMovimiento">
+                                            <tr>
+                                                <td>Aca Puedo</td>
+                                                <td><input type="text" id="apLoteEfectivoMovimiento"></td>
+                                                <td><input type="text" inputmode="numeric"
+                                                        id="apLoteEfectivoMontoMovimiento" value="0">
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Aqui Pago</td>
+                                                <td><input type="text" id="aquiPagoEfectivoMovimiento"></td>
+                                                <td><input type="text" inputmode="numeric"
+                                                        id="aquiPagoEfectivoMontoMovimiento" value="0">
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Pago Express</td>
+                                                <td><input type="text" id="expressEfectivoMovimiento"></td>
+                                                <td><input type="text" inputmode="numeric"
+                                                        id="expressEfectivoMontoMovimiento" value="0">
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Wepa</td>
+                                                <td><input type="text" id="wepaEfectivoMovimiento"></td>
+                                                <td><input type="text" inputmode="numeric"
+                                                        id="wepaEfectivoMontoMovimiento" value="0">
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>Pasaje NSA</td>
+                                                <td><input type="text" id="pasajeNsaEfectivoMovimiento"></td>
+                                                <td><input type="text" inputmode="numeric"
+                                                        id="pasajeNsaEfectivoMontoMovimiento" value="0"></td>
+                                            </tr>
+                                            <tr>
+                                                <td>Encomienda NSA</td>
+                                                <td><input type="text" id="encomiendaNsaEfectivoMovimiento"></td>
+                                                <td><input type="text" inputmode="numeric"
+                                                        id="encomiendaNsaEfectivoMontoMovimiento" value="0"></td>
+                                            </tr>
+                                            <tr>
+                                                <td>Apostala</td>
+                                                <td><input type="text" id="apostalaEfectivoMovimiento"></td>
+                                                <td><input type="text" inputmode="numeric"
+                                                        id="apostalaEfectivoMontoMovimiento" value="0">
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+
+                                    <div id="listaServiciosEfectivosDinamicos"></div>
+                                    <button type="button" class="btn btn-secundario btn-sm"
+                                        onclick="agregarFilaServicioEfectivoDinamico()">+ Agregar Servicio</button>
+
+                                    <div class="form-botones" style="text-align: right; margin-top: 1rem;">
+                                        <button type="button" class="btn btn-primario"
+                                            onclick="agregarMovimiento()">Agregar
+                                            Movimiento</button>
+                                    </div>
+                                </div>
+
+                                <div id="contenido-ventas-credito">
+                                    <div class="form-grid">
+                                        <div class="form-grupo">
+                                            <label for="clienteVentaCredito">Cliente:</label>
+                                            <input type="text" id="clienteVentaCredito"
+                                                placeholder="Nombre del cliente">
+                                        </div>
+                                        <div class="form-grupo">
+                                            <label for="descripcionVentaCredito">Descripción:</label>
+                                            <input type="text" id="descripcionVentaCredito"
+                                                placeholder="Descripción de la venta">
+                                        </div>
+                                    </div>
+                                    <div class="form-grupo">
+                                        <label for="ventasCreditoMovimiento">Monto (G$):</label>
+                                        <input type="text" inputmode="numeric" id="ventasCreditoMovimiento" value="0">
+                                    </div>
+                                    <div class="form-botones" style="text-align: right; margin-top: 1rem;">
+                                        <button type="button" class="btn btn-primario"
+                                            onclick="agregarMovimiento()">Agregar
+                                            Movimiento</button>
+                                    </div>
+                                </div>
+
                                 <div id="contenido-egreso-caja">
                                     <table class="tabla-conteo">
                                         <thead>
@@ -334,25 +358,6 @@
                                 <!-- NUEVO: CONTENIDO PARA EL MODAL DE REGISTRO DE EFECTIVO POR SERVICIO -->
                                 <!-- =================================================================== -->
                                 <div id="contenido-servicio-efectivo">
-                                    <div class="vuelto-seccion"
-                                        style="background-color: transparent; padding: 0; margin-bottom: 1.5rem;">
-                                        <div class="form-grupo">
-                                            <label>Total del Servicio (G$):</label>
-                                            <input type="text" id="totalServicioModal" readonly
-                                                style="font-weight: bold; background-color: #f0f0f0;">
-                                        </div>
-                                        <div class="form-grupo">
-                                            <label>Monto Recibido del Cliente (G$):</label>
-                                            <input type="text" id="montoRecibidoModal" readonly
-                                                style="font-weight: bold; background-color: #f0f0f0;">
-                                        </div>
-                                        <div class="vuelto-display">
-                                            <span>Vuelto a Entregar:</span>
-                                            <strong id="vueltoCalculadoModal" style="color: var(--color-peligro);">G$
-                                                0</strong>
-                                        </div>
-                                    </div>
-
                                     <h4>Registrar Billetes Recibidos del Cliente</h4>
                                     <table class="tabla-conteo">
                                         <thead>
@@ -368,29 +373,6 @@
                                     </table>
                                     <div class="total-efectivo"><strong>Total Recibido Registrado: <span
                                                 id="totalServicioRecibidoDisplay">G$ 0</span></strong></div>
-
-                                    <!-- =================================================================== -->
-                                    <!-- NUEVO: SECCIÓN PARA REGISTRAR EL VUELTO ENTREGADO EN SERVICIOS -->
-                                    <!-- =================================================================== -->
-                                    <div id="registroVueltoServicioSeccion"
-                                        style="display: none; margin-top: 1rem; border-top: 2px dashed var(--color-borde); padding-top: 1rem;">
-                                        <h4>Registrar Billetes del Vuelto Entregado</h4>
-                                        <table class="tabla-conteo">
-                                            <thead>
-                                                <tr>
-                                                    <th>Denominación</th>
-                                                    <th>Cantidad</th>
-                                                    <th>Monto</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="tablaVueltoServicio">
-                                                <!-- Se llenará dinámicamente -->
-                                            </tbody>
-                                        </table>
-                                        <div class="total-efectivo"><strong id="totalVueltoServicioVerificacion">Total
-                                                Vuelto
-                                                Registrado: G$ 0</strong></div>
-                                    </div>
 
                                     <div class="form-botones" style="text-align: right; margin-top: 1.5rem;">
                                         <button type="button" class="btn btn-secundario"
@@ -436,57 +418,6 @@
                     </div>
                 </div>
 
-                <!-- COLUMNA 2: SERVICIOS -->
-                <div>
-                    <h3 onclick="toggleSeccion('contenidoServiciosEfectivo')"
-                        style="color: var(--color-primario); margin-bottom: 1rem; border-bottom: 2px solid var(--color-primario); padding-bottom: 0.5rem; cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center;">
-                        <span>Registro Efectivo por Servicios</span>
-                        <span id="iconoServiciosEfectivo" style="font-size: 1.2rem;">▶</span>
-                    </h3>
-                    <div id="contenidoServiciosEfectivo" style="display: none;">
-                        <section id="registro-servicios-efectivo" class="formulario-arqueo"
-                            style="border: none; padding: 0; margin-top: 0;">
-                            <div class="form-grid" style="grid-template-columns: 1fr; align-items: flex-end;">
-                                <div class="form-grupo">
-                                    <label for="servicioEfectivoSelect">Seleccionar Servicio:</label>
-                                    <div style="display: flex; gap: 5px;">
-                                        <select id="servicioEfectivoSelect" required style="flex: 1;">
-                                            <option value="" disabled selected>-- Elija un servicio --</option>
-                                            <!-- Las opciones se cargarán dinámicamente con JavaScript -->
-                                        </select>
-                                        <button type="button" class="btn btn-primario" onclick="agregarNuevoServicio()"
-                                            title="Agregar nuevo servicio"
-                                            style="padding: 0 15px; font-size: 1.2rem;">+</button>
-                                    </div>
-                                </div>
-                                <div class="form-grupo">
-                                    <label for="montoServicioEfectivo">Monto del Servicio (G$):</label>
-                                    <input type="text" inputmode="numeric" id="montoServicioEfectivo"
-                                        placeholder="Monto a cobrar" required>
-                                </div>
-                                <div class="form-grupo">
-                                    <label for="montoRecibidoServicio">Monto Recibido (G$):</label>
-                                    <input type="text" inputmode="numeric" id="montoRecibidoServicio"
-                                        placeholder="Dinero del cliente">
-                                </div>
-                            </div>
-                            <div class="vuelto-display" style="font-size: 1rem; text-align: left; margin: 1rem 0;">
-                                <span>Vuelto a Entregar:</span>
-                                <strong id="vueltoCalculadoServicio" style="color: var(--color-peligro);">G$ 0</strong>
-                            </div>
-                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                <button type="button" class="btn btn-primario" style="width: 100%;"
-                                    onclick="abrirModalServicioEfectivo()">
-                                    Registrar Ingreso
-                                </button>
-                                <button type="button" class="btn btn-secundario" style="width: 100%;"
-                                    onclick="limpiarFormularioServicioEfectivo()">
-                                    Limpiar
-                                </button>
-                            </div>
-                        </section>
-                    </div>
-                </div>
             </div>
 
             <!-- Historial de Ingresos Agregados - AHORA DEBAJO EN ANCHO COMPLETO -->
@@ -535,6 +466,28 @@
 
         // Inicializar métricas cuando se carga la página
         window.addEventListener('DOMContentLoaded', function () {
+            // Aplicar formato de miles al campo de Fondo Fijo
+            const montoFondoFijoInput = document.getElementById('montoFondoFijo');
+            if (montoFondoFijoInput && typeof aplicarFormatoMiles === 'function') {
+                aplicarFormatoMiles(montoFondoFijoInput);
+
+                // Guardar automáticamente cuando el usuario termine de editar
+                montoFondoFijoInput.addEventListener('blur', function () {
+                    if (typeof guardarFondoFijo === 'function') {
+                        guardarFondoFijo();
+                    }
+                });
+
+                // Cargar el valor guardado para la caja actual
+                const cajaActual = sessionStorage.getItem('cajaSeleccionada') || 'Caja 1';
+                if (estado && estado.fondoFijoPorCaja && estado.fondoFijoPorCaja[cajaActual]) {
+                    const fondoFijo = estado.fondoFijoPorCaja[cajaActual];
+                    if (fondoFijo.monto) {
+                        montoFondoFijoInput.value = new Intl.NumberFormat('es-PY').format(fondoFijo.monto);
+                    }
+                }
+            }
+
             if (typeof window.actualizarMetricasIngresos === 'function') {
                 // Esperar un momento para que los datos se carguen
                 setTimeout(() => {
