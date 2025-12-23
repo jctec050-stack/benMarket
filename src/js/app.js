@@ -245,7 +245,9 @@ async function initSupabaseData() {
 
     actualizarArqueoFinal();
     cargarHistorialMovimientosDia();
+    console.log('[DEBUG initSupabaseData] A punto de llamar cargarHistorialEgresosCaja...');
     cargarHistorialEgresosCaja();
+    console.log('[DEBUG initSupabaseData] Después de llamar cargarHistorialEgresosCaja');
     cargarHistorialGastos();
     renderizarIngresosAgregados();
 
@@ -840,7 +842,7 @@ async function agregarMovimiento() {
     // **CORRECCIÓN:** Actualizar métricas después de agregar movimiento (ya se llama en renderizar)
 }
 
-// Función para agregar una fila de servicio dinámico
+// Función para agregar una fila de servicio dinámico (Tarjeta)
 function agregarFilaServicioDinamico() {
     const tbody = document.getElementById('tbodyServiciosMovimiento');
     const fila = document.createElement('tr');
@@ -858,10 +860,36 @@ function agregarFilaServicioDinamico() {
     camposNuevos.forEach(aplicarFormatoMiles);
 }
 
+// **NUEVO:** Función para agregar una fila de servicio dinámico (Efectivo)
+function agregarFilaServicioEfectivoDinamico() {
+    const tbody = document.getElementById('tbodyServiciosEfectivoMovimiento');
+    if (!tbody) {
+        console.error('No se encontró tbodyServiciosEfectivoMovimiento');
+        return;
+    }
+    const fila = document.createElement('tr');
+    fila.className = 'fila-servicio-efectivo-dinamico'; // Clase diferenciada
+
+    fila.innerHTML = `
+        <td><input type="text" class="nombre-servicio-efectivo-dinamico" placeholder="Nombre del servicio"></td>
+        <td><input type="text" class="lote-servicio-efectivo-dinamico" placeholder="Lote/Ref"></td>
+        <td><input type="text" inputmode="numeric" class="efectivo-servicio-dinamico" value="0"></td>
+    `;
+    tbody.appendChild(fila);
+
+    // Aplicar formato de miles a los nuevos campos
+    const camposNuevos = fila.querySelectorAll('.efectivo-servicio-dinamico');
+    camposNuevos.forEach(aplicarFormatoMiles);
+}
+
 // Limpiar filas de servicios dinámicos
 function limpiarFilasServiciosDinamicos() {
     const filasDinamicas = document.querySelectorAll('.fila-servicio-dinamico');
     filasDinamicas.forEach(fila => fila.remove());
+
+    // **NUEVO:** Limpiar también las filas dinámicas de efectivo
+    const filasEfectivoDinamicas = document.querySelectorAll('.fila-servicio-efectivo-dinamico');
+    filasEfectivoDinamicas.forEach(fila => fila.remove());
 }
 
 function limpiarFormularioMovimiento() {
@@ -1326,9 +1354,14 @@ function renderizarVistaArqueoFinal(totales) {
     const totalAEntregar = totalEfectivoBruto;
     const totalIngresoEfectivo = totalServiciosEfectivo; // **NUEVA LÓGICA:** El total de ingreso efectivo es solo el efectivo de servicios.
 
+    // **NUEVO:** Filtrar arqueados para cajeros
+    const userRole = sessionStorage.getItem('userRole');
+    const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
+
     const egresosDeCajaFiltrados = estado.egresosCaja.filter(e =>
         e.fecha.startsWith(document.getElementById('fecha').value.split('T')[0]) &&
-        (cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro)
+        (cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro) &&
+        (mostrarTodo || !e.arqueado) // Ocultar arqueados para cajeros
     );
     const egresosDeOperacionesFiltrados = estado.movimientos.filter(m =>
         m.fecha.startsWith(document.getElementById('fecha').value.split('T')[0]) &&
@@ -1583,15 +1616,30 @@ function cargarHistorialMovimientosDia() {
         const coincideFecha = m.fecha.startsWith(fechaFiltro);
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
         const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
-        return coincideFecha && coincideCaja && coincideUsuario;
+        // **NUEVO:** Ocultar ingresos arqueados para cajeros
+        const noEstaArqueado = mostrarTodo || !m.arqueado;
+        return coincideFecha && coincideCaja && coincideUsuario && noEstaArqueado;
     }).map(m => ({ ...m, tipoMovimiento: 'ingreso' }));
+
+    console.log('[DEBUG] mostrarTodo:', mostrarTodo, 'userRole:', userRole);
+    console.log('[DEBUG] Total egresos antes de filtrar:', estado.egresosCaja.length);
+    console.log('[DEBUG] Egresos con arqueado=true:', estado.egresosCaja.filter(e => e.arqueado).length);
 
     const egresosCaja = estado.egresosCaja.filter(e => {
         const coincideFecha = e.fecha.startsWith(fechaFiltro);
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
         const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
-        return coincideFecha && coincideCaja && coincideUsuario;
+        // **NUEVO:** Ocultar egresos arqueados para cajeros
+        const noEstaArqueado = mostrarTodo || !e.arqueado;
+
+        if (!noEstaArqueado) {
+            console.log('[DEBUG] Egreso filtrado por arqueado:', e.id, e.categoria, 'arqueado:', e.arqueado);
+        }
+
+        return coincideFecha && coincideCaja && coincideUsuario && noEstaArqueado;
     }).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
+
+    console.log('[DEBUG] Egresos después de filtrar:', egresosCaja.length);
 
     const egresosOperaciones = estado.movimientos.filter(m => {
         const coincideFecha = m.fecha.startsWith(fechaFiltro);
@@ -1752,13 +1800,34 @@ async function guardarArqueo() {
 
     // Preparar datos para guardar en la base de datos
     const datosParaBD = {
+        // **NOTA:** NO incluir 'id' - Supabase lo genera automáticamente como UUID
         fecha: arqueo.fecha,
         caja: arqueo.caja,
         cajero: arqueo.cajero,
         fondo_fijo: arqueo.fondoFijo,
-        total_ingresos: arqueo.totalIngresos,
+
+        // **NUEVO:** Desglose completo de efectivo
+        efectivo: arqueo.efectivo,
+        dolares: arqueo.monedasExtranjeras.usd,
+        reales: arqueo.monedasExtranjeras.brl,
+        pesos: arqueo.monedasExtranjeras.ars,
+
+        // **NUEVO:** Totales de ingresos no efectivo
+        pagos_tarjeta: arqueo.pagosTarjeta,
+        ventas_credito: arqueo.ventasCredito,
+        pedidos_ya: arqueo.pedidosYa,
+        ventas_transferencia: arqueo.ventasTransferencia,
+
+        // **NUEVO:** Servicios detallados
+        servicios: arqueo.servicios,
         total_servicios: arqueo.totalServicios,
+
+        // Totales calculados
+        total_efectivo: arqueo.totalEfectivo,
+        total_ingresos: arqueo.totalIngresos,
         total_egresos: todosLosEgresos.reduce((sum, e) => sum + (e.monto || 0), 0),
+
+        // Metadatos
         total_movimientos: movimientosParaArqueo.length,
         saldo_caja: arqueo.totalIngresos,
         diferencia: 0,
@@ -1766,12 +1835,19 @@ async function guardarArqueo() {
     };
 
     // Guardar en base de datos
+    console.log('[DEBUG GUARDAR ARQUEO] Datos a enviar a Supabase:', datosParaBD);
     if (window.db && window.db.guardarArqueo) {
         const resultado = await window.db.guardarArqueo(datosParaBD);
+        console.log('[DEBUG GUARDAR ARQUEO] Resultado de Supabase:', resultado);
         if (!resultado.success) {
             console.error('Error al guardar arqueo en base de datos:', resultado.error);
             mostrarMensaje('Error al guardar en base de datos: ' + resultado.error, 'peligro');
+            return; // Detener si hay error
+        } else {
+            console.log('✅ Arqueo guardado exitosamente en Supabase');
         }
+    } else {
+        console.warn('⚠️ window.db.guardarArqueo no disponible');
     }
 
     // Guardar en el estado local
@@ -1805,7 +1881,8 @@ async function guardarArqueo() {
     const egresosArqueados = estado.egresosCaja.filter(e =>
         e.caja === cajaFiltro && e.fecha.startsWith(fechaArqueo)
     );
-    console.log(`Marcando ${egresosArqueados.length} egresos como arqueados...`);
+    console.log(`[DEBUG ARQUEO] Marcando ${egresosArqueados.length} egresos como arqueados...`);
+    console.log(`[DEBUG ARQUEO] IDs de egresos a arquear:`, egresosArqueados.map(e => ({ id: e.id, categoria: e.categoria, arqueado: e.arqueado })));
 
     for (const eg of egresosArqueados) {
         eg.arqueado = true;
@@ -1816,9 +1893,15 @@ async function guardarArqueo() {
         }
     }
 
+    console.log(`[DEBUG ARQUEO] Estado de egresos después de marcar:`, egresosArqueados.map(e => ({ id: e.id, arqueado: e.arqueado })));
+
     // Actualizar las vistas
     cargarHistorialMovimientosDia();
+    cargarHistorialEgresosCaja(); // **NUEVO:** Refrescar lista de egresos para ocultar arqueados
     renderizarIngresosAgregados();
+
+    // **CRÍTICO:** Guardar cambios en localStorage (arqueado: true)
+    guardarEnLocalStorage();
 
 }
 
@@ -2155,10 +2238,23 @@ async function guardarEgresoCaja(event) {
     const fecha = document.getElementById('fechaEgresoCaja').value;
     const caja = document.getElementById('cajaEgreso').value;
     const categoria = document.getElementById('categoriaEgresoCaja').value;
-    const descripcion = document.getElementById('descripcionEgresoCaja').value;
+    let descripcion = document.getElementById('descripcionEgresoCaja').value.trim();
     const monto = parsearMoneda(document.getElementById('montoEgresoCaja').value);
     const referencia = document.getElementById('referenciaEgresoCaja').value;
     const cajero = sessionStorage.getItem('usuarioActual');
+
+    // **NUEVO:** Validación de Proveedor
+    if (categoria === 'Pago a Proveedor') {
+        const proveedorElement = document.getElementById('proveedorEgresoCaja');
+        if (proveedorElement) {
+            const proveedor = proveedorElement.value.trim();
+            if (!proveedor) {
+                mostrarMensaje('Por favor, ingrese el nombre del proveedor.', 'advertencia');
+                return;
+            }
+            descripcion = `${proveedor} - ${descripcion}`;
+        }
+    }
 
     // Validaciones
     if (!fecha || !caja || !categoria || !descripcion) {
@@ -2167,32 +2263,25 @@ async function guardarEgresoCaja(event) {
     }
 
     if (monto <= 0) {
-        mostrarMensaje('Debe registrar los billetes del egreso.', 'peligro');
+        mostrarMensaje('El monto debe ser mayor a 0.', 'peligro');
         return;
     }
 
-    // Obtener desglose de billetes
-    const efectivo = {};
-    document.querySelectorAll('#tablaDenominacionesEgresoCaja .cantidad-denominacion-egreso').forEach(input => {
-        const denominacion = input.dataset.denominacion;
-        const cantidad = parseInt(input.value) || 0;
-        if (cantidad > 0) {
-            efectivo[denominacion] = cantidad;
-        }
-    });
+    // Nota: Ya no se utilizan denominaciones para egresos, solo monto total.
+    const efectivo = null;
 
     // Crear objeto de egreso
     const egreso = {
         id: esEdicion ? idEditar : generarId(),
-        fecha: fecha,
+        fecha: new Date(fecha).toISOString(), // Asegurar formato ISO
         caja: caja,
         cajero: cajero,
         categoria: categoria,
         descripcion: descripcion,
         monto: monto,
         referencia: referencia,
-        efectivo: efectivo,
-        arqueado: false // **NUEVO:** Inicializar como no arqueado
+        efectivo: null, // Sin desglose
+        arqueado: false
     };
 
     if (esEdicion) {
@@ -2225,12 +2314,24 @@ async function guardarEgresoCaja(event) {
  * Carga y muestra el historial de egresos de caja
  */
 function cargarHistorialEgresosCaja() {
-    const listaEgresosCaja = document.getElementById('listaEgresosCaja');
-    // **CORRECCIÓN:** Solo ejecutar si el contenedor existe en la página actual.
-    if (!listaEgresosCaja) return;
+    console.log('[DEBUG] ========== cargarHistorialEgresosCaja EJECUTADA ==========');
 
-    // Obtener egresos desde localStorage
-    let todosLosEgresos = JSON.parse(localStorage.getItem('egresosCaja')) || [];
+    const listaEgresosCaja = document.getElementById('listaEgresosCaja');
+    console.log('[DEBUG] Elemento listaEgresosCaja:', listaEgresosCaja);
+
+    // **CORRECCIÓN:** Solo ejecutar si el contenedor existe en la página actual.
+    if (!listaEgresosCaja) {
+        console.log('[DEBUG] No se encontró listaEgresosCaja, saliendo...');
+        return;
+    }
+
+    console.log('[DEBUG] cargarHistorialEgresosCaja - INICIO');
+
+    // **MODIFICADO:** Leer desde estado en lugar de localStorage
+    let todosLosEgresos = estado.egresosCaja || [];
+    console.log('[DEBUG] Total egresos en estado:', todosLosEgresos.length);
+    console.log('[DEBUG] Primeros 3 egresos:', todosLosEgresos.slice(0, 3).map(e => ({ id: e.id, arqueado: e.arqueado, categoria: e.categoria })));
+
     let egresosFiltrados = todosLosEgresos;
 
     // Obtener filtros
@@ -2240,6 +2341,7 @@ function cargarHistorialEgresosCaja() {
     // --- LÓGICA DE FILTRADO REVISADA ---
     const userRole = sessionStorage.getItem('userRole');
     const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
+    console.log(`[DEBUG] cargarHistorialEgresosCaja - userRole: ${userRole}, mostrarTodo: ${mostrarTodo}`);
 
     // 1. Filtro por Usuario (Segregación)
     if (!mostrarTodo && usuarioPerfil && usuarioPerfil.username) {
@@ -2249,7 +2351,10 @@ function cargarHistorialEgresosCaja() {
 
     // 2. Filtro por Arqueado (Ocultar cerrados para cajeros)
     if (!mostrarTodo) {
+        const antesArqueado = egresosFiltrados.length;
         egresosFiltrados = egresosFiltrados.filter(e => !e.arqueado);
+        console.log(`[DEBUG] Egresos antes de filtrar arqueados: ${antesArqueado}, después: ${egresosFiltrados.length}`);
+        console.log(`[DEBUG] Egresos arqueados ocultos: ${antesArqueado - egresosFiltrados.length}`);
     }
 
     // 3. Filtro por Caja
@@ -2551,63 +2656,6 @@ function limpiarFormularioEgresoCaja() {
     botonGuardar.textContent = 'Guardar Egreso';
 }
 
-function cargarHistorialEgresosCaja() {
-    const lista = document.getElementById('listaEgresosCaja');
-    // **CORRECCIÓN:** Solo ejecutar si el contenedor existe en la página actual.
-    if (!lista) return;
-
-    const fechaFiltro = document.getElementById('fechaFiltroEgresos').value;
-    const cajaFiltro = document.getElementById('filtroCajaEgresos').value;
-
-    let egresosFiltrados = estado.egresosCaja;
-
-    if (fechaFiltro) {
-        egresosFiltrados = egresosFiltrados.filter(e => e.fecha && e.fecha.startsWith(fechaFiltro));
-    }
-
-    if (cajaFiltro) {
-        egresosFiltrados = egresosFiltrados.filter(e => e.caja === cajaFiltro);
-    }
-
-    // Ordenar por fecha descendente
-    egresosFiltrados.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-
-    lista.innerHTML = '';
-
-    if (egresosFiltrados.length === 0) {
-        lista.innerHTML = '<p class="text-center" style="color: var(--color-secundario);">No hay egresos registrados para esta fecha.</p>';
-        return;
-    }
-
-    egresosFiltrados.forEach(egreso => {
-        const div = document.createElement('div');
-        div.className = 'movimiento-item';
-
-        // Preparar HTML de edición
-        let edicionHTML = '';
-        let observacionEdicionHTML = ''; ({ edicionHTML, observacionEdicionHTML } = generarHTMLHistorial(egreso));
-
-        div.innerHTML = `
-            <div class="movimiento-header">
-                <span class="movimiento-tipo">EGRESO - ${egreso.caja}${edicionHTML}</span>
-                <span class="movimiento-monto negativo">-${formatearMoneda(egreso.monto, 'gs')}</span>
-            </div>
-            ${observacionEdicionHTML}
-            <div style="display: flex; justify-content: space-between; align-items: flex-end;">
-                <div class="movimiento-detalles">
-                    <strong>${egreso.categoria}</strong> - ${egreso.descripcion}<br>
-                    <small>${formatearFecha(egreso.fecha)} ${egreso.referencia ? '| Ref: ' + egreso.referencia : ''}</small>
-                </div>
-                <div class="movimiento-acciones">
-                    <button class="btn-accion editar" onclick="iniciarEdicionEgresoCaja('${egreso.id}')">Editar</button>
-                    <button class="btn-accion eliminar" onclick="eliminarEgresoCaja('${egreso.id}')">Eliminar</button>
-                </div>
-            </div>
-        `;
-        lista.appendChild(div);
-    });
-}
-
 function iniciarEdicionEgresoCaja(id) {
     const egreso = estado.egresosCaja.find(e => e.id === id);
     if (!egreso) return;
@@ -2709,39 +2757,61 @@ function aplicarFiltroCajaGeneral() {
 }
 
 // Resumen de tesorería
-function cargarResumenDiario() {
+async function cargarResumenDiario() {
     const fechaDesdeInput = document.getElementById('fechaResumenDesde');
     if (!fechaDesdeInput) return;
 
+    // --- CAPTURA DE FILTROS ---
+    const fechaDesde = fechaDesdeInput.value;
+    const fechaHasta = document.getElementById('fechaResumenHasta')?.value || '';
+
+    // **NUEVO:** Cargar arqueos del rango de fechas seleccionado desde Supabase
+    if (window.db && window.db.obtenerArqueos && fechaDesde) {
+        try {
+            // Intentar cargar todos los arqueos (sin filtro) o del rango de fechas
+            const resultado = await window.db.obtenerArqueos();
+            if (resultado && resultado.success && resultado.data) {
+                // Filtrar por el rango de fechas seleccionado
+                estado.arqueos = resultado.data.filter(a => {
+                    const fechaArqueo = a.fecha.split('T')[0];
+                    const dentroRango = (!fechaDesde || fechaArqueo >= fechaDesde) &&
+                        (!fechaHasta || fechaArqueo <= fechaHasta);
+                    return dentroRango;
+                });
+                console.log(`Arqueos cargados para rango ${fechaDesde} - ${fechaHasta}:`, estado.arqueos.length);
+            }
+        } catch (error) {
+            console.warn('Error cargando arqueos:', error);
+        }
+    }
+
     // **DEBUG:** Log para verificar qué datos tenemos
     console.log('=== cargarResumenDiario ===');
+    console.log('Arqueos cargados:', estado.arqueos.length);
     console.log('Movimientos temporales (ingresos):', estado.movimientosTemporales.length);
     console.log('Egresos caja:', estado.egresosCaja.length);
     console.log('Movimientos operaciones:', estado.movimientos.length);
 
-    // --- CAPTURA DE FILTROS ---
-    const fechaDesde = fechaDesdeInput.value;
-    const fechaHasta = document.getElementById('fechaResumenHasta').value;
-
     // Filtros de Ingresos Tienda
-    const filtroCajaTienda = document.getElementById('filtroCajaIngresosTienda').value;
-    const filtroDescTienda = document.getElementById('filtroDescIngresosTienda').value.toLowerCase();
+    // Filtros de Ingresos Tienda
+    const filtroCajaTienda = document.getElementById('filtroCajaIngresosTienda')?.value || '';
+    const filtroDescTienda = (document.getElementById('filtroDescIngresosTienda')?.value || '').toLowerCase();
 
     // Filtros de Servicios
-    const filtroCajaServiciosEfectivo = document.getElementById('filtroCajaServiciosEfectivo').value;
-    const filtroNombreServicioEfectivo = document.getElementById('filtroNombreServicioEfectivo').value.toLowerCase();
+    const filtroCajaServiciosEfectivo = document.getElementById('filtroCajaServiciosEfectivo')?.value || '';
+    const filtroNombreServicioEfectivo = (document.getElementById('filtroNombreServicioEfectivo')?.value || '').toLowerCase();
 
     // **NUEVO:** Filtros de Servicios (Tarjeta)
-    const filtroCajaServiciosTarjeta = document.getElementById('filtroCajaServiciosTarjeta').value;
-    const filtroNombreServicioTarjeta = document.getElementById('filtroNombreServicioTarjeta').value.toLowerCase();
+    const filtroCajaServiciosTarjeta = document.getElementById('filtroCajaServiciosTarjeta')?.value || '';
+    const filtroNombreServicioTarjeta = (document.getElementById('filtroNombreServicioTarjeta')?.value || '').toLowerCase();
 
     // **NUEVO:** Filtros de Ingresos No Efectivo
-    const filtroCajaNoEfectivo = document.getElementById('filtroCajaNoEfectivo').value;
-    const filtroDescNoEfectivo = document.getElementById('filtroDescNoEfectivo').value.toLowerCase();
+    const filtroCajaNoEfectivo = document.getElementById('filtroCajaNoEfectivo')?.value || '';
+    const filtroDescNoEfectivo = (document.getElementById('filtroDescNoEfectivo')?.value || '').toLowerCase();
 
     // Filtros de Egresos
-    const filtroCajaEgresos = document.getElementById('filtroCajaEgresos').value;
-    const filtroDescEgresos = document.getElementById('filtroDescEgresos').value.toLowerCase();
+    const filtroCajaEgresos = document.getElementById('filtroCajaEgresos')?.value || '';
+    const filtroDescEgresos = (document.getElementById('filtroDescEgresos')?.value || '').toLowerCase();
 
     // **NUEVO:** Filtro de Saldo Día Anterior
     const filtroCajaSaldoAnterior = document.getElementById('filtroCajaSaldoAnterior')?.value || '';
@@ -2967,29 +3037,43 @@ function cargarResumenDiario() {
     const subTotalEfectivo = totalTienda + totalServiciosEfectivo;
     const subTotalNoEfectivo = totalServiciosTarjeta + totalNoEfectivo;
 
-    document.getElementById('totalIngresosEfectivo').innerHTML = `<strong>${formatearMoneda(subTotalEfectivo, 'gs')}</strong>`;
-    document.getElementById('totalDepositosInversionesGeneral').innerHTML = `<strong>${formatearMoneda(totalDepositosInversiones, 'gs')}</strong>`;
-    document.getElementById('totalIngresosNoEfectivoGeneral').innerHTML = `<strong>${formatearMoneda(subTotalNoEfectivo, 'gs')}</strong>`;
+    const totalIngresosEfectivoEl = document.getElementById('totalIngresosEfectivo');
+    if (totalIngresosEfectivoEl) totalIngresosEfectivoEl.innerHTML = `<strong>${formatearMoneda(subTotalEfectivo, 'gs')}</strong>`;
+
+    const totalDepositosInversionesEl = document.getElementById('totalDepositosInversionesGeneral');
+    if (totalDepositosInversionesEl) totalDepositosInversionesEl.innerHTML = `<strong>${formatearMoneda(totalDepositosInversiones, 'gs')}</strong>`;
+
+    const totalIngresosNoEfectivoGenEl = document.getElementById('totalIngresosNoEfectivoGeneral');
+    if (totalIngresosNoEfectivoGenEl) totalIngresosNoEfectivoGenEl.innerHTML = `<strong>${formatearMoneda(subTotalNoEfectivo, 'gs')}</strong>`;
 
     // **NUEVO:** Mostrar total de "Otros Ingresos No Efectivo" (sin servicios tarjeta)
-    document.getElementById('totalIngresosNoEfectivo').innerHTML = `<strong>${formatearMoneda(totalNoEfectivo, 'gs')}</strong>`;
+    const totalIngresosNoEfectivoEl = document.getElementById('totalIngresosNoEfectivo');
+    if (totalIngresosNoEfectivoEl) totalIngresosNoEfectivoEl.innerHTML = `<strong>${formatearMoneda(totalNoEfectivo, 'gs')}</strong>`;
 
     // Mostrar totales generales
-    document.getElementById('totalGeneralIngresos').innerHTML = `<strong>${formatearMoneda(granTotalIngresos, 'gs')}</strong>`;
-    document.getElementById('totalGeneralEgresos').innerHTML = `<strong>${formatearMoneda(granTotalEgresos, 'gs')}</strong>`;
+    const totalGeneralIngresosEl = document.getElementById('totalGeneralIngresos');
+    if (totalGeneralIngresosEl) totalGeneralIngresosEl.innerHTML = `<strong>${formatearMoneda(granTotalIngresos, 'gs')}</strong>`;
+
+    const totalGeneralEgresosEl = document.getElementById('totalGeneralEgresos');
+    if (totalGeneralEgresosEl) totalGeneralEgresosEl.innerHTML = `<strong>${formatearMoneda(granTotalEgresos, 'gs')}</strong>`;
 
     const diferenciaSpan = document.getElementById('totalDiferencia');
-    diferenciaSpan.innerHTML = `<strong>${formatearMoneda(diferenciaNeta, 'gs')}</strong>`;
-    diferenciaSpan.className = 'reporte-total-principal'; // Reset class
-    diferenciaSpan.classList.add(diferenciaNeta >= 0 ? 'positivo' : 'negativo');
+    if (diferenciaSpan) {
+        diferenciaSpan.innerHTML = `<strong>${formatearMoneda(diferenciaNeta, 'gs')}</strong>`;
+        diferenciaSpan.className = 'reporte-total-principal'; // Reset class
+        diferenciaSpan.classList.add(diferenciaNeta >= 0 ? 'positivo' : 'negativo');
+    }
 
     // **NUEVO:** Calcular y mostrar la diferencia de efectivo (sin incluir Depósitos - Inversiones)
     const diferenciaEfectivo = subTotalEfectivo - granTotalEgresos;
     const diferenciaEfectivoStrong = document.getElementById('diferenciaEfectivo');
     const diferenciaEfectivoItem = document.getElementById('itemDiferenciaEfectivo');
-    diferenciaEfectivoStrong.textContent = formatearMoneda(diferenciaEfectivo, 'gs');
-    diferenciaEfectivoItem.classList.remove('positivo', 'negativo');
-    diferenciaEfectivoItem.classList.add(diferenciaEfectivo >= 0 ? 'positivo' : 'negativo');
+
+    if (diferenciaEfectivoStrong) diferenciaEfectivoStrong.textContent = formatearMoneda(diferenciaEfectivo, 'gs');
+    if (diferenciaEfectivoItem) {
+        diferenciaEfectivoItem.classList.remove('positivo', 'negativo');
+        diferenciaEfectivoItem.classList.add(diferenciaEfectivo >= 0 ? 'positivo' : 'negativo');
+    }
 
     // **CORRECCIÓN:** Actualizar las métricas del resumen después de cargar todos los datos
     if (typeof window.actualizarMetricasResumen === 'function') {
@@ -3012,6 +3096,7 @@ function cargarResumenDiario() {
  * @param {String} tipo - El tipo de movimiento (para la cabecera).
  */
 function renderizarLista(contenedor, items, tipo) {
+    if (!contenedor) return 0; // Guard clause for missing container
     contenedor.innerHTML = '';
     if (items.length === 0) {
         contenedor.innerHTML = '<p class="text-center" style="color: var(--color-secundario);">No hay movimientos para los filtros seleccionados.</p>';
@@ -5567,77 +5652,11 @@ document.addEventListener('DOMContentLoaded', () => {
             aplicarFormatoMiles(montoInput);
         }
 
-        // Listener para envío del formulario
-        formularioEgreso.addEventListener('submit', async (e) => {
-            e.preventDefault();
-
-            const fecha = document.getElementById('fechaEgresoCaja').value;
-            const caja = document.getElementById('cajaEgreso').value;
-            const categoria = document.getElementById('categoriaEgresoCaja').value;
-            const descripcion = document.getElementById('descripcionEgresoCaja').value.trim();
-            const montoStr = montoInput.value;
-            const referencia = document.getElementById('referenciaEgresoCaja').value.trim();
-
-            // Dato opcional de proveedor
-            let proveedor = '';
-            if (categoria === 'Pago a Proveedor') {
-                proveedor = document.getElementById('proveedorEgresoCaja').value.trim();
-                if (!proveedor) {
-                    mostrarMensaje('Por favor, ingrese el nombre del proveedor.', 'advertencia');
-                    return;
-                }
-            }
-
-            if (!fecha || !caja || !categoria || !descripcion || !montoStr) {
-                mostrarMensaje('Por favor, complete todos los campos obligatorios.', 'advertencia');
-                return;
-            }
-
-            const monto = parsearMoneda(montoStr);
-            if (monto <= 0) {
-                mostrarMensaje('El monto debe ser mayor a 0.', 'advertencia');
-                return;
-            }
-
-            const nuevoEgreso = {
-                id: generarId(),
-                fecha: new Date(fecha).toISOString(),
-                caja: caja,
-                categoria: categoria,
-                descripcion: proveedor ? `${proveedor} - ${descripcion}` : descripcion,
-                monto: monto,
-                referencia: referencia,
-                usuario: sessionStorage.getItem('usuarioActual') || 'Desconocido'
-            };
-
-            // Guardar usando la API de Supabase V5 Segura
-            if (window.db && (window.db.guardarEgresoCajaV5 || window.db.guardarEgresoCaja)) {
-                // Preferir V5 si existe
-                const funcionGuardar = window.db.guardarEgresoCajaV5 || window.db.guardarEgresoCaja;
-
-                console.log('=== INTENTANDO GUARDAR EGRESO (V5) ===');
-                console.log('Payload original:', nuevoEgreso);
-                console.log('Usando funcion:', window.db.guardarEgresoCajaV5 ? 'guardarEgresoCajaV5' : 'guardarEgresoCaja');
-
-                const resultado = await funcionGuardar(nuevoEgreso);
-                if (resultado.success) {
-                    mostrarMensaje('Egreso registrado correctamente.', 'exito');
-                    limpiarFormularioEgresoCaja();
-                    // Actualizar historial si existe la función
-                    if (typeof cargarHistorialEgresosCaja === 'function') {
-                        cargarHistorialEgresosCaja();
-                    }
-                    // Actualizar métricas si existe
-                    if (typeof actualizarMetricasEgresos === 'function') {
-                        actualizarMetricasEgresos();
-                    }
-                } else {
-                    mostrarMensaje('Error al guardar el egreso: ' + (resultado.error.message || resultado.error), 'error');
-                }
-            } else {
-                mostrarMensaje('Error: No se encontró la función para guardar el egreso.', 'error');
-            }
-        });
+        // Listener para envío del formulario (ELIMINADO: DUPLICADO)
+        // Se utiliza la función global guardarEgresoCaja() vinculada en inicializarEventos()
+        /* 
+        formularioEgreso.addEventListener('submit', async (e) => { ... }); 
+        */
     }
 });
 
@@ -5692,10 +5711,20 @@ window.cargarHistorialEgresosCaja = async function () {
             }
         }
 
-        // Filtrar
+        // **NUEVO:** Filtrar por rol y arqueado
+        const userRole = sessionStorage.getItem('userRole');
+        const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
+
+        if (!mostrarTodo) {
+            // Para cajeros, ocultar egresos arqueados
+            egresos = egresos.filter(e => !e.arqueado);
+        }
+
+        // Filtrar por fecha
         if (fechaFiltro) {
             egresos = egresos.filter(e => e.fecha.startsWith(fechaFiltro));
         }
+        // Filtrar por caja
         if (cajaFiltro) {
             egresos = egresos.filter(e => e.caja === cajaFiltro);
         }

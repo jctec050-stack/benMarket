@@ -122,6 +122,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             if (!datosPorCajero[cajero]) {
                 datosPorCajero[cajero] = {
                     tarjeta: 0, pedidosYa: 0, credito: 0, efectivo: 0, sobrante: 0, faltante: 0,
+                    egresos: 0, fondoFijo: 0, totalDeclarar: 0, // Campos nuevos para el cálculo explícito
                     esArqueoCerrado: true
                 };
             } else {
@@ -132,20 +133,13 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             datosPorCajero[cajero].pedidosYa += (a.pedidosYa || 0);
             datosPorCajero[cajero].credito += (a.ventasCredito || 0);
 
-            // CALCULAR INGRESOS TIENDA DESDE EL ARQUEO GUARDADO
-            // Formula Usuario: Total a Declarar - Total Serv. Efectivo - Fondo Fijo.
-            // Ingresos Tienda = (a.totalEfectivo + a.totalEgresos) - Serv.Efectivo - FondoFijo.
-
             let serviciosEfectivo = 0;
             if (a.servicios) {
-                // Estructura a.servicios suele ser anidada segun app.js guardarArqueo, pero verificamos.
-                // Si es el objeto "totales.servicios" usado en guardarArqueo, tiene: {apLote:{monto...}, wepa:{monto...}...}
                 Object.values(a.servicios).forEach(val => {
                     if (val) {
                         if (typeof val === 'object' && 'monto' in val) {
                             serviciosEfectivo += (val.monto || 0);
                         } else if (typeof val === 'object') {
-                            // intento recursivo simple o busqueda anidada
                             Object.values(val).forEach(sub => {
                                 if (sub && typeof sub === 'object' && 'monto' in sub) {
                                     serviciosEfectivo += (sub.monto || 0);
@@ -165,17 +159,16 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             let egresos = (a.total_egresos !== undefined) ? a.total_egresos : (a.totalEgresos || 0);
             let fondo = (a.fondo_fijo !== undefined) ? a.fondo_fijo : (a.fondoFijo || 0);
 
+            // Almacenar valores crudos para la fórmula del usuario
+            datosPorCajero[cajero].totalDeclarar = efectivoFisico; // Asumimos que esto es "Total a declarar"
+            datosPorCajero[cajero].egresos = egresos;
+            datosPorCajero[cajero].fondoFijo = fondo;
+
             let ingresoTiendaCalculado = (efectivoFisico + egresos) - serviciosEfectivo - fondo;
 
             if (ingresoTiendaCalculado < 0) ingresoTiendaCalculado = 0;
 
             datosPorCajero[cajero].efectivo += ingresoTiendaCalculado;
-
-            // Sobrante/Faltante desde Arqueo:
-            // El usuario quiere que Sobrante/Faltante se CALCULE DINAMICAMENTE con el input.
-            // Pero si inicia en 0, iniciará mostrando Faltante Total.
-            // Podríamos precargar el input con el valor del sistema si quisiéramos mostrar 0 diferencia, pero el usuario quiere validar.
-            // Dejamos input en 0.
         });
     }
 
@@ -190,15 +183,15 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         if (datosPorCajero[cajero] && datosPorCajero[cajero].esArqueoCerrado) return;
 
         if (!datosPorCajero[cajero]) {
-            datosPorCajero[cajero] = { tarjeta: 0, pedidosYa: 0, credito: 0, efectivo: 0, sobrante: 0, faltante: 0 };
+            datosPorCajero[cajero] = {
+                tarjeta: 0, pedidosYa: 0, credito: 0, efectivo: 0, sobrante: 0, faltante: 0,
+                egresos: 0, fondoFijo: 0, totalDeclarar: 0
+            };
         }
 
         datosPorCajero[cajero].tarjeta += (m.pagosTarjeta || 0);
         datosPorCajero[cajero].pedidosYa += (m.pedidosYa || 0);
         datosPorCajero[cajero].credito += (m.ventasCredito || 0);
-
-        // -- LOGICA PENDIENTE (SIN ARQUEO) --
-        // Sumar Efectivo Bruto In - Servicios
 
         let efectivoMovimiento = 0;
         if (m.valorVenta > 0) {
@@ -213,18 +206,23 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         }
 
         let montoServicioEfectivo = 0;
+        // ... (cálculo servicios) ...
         if (m.servicios) {
             Object.values(m.servicios).forEach(s => {
                 const monto = parseFloat(s.monto) || 0;
                 if (monto > 0) montoServicioEfectivo += monto;
             });
         }
-        if (m.otrosServicios && m.otrosServicios.length > 0) {
+        if (m.otrosServicios) {
             m.otrosServicios.forEach(s => {
                 const monto = parseFloat(s.monto) || 0;
                 if (monto > 0) montoServicioEfectivo += monto;
             });
         }
+
+        // Para movimientos sueltos, asumimos que efectivoMovimiento YA es el ingreso neto
+        // O si queremos compatibilidad con la fórmula, totalDeclarar sería el efectivo bruto
+        datosPorCajero[cajero].totalDeclarar += efectivoMovimiento;
 
         let ingresoTiendaNeto = efectivoMovimiento - montoServicioEfectivo;
         if (ingresoTiendaNeto < 0) ingresoTiendaNeto = 0;
@@ -240,14 +238,23 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         row.dataset.cajero = cajero;
 
         // Calcular valores iniciales
-        const efectivoSystem = d.efectivo;
+        // Usamos totalDeclarar si existe (caso Arqueo), o fallback a efectivo (caso Movs sueltos)
+        const totalDeclararSystem = d.totalDeclarar || d.efectivo;
+        const egresosSystem = d.egresos || 0;
+        const fondoSystem = d.fondoFijo || 0;
+        // Guardamos el "Ingreso Tienda" real para comparaciones si fuera necesario
+        const ingresoTiendaReal = d.efectivo;
 
         const rowHTML = `
             <td>${cajero}</td>
             <td>${formatearMoneda(d.tarjeta, 'gs')}</td>
             <td>${formatearMoneda(d.pedidosYa, 'gs')}</td>
             <td>${formatearMoneda(d.credito, 'gs')}</td>
-            <td><input type="number" class="input-recaudacion" value="0" data-system="${efectivoSystem}"></td>
+            <td><input type="number" class="input-recaudacion" value="0" 
+                data-system="${totalDeclararSystem}" 
+                data-egresos="${egresosSystem}" 
+                data-fondo="${fondoSystem}"
+                data-ingreso-tienda="${ingresoTiendaReal}"></td>
             <td class="col-sobrante">${formatearMoneda(0, 'gs')}</td>
             <td class="col-faltante negativo">${formatearMoneda(0, 'gs')}</td>
             <td class="col-subtotal"><strong>${formatearMoneda(0, 'gs')}</strong></td>
@@ -258,18 +265,30 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         const input = row.querySelector('.input-recaudacion');
         const updateRow = () => {
             const inputVal = parseFloat(input.value) || 0;
-            const systemVal = parseFloat(input.dataset.system);
+            const systemVal = parseFloat(input.dataset.system); // Total a declarar
+            const egresosVal = parseFloat(input.dataset.egresos);
+            const fondoVal = parseFloat(input.dataset.fondo);
+            const ingresoTiendaVal = parseFloat(input.dataset.ingresoTienda);
 
-            // Formula: Faltante = System - Input
-            const difference = systemVal - inputVal;
+            // El usuario solo quiere ingresar el efectivo de tienda (sin servicios)
+            // Por eso comparamos contra el Total Ingresos Tienda ya calculado
+            const calculatedExpectation = ingresoTiendaVal;
+            const difference = inputVal - calculatedExpectation;
 
             let sobrante = 0;
             let faltante = 0;
 
-            if (difference > 0.1) { // Tolerance
-                faltante = difference;
-            } else if (difference < -0.1) {
-                sobrante = Math.abs(difference);
+            // Condición: si Efectivo === Total Ingresos Tienda (que es calculatedExpectation)
+            // Usamos una tolerancia pequeña para evitar errores de punto flotante
+            if (Math.abs(difference) < 1) {
+                sobrante = 0;
+                faltante = 0;
+            } else {
+                if (difference > 0) {
+                    sobrante = difference;
+                } else {
+                    faltante = Math.abs(difference);
+                }
             }
 
             row.querySelector('.col-sobrante').textContent = formatearMoneda(sobrante, 'gs');
