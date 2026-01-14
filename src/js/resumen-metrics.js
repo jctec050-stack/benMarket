@@ -11,6 +11,9 @@ window.actualizarMetricasResumen = function () {
     const fechaHasta = document.getElementById('fechaResumenHasta')?.value || '';
     const filtroCajaGeneral = document.getElementById('filtroCajaGeneral')?.value || '';
 
+    // Limpiar localStorage cuando cambian los filtros (opcional: mantener valores si es la misma fecha/caja)
+    // Por ahora, solo guardamos por nombre de cajero, ignorando fechas
+
     // Combinar movimientos guardados y temporales para tener el universo completo
     let movimientosFiltrados = [
         ...(estado.movimientos || []),
@@ -103,6 +106,30 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
     const tfoot = document.getElementById('tfootRecaudacion');
     if (!tbody || !tfoot) return;
 
+    // Recuperar datos de Supabase si existe
+    let recaudacionGuardada = {};
+    if (db && db.obtenerRecaudacion && fechaDesde) {
+        db.obtenerRecaudacion(fechaDesde, null, filtroCaja || null).then(registros => {
+            if (registros && registros.length > 0) {
+                registros.forEach(reg => {
+                    const clave = `${reg.cajero}_${reg.caja}`;
+                    recaudacionGuardada[clave] = reg.efectivo_ingresado;
+                });
+                console.log('[DB] Recaudación recuperada de Supabase:', recaudacionGuardada);
+            }
+        });
+    }
+
+    console.log('[DEBUG] Datos disponibles en estado:', {
+        tieneArqueos: !!estado.arqueos && estado.arqueos.length > 0,
+        tieneEgresosCaja: !!estado.egresosCaja && estado.egresosCaja.length > 0,
+        cantidadEgresosCaja: estado.egresosCaja ? estado.egresosCaja.length : 0,
+        egresosCaja: estado.egresosCaja,
+        totalEgresos: estado.egresosCaja ? estado.egresosCaja.reduce((sum, e) => sum + (e.monto || 0), 0) : 0,
+        tieneMovimientos: !!movimientos && movimientos.length > 0,
+        cantidadMovimientos: movimientos ? movimientos.length : 0
+    });
+
     tbody.innerHTML = '';
     tfoot.innerHTML = '';
 
@@ -111,6 +138,9 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
 
     // --- LÓGICA HÍBRIDA: PRIORIZAR ARQUEOS CERRADOS ---
     // 1. Agrupar Arqueos existentes por cajero (si existen en estado.arqueos)
+    console.log('[DEBUG] estado.arqueos =', estado.arqueos);
+    console.log('[DEBUG] Cantidad de arqueOS:', estado.arqueos ? estado.arqueos.length : 0);
+    
     if (estado.arqueos) {
         estado.arqueos.forEach(a => {
             const fechaArqueo = a.fecha.split('T')[0];
@@ -122,7 +152,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             if (!datosPorCajero[cajero]) {
                 datosPorCajero[cajero] = {
                     tarjeta: 0, pedidosYa: 0, credito: 0, efectivo: 0, sobrante: 0, faltante: 0,
-                    egresos: 0, fondoFijo: 0, totalDeclarar: 0, // Campos nuevos para el cálculo explícito
+                    egresos: 0, fondoFijo: 0, totalDeclarar: 0, ingresoTiendaCalculado: 0,
                     esArqueoCerrado: true
                 };
             } else {
@@ -159,21 +189,28 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             let egresos = (a.total_egresos !== undefined) ? a.total_egresos : (a.totalEgresos || 0);
             let fondo = (a.fondo_fijo !== undefined) ? a.fondo_fijo : (a.fondoFijo || 0);
 
-            // Almacenar valores crudos para la fórmula del usuario
+            // Almacenar valores crudos
             datosPorCajero[cajero].totalDeclarar = efectivoFisico; // Asumimos que esto es "Total a declarar"
             datosPorCajero[cajero].egresos = egresos;
             datosPorCajero[cajero].fondoFijo = fondo;
 
-            let ingresoTiendaCalculado = (efectivoFisico + egresos) - serviciosEfectivo - fondo;
+            // FÓRMULA CORREGIDA: Total Ingresos Tienda = Total a declarar Sistema - Total Servicios - Fondo fijo
+            let ingresoTiendaCalculado = efectivoFisico - serviciosEfectivo - fondo;
+
+            console.log(`[DEBUG ARQUEO - ${cajero}] efectivoFisico=${efectivoFisico}, serviciosEfectivo=${serviciosEfectivo}, fondo=${fondo}, RESULTADO=${ingresoTiendaCalculado}`);
 
             if (ingresoTiendaCalculado < 0) ingresoTiendaCalculado = 0;
 
-            datosPorCajero[cajero].efectivo += ingresoTiendaCalculado;
+            // Almacenar el Total Ingresos Tienda calculado
+            datosPorCajero[cajero].ingresoTiendaCalculado = ingresoTiendaCalculado;
         });
     }
 
     // 2. Procesar Movimientos (SOLO si no hay arqueo cerrado para ese cajero/dia)
-    movimientos.forEach(m => {
+    // Primero, consolidar datos de movimientos por cajero
+    const datosPorCajeroTemp = {};
+    
+    movimientos.forEach((m, idx) => {
         const esIngreso = !m.tipo || m.tipo === 'ingreso';
         if (!esIngreso) return;
 
@@ -182,16 +219,19 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         // Si ya cargamos datos desde un arqueo cerrado, ignoramos movimientos sueltos
         if (datosPorCajero[cajero] && datosPorCajero[cajero].esArqueoCerrado) return;
 
-        if (!datosPorCajero[cajero]) {
-            datosPorCajero[cajero] = {
-                tarjeta: 0, pedidosYa: 0, credito: 0, efectivo: 0, sobrante: 0, faltante: 0,
-                egresos: 0, fondoFijo: 0, totalDeclarar: 0
+        if (!datosPorCajeroTemp[cajero]) {
+            datosPorCajeroTemp[cajero] = {
+                efectivoBruto: 0,
+                servicios: 0,
+                tarjeta: 0,
+                pedidosYa: 0,
+                credito: 0
             };
         }
 
-        datosPorCajero[cajero].tarjeta += (m.pagosTarjeta || 0);
-        datosPorCajero[cajero].pedidosYa += (m.pedidosYa || 0);
-        datosPorCajero[cajero].credito += (m.ventasCredito || 0);
+        datosPorCajeroTemp[cajero].tarjeta += (m.pagosTarjeta || 0);
+        datosPorCajeroTemp[cajero].pedidosYa += (m.pedidosYa || 0);
+        datosPorCajeroTemp[cajero].credito += (m.ventasCredito || 0);
 
         let efectivoMovimiento = 0;
         if (m.valorVenta > 0) {
@@ -204,9 +244,9 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
                 if (m.monedasExtranjeras.ars) efectivoMovimiento += (m.monedasExtranjeras.ars.montoGs || 0);
             }
         }
+        datosPorCajeroTemp[cajero].efectivoBruto += efectivoMovimiento;
 
         let montoServicioEfectivo = 0;
-        // ... (cálculo servicios) ...
         if (m.servicios) {
             Object.values(m.servicios).forEach(s => {
                 const monto = parseFloat(s.monto) || 0;
@@ -219,15 +259,53 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
                 if (monto > 0) montoServicioEfectivo += monto;
             });
         }
+        datosPorCajeroTemp[cajero].servicios += montoServicioEfectivo;
+    });
 
-        // Para movimientos sueltos, asumimos que efectivoMovimiento YA es el ingreso neto
-        // O si queremos compatibilidad con la fórmula, totalDeclarar sería el efectivo bruto
-        datosPorCajero[cajero].totalDeclarar += efectivoMovimiento;
+    // Ahora procesar datos consolidados
+    Object.keys(datosPorCajeroTemp).forEach(cajero => {
+        const temp = datosPorCajeroTemp[cajero];
 
-        let ingresoTiendaNeto = efectivoMovimiento - montoServicioEfectivo;
-        if (ingresoTiendaNeto < 0) ingresoTiendaNeto = 0;
+        if (!datosPorCajero[cajero]) {
+            datosPorCajero[cajero] = {
+                tarjeta: 0, pedidosYa: 0, credito: 0, efectivo: 0, sobrante: 0, faltante: 0,
+                egresos: 0, fondoFijo: 0, totalDeclarar: 0, ingresoTiendaCalculado: 0
+            };
+        }
 
-        datosPorCajero[cajero].efectivo += ingresoTiendaNeto;
+        datosPorCajero[cajero].tarjeta = temp.tarjeta;
+        datosPorCajero[cajero].pedidosYa = temp.pedidosYa;
+        datosPorCajero[cajero].credito = temp.credito;
+
+        // Calcular Total Egresos para este cajero desde estado.egresosCaja
+        let egresosDelCajero = 0;
+        if (estado.egresosCaja && estado.egresosCaja.length > 0) {
+            egresosDelCajero = estado.egresosCaja
+                .filter(e => !e.cajero || e.cajero === cajero || e.cajero === 'Todas las cajas')
+                .reduce((sum, e) => sum + (e.monto || 0), 0);
+        }
+        
+        // Usar fondo fijo por defecto (700000)
+        const fondoFijo = 700000;
+
+        // FÓRMULA FINAL: Total Ingresos Tienda = (Efectivo Bruto + Egresos) - Servicios - Fondo Fijo
+        const totalADeclarar = temp.efectivoBruto + egresosDelCajero;
+        const ingresoTiendaCalculado = totalADeclarar - temp.servicios - fondoFijo;
+
+        console.log(`[DEBUG CONSOLIDADO - ${cajero}]`, {
+            efectivoBruto: temp.efectivoBruto,
+            egresos: egresosDelCajero,
+            servicios: temp.servicios,
+            fondoFijo: fondoFijo,
+            totalADeclarar: totalADeclarar,
+            ingresoTiendaCalculado: Math.max(0, ingresoTiendaCalculado)
+        });
+
+        datosPorCajero[cajero].totalDeclarar = totalADeclarar;
+        datosPorCajero[cajero].egresos = egresosDelCajero;
+        datosPorCajero[cajero].fondoFijo = fondoFijo;
+        datosPorCajero[cajero].ingresoTiendaCalculado = Math.max(0, ingresoTiendaCalculado);
+        datosPorCajero[cajero].efectivo = temp.efectivoBruto;
     });
 
     // Renderizar Filas
@@ -242,15 +320,14 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         const totalDeclararSystem = d.totalDeclarar || d.efectivo;
         const egresosSystem = d.egresos || 0;
         const fondoSystem = d.fondoFijo || 0;
-        // Guardamos el "Ingreso Tienda" real para comparaciones si fuera necesario
-        const ingresoTiendaReal = d.efectivo;
+        // Guardamos el "Ingreso Tienda" real calculado para comparaciones
+        const ingresoTiendaReal = d.ingresoTiendaCalculado || 0;
 
         const rowHTML = `
             <td>${cajero}</td>
-            <td>${formatearMoneda(d.tarjeta, 'gs')}</td>
-            <td>${formatearMoneda(d.pedidosYa, 'gs')}</td>
-            <td>${formatearMoneda(d.credito, 'gs')}</td>
+            <td style="text-align: right; padding-right: 10px;"><strong>${formatearMoneda(ingresoTiendaReal, 'gs')}</strong></td>
             <td><input type="number" class="input-recaudacion" value="0" 
+                data-cajero="${cajero}"
                 data-system="${totalDeclararSystem}" 
                 data-egresos="${egresosSystem}" 
                 data-fondo="${fondoSystem}"
@@ -263,59 +340,86 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
 
         // Update function for this row
         const input = row.querySelector('.input-recaudacion');
+        
+        // Crear clave de localStorage con fecha + caja + cajero
+        const clave = `recaudacion_${fechaDesde}_${filtroCaja || 'Todas'}_${cajero}`;
+        
+        // Recuperar valor guardado en localStorage (prioridad 1)
+        let storedValue = localStorage.getItem(clave);
+        
+        // Si no está en localStorage, intentar recuperar de Supabase (prioridad 2)
+        if (!storedValue && recaudacionGuardada) {
+            const claveSupabase = `${cajero}_${filtroCaja || 'Todas'}`;
+            storedValue = recaudacionGuardada[claveSupabase];
+        }
+        
+        if (storedValue) {
+            input.value = storedValue;
+        }
+        
         const updateRow = () => {
-            const inputVal = parseFloat(input.value) || 0;
-            const systemVal = parseFloat(input.dataset.system); // Total a declarar
-            const egresosVal = parseFloat(input.dataset.egresos);
-            const fondoVal = parseFloat(input.dataset.fondo);
+            // Parsear valor removiendo puntos de formato
+            const rawValue = input.value.replace(/\./g, '');
+            const inputVal = parseFloat(rawValue) || 0;
             const ingresoTiendaVal = parseFloat(input.dataset.ingresoTienda);
 
-            // El usuario solo quiere ingresar el efectivo de tienda (sin servicios)
-            // Por eso comparamos contra el Total Ingresos Tienda ya calculado
-            const calculatedExpectation = ingresoTiendaVal;
-            const difference = inputVal - calculatedExpectation;
+            // Comparación: Efectivo ingresado - Total Ingresos Tienda
+            const difference = inputVal - ingresoTiendaVal;
 
             let sobrante = 0;
             let faltante = 0;
 
-            // Condición: si Efectivo === Total Ingresos Tienda (que es calculatedExpectation)
-            // Usamos una tolerancia pequeña para evitar errores de punto flotante
-            if (Math.abs(difference) < 1) {
-                sobrante = 0;
-                faltante = 0;
-            } else {
-                if (difference > 0) {
-                    sobrante = difference;
-                } else {
-                    faltante = Math.abs(difference);
-                }
+            if (difference < 0) {
+                sobrante = Math.abs(difference);
+            } else if (difference > 0) {
+                faltante = difference;
             }
+            // Si difference === 0, ambos quedan en 0
 
             row.querySelector('.col-sobrante').textContent = formatearMoneda(sobrante, 'gs');
             row.querySelector('.col-faltante').textContent = formatearMoneda(faltante, 'gs');
 
-            const totalCajero = d.tarjeta + d.pedidosYa + d.credito + inputVal;
+            // Subtotales = Efectivo ingresado + Sobrante - Faltante
+            const totalCajero = inputVal + sobrante - faltante;
             row.querySelector('.col-subtotal').innerHTML = `<strong>${formatearMoneda(totalCajero, 'gs')}</strong>`;
 
             actualizarTotalesFooter();
         };
 
-        input.addEventListener('input', updateRow);
+        input.addEventListener('input', () => {
+            updateRow();
+            // Guardar en localStorage
+            const rawValue = input.value.replace(/\./g, '');
+            const numValue = parseFloat(rawValue) || 0;
+            localStorage.setItem(clave, numValue);
+        });
+        input.addEventListener('blur', () => {
+            const value = parseFloat(input.value) || 0;
+            if (value > 0) {
+                // Formatear con separadores de miles
+                input.value = Math.floor(value).toLocaleString('es-PY');
+            }
+            // Guardar en localStorage
+            localStorage.setItem(clave, value);
+            
+            // Guardar en Supabase
+            if (db && db.guardarRecaudacion && fechaDesde && filtroCaja) {
+                db.guardarRecaudacion(fechaDesde, cajero, filtroCaja, value).then(success => {
+                    if (success) {
+                        console.log(`✓ Recaudación guardada en BD para ${cajero}`);
+                    }
+                });
+            }
+        });
+        input.addEventListener('focus', () => {
+            // Remover formato cuando gana el foco para que pueda editar
+            const value = parseFloat(input.value.replace(/\./g, '')) || 0;
+            input.value = value;
+        });
         setTimeout(updateRow, 0);
 
         tbody.appendChild(row);
     });
-
-    // Fila Otros Ingresos
-    const rowOtros = document.createElement('tr');
-    rowOtros.innerHTML = `
-        <td>OTROS INGRESOS</td>
-        <td></td><td></td><td></td>
-        <td>${formatearMoneda(0, 'gs')}</td>
-        <td></td><td></td>
-        <td><strong>${formatearMoneda(0, 'gs')}</strong></td>
-    `;
-    tbody.appendChild(rowOtros);
 
     // Fila Totales
     const rowTotal = document.createElement('tr');
@@ -324,13 +428,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
     tfoot.appendChild(rowTotal);
 
     function actualizarTotalesFooter() {
-        let tTarjeta = 0, tPy = 0, tCredito = 0, tEfectivo = 0, tSobrante = 0, tFaltante = 0, tSub = 0;
-
-        Object.values(datosPorCajero).forEach(d => {
-            tTarjeta += d.tarjeta;
-            tPy += d.pedidosYa;
-            tCredito += d.credito;
-        });
+        let tEfectivo = 0, tSobrante = 0, tFaltante = 0, tSub = 0;
 
         document.querySelectorAll('#tbodyRecaudacion tr').forEach(tr => {
             if (tr.querySelector('input')) {
@@ -345,9 +443,6 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         if (row) {
             row.innerHTML = `
                 <td>TOTAL RECAUDADO:</td>
-                <td>${formatearMoneda(tTarjeta, 'gs')}</td>
-                <td>${formatearMoneda(tPy, 'gs')}</td>
-                <td>${formatearMoneda(tCredito, 'gs')}</td>
                 <td>${formatearMoneda(tEfectivo, 'gs')}</td>
                 <td>${formatearMoneda(tSobrante, 'gs')}</td>
                 <td class="negativo">${formatearMoneda(tFaltante, 'gs')}</td>

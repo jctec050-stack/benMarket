@@ -207,9 +207,10 @@ const db = {
     async guardarEgresoCaja(egreso) {
         if (supabaseClient) {
             try {
+                const { user_id, ...egresoLimpio } = egreso;
                 const { data, error } = await supabaseClient
                     .from('egresos_caja')
-                    .upsert([egreso]);
+                    .upsert([egresoLimpio]);
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {
@@ -364,9 +365,10 @@ const db = {
     async guardarMovimiento(movimiento) {
         if (supabaseClient) {
             try {
+                const { user_id, ...movimientoLimpio } = movimiento;
                 const { data, error } = await supabaseClient
                     .from('movimientos')
-                    .upsert([movimiento]);
+                    .upsert([movimientoLimpio]);
                 if (error) {
                     console.error('Error de Supabase al guardar movimiento:', error);
                     console.error('Datos del movimiento:', movimiento);
@@ -570,8 +572,9 @@ const db = {
     async guardarMovimientoTemporal(item) {
         if (supabaseClient) {
             try {
-                // **NUEVO:** Asegurar que el campo arqueado esté presente
-                const itemConEstado = { ...item, arqueado: item.arqueado !== undefined ? item.arqueado : false };
+                // **NUEVO:** Asegurar que el campo arqueado esté presente y eliminar user_id
+                const { user_id, ...itemLimpio } = item;
+                const itemConEstado = { ...itemLimpio, arqueado: item.arqueado !== undefined ? item.arqueado : false };
 
                 // **DEBUG:** Log para verificar qué se está guardando
                 console.log('=== GUARDANDO EN SUPABASE ===');
@@ -793,7 +796,8 @@ async function guardarArqueo(datosArqueo) {
         }
 
         // Añadir el usuario_id a los datos del arqueo
-        const datosCompletos = { ...datosArqueo, usuario_id: usuario.id };
+        const { user_id, ...datosLimpios } = datosArqueo;
+        const datosCompletos = { ...datosLimpios, usuario_id: usuario.id };
 
         const { data, error } = await supabaseClient
             .from('arqueos')
@@ -959,3 +963,100 @@ db.obtenerArqueosPorCaja = obtenerArqueosPorCaja;
 db.obtenerArqueosPorFecha = obtenerArqueosPorFecha;
 db.actualizarArqueo = actualizarArqueo;
 db.eliminarArqueo = eliminarArqueo;
+// ===== FUNCIONES PARA RECAUDACIÓN =====
+async function guardarRecaudacion(fecha, cajero, caja, efectivo_ingresado) {
+    if (!supabaseClient) {
+        console.warn('Supabase no disponible. Usar localStorage.');
+        return false;
+    }
+
+    try {
+        const usuario = usuarioActual ? usuarioActual.email : 'desconocido';
+        
+        const { data, error } = await supabaseClient
+            .from('recaudacion')
+            .upsert({
+                fecha: fecha,
+                cajero: cajero,
+                caja: caja,
+                efectivo_ingresado: parseInt(efectivo_ingresado) || 0,
+                usuario_id: usuarioActual?.id,
+                usuario: usuario
+            }, {
+                onConflict: 'fecha,cajero,caja'
+            });
+
+        if (error) {
+            console.error('[DB] Error al guardar recaudación:', error);
+            return false;
+        }
+
+        console.log('[DB] Recaudación guardada:', { fecha, cajero, caja, efectivo_ingresado });
+        return true;
+    } catch (err) {
+        console.error('[DB] Error en guardarRecaudacion:', err);
+        return false;
+    }
+}
+
+async function obtenerRecaudacion(fecha, cajero = null, caja = null) {
+    if (!supabaseClient) {
+        console.warn('Supabase no disponible. Usar localStorage.');
+        return [];
+    }
+
+    try {
+        let query = supabaseClient
+            .from('recaudacion')
+            .select('*')
+            .eq('fecha', fecha);
+
+        if (cajero) query = query.eq('cajero', cajero);
+        if (caja) query = query.eq('caja', caja);
+
+        const { data, error } = await query;
+
+        if (error) {
+            console.error('[DB] Error al obtener recaudación:', error);
+            return [];
+        }
+
+        console.log('[DB] Recaudación recuperada:', data);
+        return data || [];
+    } catch (err) {
+        console.error('[DB] Error en obtenerRecaudacion:', err);
+        return [];
+    }
+}
+
+async function obtenerRecaudacionPorRango(fechaDesde, fechaHasta) {
+    if (!supabaseClient) {
+        console.warn('Supabase no disponible. Usar localStorage.');
+        return [];
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('recaudacion')
+            .select('*')
+            .gte('fecha', fechaDesde)
+            .lte('fecha', fechaHasta)
+            .order('fecha', { ascending: false });
+
+        if (error) {
+            console.error('[DB] Error al obtener recaudación por rango:', error);
+            return [];
+        }
+
+        console.log('[DB] Recaudación por rango recuperada:', data);
+        return data || [];
+    } catch (err) {
+        console.error('[DB] Error en obtenerRecaudacionPorRango:', err);
+        return [];
+    }
+}
+
+// Exportar funciones de recaudación
+db.guardarRecaudacion = guardarRecaudacion;
+db.obtenerRecaudacion = obtenerRecaudacion;
+db.obtenerRecaudacionPorRango = obtenerRecaudacionPorRango;

@@ -285,8 +285,10 @@ function formatearMoneda(monto, moneda = 'gs') {
 
 function parsearMoneda(valor) {
     if (typeof valor === 'number') return valor;
-    // Elimina puntos de miles y cualquier otro caracter no numérico
-    return parseInt(String(valor).replace(/\D/g, ''), 10) || 0;
+    // Elimina puntos de miles y cualquier otro caracter no numérico EXCEPTO el signo menos
+    const negativo = String(valor).includes('-');
+    const numero = parseInt(String(valor).replace(/\D/g, ''), 10) || 0;
+    return negativo ? -numero : numero;
 }
 
 function formatearFecha(fecha) {
@@ -693,7 +695,91 @@ function calcularTotalEfectivo() {
 
 // Agregar un movimiento de caja a la lista temporal (desde el formulario de Ingresar Movimiento)
 async function agregarMovimiento() {
-    // **CORRECCIÓN:** Identificar qué modal está activo para limpiar los datos de los otros.
+    // **IMPORTANTE:** Primero capturamos TODOS los valores ANTES de limpiar cualquier campo
+    const indiceEditar = document.getElementById('indiceMovimientoEditar').value;
+    const esEdicion = indiceEditar !== '';
+
+    const obtenerValorParseado = (id) => {
+        const element = document.getElementById(id);
+        return element ? parsearMoneda(element.value) : 0;
+    };
+
+    const obtenerValorInput = (selector) => {
+        const element = document.querySelector(selector);
+        return element ? parseFloat(element.value) || 0 : 0;
+    };
+
+    const obtenerValorTexto = (id) => {
+        const element = document.getElementById(id);
+        return element ? element.value : '';
+    };
+
+    // **DEBUG:** Verificar valores de servicios con efectivo ANTES de limpiar
+    console.log('=== DEBUG SERVICIOS EFECTIVO ===');
+    console.log('apLoteEfectivoMovimiento:', document.getElementById('apLoteEfectivoMovimiento')?.value);
+    console.log('aquiPagoEfectivoMovimiento:', document.getElementById('aquiPagoEfectivoMovimiento')?.value);
+    console.log('expressEfectivoMovimiento:', document.getElementById('expressEfectivoMovimiento')?.value);
+
+    // Crear el objeto movimiento CON TODOS LOS VALORES CAPTURADOS
+    const movimiento = {
+        id: generarId(),
+        fecha: document.getElementById('fechaMovimiento').value,
+        cajero: sessionStorage.getItem('usuarioActual'),
+        // **CORREGIDO:** Asegurar que la caja sea la correcta para cada rol.
+        caja: sessionStorage.getItem('userRole') === 'tesoreria'
+            ? 'Caja Tesoreria'
+            : (sessionStorage.getItem('cajaSeleccionada') || 'Caja 1'),
+        historialEdiciones: [], // Inicializamos el historial de ediciones
+        arqueado: false, // **NUEVO:** Inicializar como no arqueado
+        descripcion: document.getElementById('descripcionMovimiento').value || '',
+        efectivo: {},
+        monedasExtranjeras: {
+            usd: { cantidad: obtenerValorInput('.cantidad-moneda-movimiento[data-moneda="usd"]'), cotizacion: obtenerCotizacion('usd', true) },
+            brl: { cantidad: obtenerValorInput('.cantidad-moneda-movimiento[data-moneda="brl"]'), cotizacion: obtenerCotizacion('brl', true) },
+            ars: { cantidad: obtenerValorInput('.cantidad-moneda-movimiento[data-moneda="ars"]'), cotizacion: obtenerCotizacion('ars', true) }
+        },
+        pagosTarjeta: obtenerValorParseado('pagosTarjetaMovimiento'),
+        ventasCredito: obtenerValorParseado('ventasCreditoMovimiento'),
+        pedidosYa: obtenerValorParseado('pedidosYaMovimiento'),
+        ventas_transferencia: obtenerValorParseado('ventasTransfMovimiento'), // CORREGIDO: Coincidir con nombre de columna
+        servicios: {
+            apLote: { lote: obtenerValorTexto('apLoteEfectivoMovimiento') || obtenerValorTexto('apLoteCantMovimiento'), monto: obtenerValorParseado('apLoteEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('apLoteTarjetaMovimiento') || 0 },
+            aquiPago: { lote: obtenerValorTexto('aquiPagoEfectivoMovimiento') || obtenerValorTexto('aquiPagoLoteMovimiento'), monto: obtenerValorParseado('aquiPagoEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('aquiPagoTarjetaMovimiento') || 0 },
+            expressLote: { lote: obtenerValorTexto('expressEfectivoMovimiento') || obtenerValorTexto('expressCantMovimiento'), monto: obtenerValorParseado('expressEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('expressTarjetaMovimiento') || 0 },
+            wepa: { lote: obtenerValorTexto('wepaEfectivoMovimiento') || obtenerValorTexto('wepaFechaMovimiento'), monto: obtenerValorParseado('wepaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('wepaTarjetaMovimiento') || 0 },
+            pasajeNsa: { lote: obtenerValorTexto('pasajeNsaEfectivoMovimiento') || obtenerValorTexto('pasajeNsaLoteMovimiento'), monto: obtenerValorParseado('pasajeNsaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('pasajeNsaTarjetaMovimiento') || 0 },
+            encomiendaNsa: { lote: obtenerValorTexto('encomiendaNsaEfectivoMovimiento') || obtenerValorTexto('encomiendaNsaLoteMovimiento'), monto: obtenerValorParseado('encomiendaNsaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('encomiendaNsaTarjetaMovimiento') || 0 },
+            apostala: { lote: obtenerValorTexto('apostalaEfectivoMovimiento') || obtenerValorTexto('apostalaLoteMovimiento'), monto: obtenerValorParseado('apostalaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('apostalaTarjetaMovimiento') || 0 }
+        },
+        otrosServicios: []
+    };
+
+    console.log('=== SERVICIOS CAPTURADOS ===');
+    console.log('apLote.lote:', movimiento.servicios.apLote.lote);
+    console.log('aquiPago.lote:', movimiento.servicios.aquiPago.lote);
+
+    // Capturar desglose de efectivo
+    const inputsEfectivo = document.querySelectorAll('#tablaDenominacionesMovimiento .cantidad-denominacion-movimiento');
+    inputsEfectivo.forEach(input => {
+        const denominacion = input.dataset.denominacion;
+        const cantidad = parseInt(input.value) || 0;
+        if (cantidad > 0) {
+            movimiento.efectivo[denominacion] = cantidad;
+        }
+    });
+
+    // Capturar otros servicios dinámicos
+    document.querySelectorAll('.fila-servicio-dinamico').forEach(fila => {
+        const nombre = fila.querySelector('.nombre-servicio-dinamico').value;
+        const lote = fila.querySelector('.lote-servicio-dinamico').value;
+        const tarjeta = parsearMoneda(fila.querySelector('.tarjeta-servicio-dinamico').value);
+
+        if (nombre && tarjeta > 0) {
+            movimiento.otrosServicios.push({ nombre, lote, monto: 0, tarjeta });
+        }
+    });
+
+    // **AHORA SÍ, DESPUÉS DE CAPTURAR TODO, podemos limpiar los campos que no se usaron**
     const modalBody = document.getElementById('modal-body');
     const contenidoActivoId = modalBody.firstChild ? modalBody.firstChild.id : null;
 
@@ -727,88 +813,6 @@ async function agregarMovimiento() {
             limpiarFilasServicioEfectivoDinamicos();
         }
     }
-
-    const indiceEditar = document.getElementById('indiceMovimientoEditar').value;
-    const esEdicion = indiceEditar !== '';
-
-
-    const obtenerValorParseado = (id) => {
-        const element = document.getElementById(id);
-        return element ? parsearMoneda(element.value) : 0;
-    };
-
-    const obtenerValorInput = (selector) => {
-        const element = document.querySelector(selector);
-        return element ? parseFloat(element.value) || 0 : 0;
-    };
-
-    const obtenerValorTexto = (id) => {
-        const element = document.getElementById(id);
-        return element ? element.value : '';
-    };
-
-    const movimiento = {
-        id: generarId(),
-        fecha: document.getElementById('fechaMovimiento').value,
-        cajero: sessionStorage.getItem('usuarioActual'),
-        // **CORREGIDO:** Asegurar que la caja sea la correcta para cada rol.
-        caja: sessionStorage.getItem('userRole') === 'tesoreria'
-            ? 'Caja Tesoreria'
-            : (sessionStorage.getItem('cajaSeleccionada') || 'Caja 1'),
-        historialEdiciones: [], // Inicializamos el historial de ediciones
-        arqueado: false, // **NUEVO:** Inicializar como no arqueado
-        descripcion: document.getElementById('descripcionMovimiento').value || '',
-        efectivo: {},
-        monedasExtranjeras: {
-            usd: { cantidad: obtenerValorInput('.cantidad-moneda-movimiento[data-moneda="usd"]'), cotizacion: obtenerCotizacion('usd', true) },
-            brl: { cantidad: obtenerValorInput('.cantidad-moneda-movimiento[data-moneda="brl"]'), cotizacion: obtenerCotizacion('brl', true) },
-            ars: { cantidad: obtenerValorInput('.cantidad-moneda-movimiento[data-moneda="ars"]'), cotizacion: obtenerCotizacion('ars', true) }
-        },
-        pagosTarjeta: obtenerValorParseado('pagosTarjetaMovimiento'),
-        ventasCredito: obtenerValorParseado('ventasCreditoMovimiento'),
-        pedidosYa: obtenerValorParseado('pedidosYaMovimiento'),
-        ventas_transferencia: obtenerValorParseado('ventasTransfMovimiento'), // CORREGIDO: Coincidir con nombre de columna
-        servicios: {
-            apLote: { lote: obtenerValorTexto('apLoteCantMovimiento'), monto: obtenerValorParseado('apLoteEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('apLoteTarjetaMovimiento') || 0 },
-            aquiPago: { lote: obtenerValorTexto('aquiPagoLoteMovimiento'), monto: obtenerValorParseado('aquiPagoEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('aquiPagoTarjetaMovimiento') || 0 },
-            expressLote: { lote: obtenerValorTexto('expressCantMovimiento'), monto: obtenerValorParseado('expressEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('expressTarjetaMovimiento') || 0 },
-            wepa: { lote: obtenerValorTexto('wepaFechaMovimiento'), monto: obtenerValorParseado('wepaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('wepaTarjetaMovimiento') || 0 },
-            pasajeNsa: { lote: obtenerValorTexto('pasajeNsaLoteMovimiento'), monto: obtenerValorParseado('pasajeNsaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('pasajeNsaTarjetaMovimiento') || 0 },
-            encomiendaNsa: { lote: obtenerValorTexto('encomiendaNsaLoteMovimiento'), monto: obtenerValorParseado('encomiendaNsaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('encomiendaNsaTarjetaMovimiento') || 0 },
-            apostala: { lote: obtenerValorTexto('apostalaLoteMovimiento'), monto: obtenerValorParseado('apostalaEfectivoMontoMovimiento') || 0, tarjeta: obtenerValorParseado('apostalaTarjetaMovimiento') || 0 }
-        },
-        otrosServicios: []
-    };
-
-    // Capturar desglose de efectivo
-    // **DEBUG:** Verificar que los inputs existan
-    const inputsEfectivo = document.querySelectorAll('#tablaDenominacionesMovimiento .cantidad-denominacion-movimiento');
-    console.log('=== CAPTURANDO EFECTIVO ===');
-    console.log('Inputs encontrados:', inputsEfectivo.length);
-
-    inputsEfectivo.forEach(input => {
-        const denominacion = input.dataset.denominacion;
-        const cantidad = parseInt(input.value) || 0;
-        console.log(`Denom ${denominacion}: cantidad=${cantidad}`);
-        if (cantidad > 0) {
-            movimiento.efectivo[denominacion] = cantidad;
-        }
-    });
-
-    console.log('Efectivo capturado:', movimiento.efectivo);
-
-
-
-    // Capturar otros servicios dinámicos
-    document.querySelectorAll('.fila-servicio-dinamico').forEach(fila => {
-        const nombre = fila.querySelector('.nombre-servicio-dinamico').value;
-        const lote = fila.querySelector('.lote-servicio-dinamico').value;
-        const tarjeta = parsearMoneda(fila.querySelector('.tarjeta-servicio-dinamico').value);
-
-        if (nombre && tarjeta > 0) {
-            movimiento.otrosServicios.push({ nombre, lote, monto: 0, tarjeta });
-        }
-    });
 
     if (esEdicion) {
         // **REFACTORIZADO:** Usar la nueva función auxiliar
@@ -907,6 +911,40 @@ function limpiarFormularioMovimiento() {
         'pasajeNsaTarjetaMovimiento', 'encomiendaNsaTarjetaMovimiento', 'apostalaTarjetaMovimiento'
     ];
     camposFormateados.forEach(id => document.getElementById(id).value = '0');
+
+    // Limpiar campos de Servicios con Tarjeta
+    const camposServiciosTarjeta = [
+        'apLoteCantMovimiento',
+        'aquiPagoLoteMovimiento',
+        'expressCantMovimiento',
+        'wepaFechaMovimiento',
+        'pasajeNsaLoteMovimiento',
+        'encomiendaNsaLoteMovimiento',
+        'apostalaLoteMovimiento'
+    ];
+    camposServiciosTarjeta.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.value = '';
+        }
+    });
+
+    // Limpiar campos de Servicios con Efectivo
+    const camposServiciosEfectivo = [
+        'apLoteEfectivoMovimiento', 'apLoteEfectivoMontoMovimiento',
+        'aquiPagoEfectivoMovimiento', 'aquiPagoEfectivoMontoMovimiento',
+        'expressEfectivoMovimiento', 'expressEfectivoMontoMovimiento',
+        'wepaEfectivoMovimiento', 'wepaEfectivoMontoMovimiento',
+        'pasajeNsaEfectivoMovimiento', 'pasajeNsaEfectivoMontoMovimiento',
+        'encomiendaNsaEfectivoMovimiento', 'encomiendaNsaEfectivoMontoMovimiento',
+        'apostalaEfectivoMovimiento', 'apostalaEfectivoMontoMovimiento'
+    ];
+    camposServiciosEfectivo.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.value = '';
+        }
+    });
 
     limpiarFilasServiciosDinamicos();
 }
@@ -1243,7 +1281,7 @@ function calcularTotalesArqueo(movimientosParaArqueo) {
         const sumarServicio = (nombreServicio) => {
             // Solo procesar servicios si el movimiento tiene servicios (no es un egreso)
             if (mov.servicios && mov.servicios[nombreServicio]) {
-                if (mov.servicios[nombreServicio].monto > 0 || mov.servicios[nombreServicio].tarjeta > 0) {
+                if (mov.servicios[nombreServicio].monto !== 0 || mov.servicios[nombreServicio].tarjeta !== 0) {
                     if (mov.servicios[nombreServicio].lote) {
                         totales.servicios[nombreServicio].lotes.push(mov.servicios[nombreServicio].lote);
                     }
@@ -5126,7 +5164,11 @@ function calcularTotalVueltoServicioRegistrado() {
 }
 
 function guardarServicioEfectivo() {
-    let servicioSeleccionado = servicioEfectivoSelect.value;
+    const servicioEfectivoSelect = document.getElementById('servicioEfectivoSelect');
+    const loteServicioEfectivoInput = document.getElementById('loteServicioEfectivo');
+
+    let servicioSeleccionado = servicioEfectivoSelect ? servicioEfectivoSelect.value : '';
+    const loteIngresado = loteServicioEfectivoInput ? (loteServicioEfectivoInput.value.trim() || '-') : '-';
 
     const montoServicio = parsearMoneda(document.getElementById('totalServicioModal').value);
     const montoRecibido = parsearMoneda(document.getElementById('montoRecibidoModal').value);
@@ -5185,14 +5227,14 @@ function guardarServicioEfectivo() {
     const keyServicio = mapaServicios[servicioSeleccionado];
     if (keyServicio) {
         servicios[keyServicio] = {
-            lote: null, // No hay campo de lote en este formulario por ahora
+            lote: loteIngresado, // **CORREGIDO:** Capturar el lote del formulario
             monto: montoServicio, // Monto en efectivo
             tarjeta: 0
         };
     } else {
         otrosServicios.push({
             nombre: servicioSeleccionado,
-            lote: null,
+            lote: loteIngresado, // **CORREGIDO:** Capturar el lote del formulario
             monto: montoServicio,
             tarjeta: 0
         });
@@ -5857,7 +5899,7 @@ function renderizarResumenServicios() {
 
     if (!grid) return;
 
-    // **CORRECCIÓN:** Combinar movimientos históricos y temporales y filtrar
+    // Combinar movimientos históricos y temporales y filtrar
     let todosLosMovimientos = [
         ...(estado.movimientos || []),
         ...(estado.movimientosTemporales || [])
@@ -5876,41 +5918,80 @@ function renderizarResumenServicios() {
 
     const datosServicios = agruparMovimientosPorServicio(todosLosMovimientos);
     grid.innerHTML = '';
-
+    grid.style.display = 'block'; // Cambiar de grid a block
 
     if (Object.keys(datosServicios).length === 0) {
         grid.innerHTML = '<p class="sin-resultados">No hay movimientos de servicios registrados.</p>';
         return;
     }
 
+    // Crear tablas estilo Excel para cada servicio
     Object.keys(datosServicios).sort().forEach(nombreServicio => {
         const datos = datosServicios[nombreServicio];
-        const card = document.createElement('div');
-        card.className = 'card-resumen';
-        card.style.cursor = 'pointer';
-        card.style.transition = 'transform 0.2s';
-        card.onclick = () => abrirModalDetalleServicio(nombreServicio, datos.items);
 
-        card.innerHTML = `
-            <div style="padding: 1.5rem; background: var(--color-fondo-tarjeta, white); border-radius: 8px; box-shadow: var(--sombra-tarjeta, 0 2px 4px rgba(0,0,0,0.1)); border-left: 5px solid var(--color-primario);">
-                <h3 style="margin-top: 0; color: var(--color-primario); font-size: 1.2rem;">${nombreServicio}</h3>
-                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 1rem;">
-                    <div>
-                        <span style="font-size: 0.9rem; color: var(--color-texto-secundario);">Transacciones</span>
-                        <div style="font-size: 1.5rem; font-weight: bold;">${datos.items.length}</div>
-                    </div>
-                    <div style="text-align: right;">
-                        <span style="font-size: 0.9rem; color: var(--color-texto-secundario);">Total</span>
-                        <div style="font-size: 1.5rem; font-weight: bold; color: var(--color-exito);">${formatearMoneda(datos.total, 'gs')}</div>
-                    </div>
-                </div>
-            </div>
+        // Contenedor de tabla
+        const tablaContainer = document.createElement('div');
+        tablaContainer.className = 'tabla-servicio-container';
+        tablaContainer.style.marginBottom = '2rem';
+
+        // Crear tabla
+        const tabla = document.createElement('table');
+        tabla.className = 'tabla-servicio-excel';
+
+        // Encabezado con nombre del servicio
+        const thead = document.createElement('thead');
+        thead.innerHTML = `
+            <tr class="servicio-header">
+                <th colspan="5" style="background: #f8f9fa; color: #374151; padding: 0.75rem; text-align: center; font-size: 1.1rem; font-weight: bold; border: 1px solid #212121;">
+                    ${nombreServicio.toUpperCase()}
+                </th>
+            </tr>
+            <tr class="servicio-subheader">
+                <th>CAJERO</th>
+                <th>LOTE</th>
+                <th>EFECTIVO</th>
+                <th>TARJETA</th>
+                <th>DEPOSITADO</th>
+            </tr>
         `;
+        tabla.appendChild(thead);
 
-        card.addEventListener('mouseenter', () => card.style.transform = 'translateY(-5px)');
-        card.addEventListener('mouseleave', () => card.style.transform = 'translateY(0)');
+        // Cuerpo de la tabla
+        const tbody = document.createElement('tbody');
+        let totalEfectivo = 0;
+        let totalTarjeta = 0;
+        let totalDepositado = 0;
 
-        grid.appendChild(card);
+        datos.items.forEach(item => {
+            const fila = document.createElement('tr');
+            fila.innerHTML = `
+                <td>${item.cajero || '-'}</td>
+                <td>${item.lote || '-'}</td>
+                <td style="text-align: right;">${item.efectivo > 0 ? formatearMoneda(item.efectivo, 'gs') : '-'}</td>
+                <td style="text-align: right;">${item.tarjeta > 0 ? formatearMoneda(item.tarjeta, 'gs') : '-'}</td>
+                <td style="text-align: right;">-</td>
+            `;
+            tbody.appendChild(fila);
+
+            totalEfectivo += item.efectivo;
+            totalTarjeta += item.tarjeta;
+        });
+        tabla.appendChild(tbody);
+
+        // Fila de totales
+        const tfoot = document.createElement('tfoot');
+        tfoot.innerHTML = `
+            <tr class="servicio-totales">
+                <td colspan="2" style="text-align: left; font-weight: bold;">TOTALES</td>
+                <td style="text-align: right; font-weight: bold;">${totalEfectivo > 0 ? formatearMoneda(totalEfectivo, 'gs') : '0'}</td>
+                <td style="text-align: right; font-weight: bold;">${totalTarjeta > 0 ? formatearMoneda(totalTarjeta, 'gs') : '0'}</td>
+                <td style="text-align: right; font-weight: bold;">${totalDepositado > 0 ? formatearMoneda(totalDepositado, 'gs') : '0'}</td>
+            </tr>
+        `;
+        tabla.appendChild(tfoot);
+
+        tablaContainer.appendChild(tabla);
+        grid.appendChild(tablaContainer);
     });
 }
 
@@ -5921,8 +6002,11 @@ function agruparMovimientosPorServicio(movimientos) {
         // 1. Servicios estáticos
         if (mov.servicios) {
             Object.entries(mov.servicios).forEach(([key, serv]) => {
-                const montoTotal = (serv.monto || 0) + (serv.tarjeta || 0);
-                if (montoTotal > 0 || (serv.lote && serv.lote.trim() !== '')) {
+                const efectivo = serv.monto || 0;
+                const tarjeta = serv.tarjeta || 0;
+                const montoTotal = efectivo + tarjeta;
+
+                if (montoTotal !== 0 || (serv.lote && serv.lote.trim() !== '')) {
                     const nombres = {
                         apLote: 'Aca Puedo',
                         aquiPago: 'Aquí Pago',
@@ -5940,7 +6024,9 @@ function agruparMovimientosPorServicio(movimientos) {
                         fecha: mov.fecha,
                         caja: mov.caja,
                         cajero: mov.cajero,
-                        lote: serv.lote,
+                        lote: serv.lote || '-',
+                        efectivo: efectivo,
+                        tarjeta: tarjeta,
                         monto: montoTotal
                     });
                     agrupado[nombreReal].total += montoTotal;
@@ -5951,7 +6037,9 @@ function agruparMovimientosPorServicio(movimientos) {
         // 2. Servicios dinámicos
         if (mov.otrosServicios && Array.isArray(mov.otrosServicios)) {
             mov.otrosServicios.forEach(serv => {
-                const montoTotal = (serv.monto || 0) + (serv.tarjeta || 0);
+                const efectivo = serv.monto || 0;
+                const tarjeta = serv.tarjeta || 0;
+                const montoTotal = efectivo + tarjeta;
                 const nombreReal = serv.nombre || 'Otro Servicio';
 
                 if (!agrupado[nombreReal]) agrupado[nombreReal] = { total: 0, items: [] };
@@ -5960,7 +6048,9 @@ function agruparMovimientosPorServicio(movimientos) {
                     fecha: mov.fecha,
                     caja: mov.caja,
                     cajero: mov.cajero,
-                    lote: serv.lote,
+                    lote: serv.lote || '-',
+                    efectivo: efectivo,
+                    tarjeta: tarjeta,
                     monto: montoTotal
                 });
                 agrupado[nombreReal].total += montoTotal;
