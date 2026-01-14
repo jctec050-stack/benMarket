@@ -1476,7 +1476,6 @@ function renderizarVistaArqueoFinal(totales) {
                 <div class="resumen-totales" style="margin-top: 1rem;">
                     <div class="total-item" style="color: var(--color-info);"><span>Total Efectivo Bruto + Fondo Fijo:</span><span>${formatearMoneda(totalEfectivoBruto, 'gs')}</span></div>
                     <div class="total-item negativo"><span>- Fondo Fijo:</span><span>${formatearMoneda(fondoFijo, 'gs')}</span></div>
-                    <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalEfectivoBruto - fondoFijo, 'gs')}</strong></div>
                     <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalAEntregarGs, 'gs')}</strong></div>
                     ${totalesMonedasHTML}
                 </div>
