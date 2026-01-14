@@ -42,11 +42,11 @@
             <div class="resumen-filtros">
                 <div class="form-grupo">
                     <label for="fechaResumenDesde">Desde:</label>
-                    <input type="date" id="fechaResumenDesde" onchange="cargarResumenDiario()">
+                    <input type="date" id="fechaResumenDesde" onchange="cargarResumenDiario(); cargarTablaPagosEgresos()">
                 </div>
                 <div class="form-grupo">
                     <label for="fechaResumenHasta">Hasta:</label>
-                    <input type="date" id="fechaResumenHasta" onchange="cargarResumenDiario()">
+                    <input type="date" id="fechaResumenHasta" onchange="cargarResumenDiario(); cargarTablaPagosEgresos()">
                 </div>
                 <div class="form-grupo">
                     <label for="filtroCajaGeneral">Caja:</label>
@@ -125,6 +125,27 @@
                 </div>
             </div>
 
+            <!-- Seccion Pagos/Egresos -->
+            <div class="recaudacion-section" style="margin-top: 2rem;">
+                <h2 class="section-title text-center">PAGOS / EGRESOS</h2>
+                <div class="table-responsive">
+                    <table class="tabla-recaudacion" id="tablaPagosEgresos">
+                        <thead>
+                            <tr>
+                                <th>CAJERO</th>
+                                <th>CATEGORÍA</th>
+                                <th>DESCRIPCIÓN</th>
+                                <th>MONTO</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyPagosEgresos">
+                        </tbody>
+                        <tfoot id="tfootPagosEgresos">
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
         </section>
     </main>
 
@@ -144,6 +165,7 @@
                 setTimeout(() => {
                     window.actualizarMetricasResumen();
                 }, 500);
+                setTimeout(() => { if(window.cargarTablaPagosEgresos) window.cargarTablaPagosEgresos(); }, 600);
             }
         });
     </script>

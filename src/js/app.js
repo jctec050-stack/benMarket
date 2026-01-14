@@ -261,6 +261,7 @@ async function initSupabaseData() {
     }
 
     cargarResumenDiario();
+    if (typeof window.cargarTablaPagosEgresos === 'function') window.cargarTablaPagosEgresos();
 }
 
 window.initSupabaseData = initSupabaseData;
@@ -1386,10 +1387,12 @@ function renderizarVistaArqueoFinal(totales) {
         totalServiciosEfectivo += servicio.monto; // Sumar solo efectivo
     }
 
-    const totalEfectivoBruto = totalEfectivoFinal; // Solo efectivo en Gs
+    const totalEfectivoBruto = totalEfectivoFinal + totalMonedasExtranjerasGs; // Efectivo Gs + Moneda Extranjera
     // **CORRECCIÓN:** El total a entregar debe ser el resultado de (Total Efectivo Bruto + Fondo Fijo) - Fondo Fijo,
     // lo que es igual al Total Efectivo Bruto. La variable 'totalAEntregar' ahora contendrá este valor.
     const totalAEntregar = totalEfectivoBruto;
+    // **CORRECCIÓN:** Total a entregar GS = Efectivo GS - Fondo Fijo (sin monedas extranjeras)
+    const totalAEntregarGs = totalEfectivoFinal - fondoFijo;
     const totalIngresoEfectivo = totalServiciosEfectivo; // **NUEVA LÓGICA:** El total de ingreso efectivo es solo el efectivo de servicios.
 
     // **NUEVO:** Filtrar arqueados para cajeros
@@ -1474,6 +1477,7 @@ function renderizarVistaArqueoFinal(totales) {
                     <div class="total-item" style="color: var(--color-info);"><span>Total Efectivo Bruto + Fondo Fijo:</span><span>${formatearMoneda(totalEfectivoBruto, 'gs')}</span></div>
                     <div class="total-item negativo"><span>- Fondo Fijo:</span><span>${formatearMoneda(fondoFijo, 'gs')}</span></div>
                     <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalEfectivoBruto - fondoFijo, 'gs')}</strong></div>
+                    <div class="total-item final"><strong>Total a Entregar (G$):</strong><strong>${formatearMoneda(totalAEntregarGs, 'gs')}</strong></div>
                     ${totalesMonedasHTML}
                 </div>
             </div>
@@ -2792,6 +2796,7 @@ function aplicarFiltroCajaGeneral() {
 
     // Recargar el resumen con los nuevos filtros
     cargarResumenDiario();
+    if (typeof window.cargarTablaPagosEgresos === 'function') window.cargarTablaPagosEgresos();
 }
 
 // Resumen de tesorería
@@ -3126,6 +3131,72 @@ async function cargarResumenDiario() {
         headerElement.classList.toggle('activo', !estaVisible);
     }
 }
+
+// **NUEVO:** Función para cargar la tabla de Pagos/Egresos en Resumen
+window.cargarTablaPagosEgresos = function() {
+    const tbody = document.getElementById('tbodyPagosEgresos');
+    const tfoot = document.getElementById('tfootPagosEgresos');
+    if (!tbody) return;
+
+    const fechaDesde = document.getElementById('fechaResumenDesde')?.value;
+    const fechaHasta = document.getElementById('fechaResumenHasta')?.value;
+    const cajaFiltro = document.getElementById('filtroCajaGeneral')?.value;
+
+    // Filtrar Egresos de Caja
+    const egresosCaja = (estado.egresosCaja || []).filter(e => {
+        const fecha = e.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || e.caja === cajaFiltro);
+        return matchFecha && matchCaja;
+    });
+
+    // Filtrar Operaciones (Gastos/Egresos)
+    const egresosOperaciones = (estado.movimientos || []).filter(m => {
+        const fecha = m.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
+        const esEgreso = ['gasto', 'egreso', 'transferencia', 'operacion'].includes(m.tipo);
+        return matchFecha && matchCaja && esEgreso;
+    });
+
+    const todos = [...egresosCaja, ...egresosOperaciones].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    tbody.innerHTML = '';
+    let total = 0;
+
+    if (todos.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No hay pagos/egresos registrados</td></tr>';
+    } else {
+        todos.forEach(item => {
+            const monto = item.monto || 0;
+            total += monto;
+            
+            let categoria = item.categoria || item.tipo || 'Egreso';
+            if (categoria === 'gasto') categoria = 'Gasto General';
+            if (categoria === 'egreso') categoria = 'Pago a Proveedor';
+            if (categoria === 'operacion') categoria = 'Operación Bancaria';
+            if (categoria === 'transferencia') categoria = 'Transferencia';
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${item.cajero || 'N/A'}</td>
+                <td>${categoria.toUpperCase()}</td>
+                <td>${item.descripcion || ''}</td>
+                <td class="negativo">${formatearMoneda(monto, 'gs')}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    if (tfoot) {
+        tfoot.innerHTML = `
+            <tr class="total-row">
+                <td colspan="3" style="text-align: right;">TOTAL EGRESOS:</td>
+                <td class="negativo">${formatearMoneda(total, 'gs')}</td>
+            </tr>
+        `;
+    }
+};
 
 /**
  * Función auxiliar para renderizar una lista de movimientos en el DOM.
