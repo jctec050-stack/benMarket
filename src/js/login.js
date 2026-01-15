@@ -64,8 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
 
-                // Validar acceso a Caja Tesoreria
-                if (caja === 'Caja Tesoreria' && perfil.rol !== 'tesoreria' && perfil.rol !== 'admin') {
+                if (caja === 'Tesoreria' && perfil.rol !== 'tesoreria' && perfil.rol !== 'admin') {
                     await db.cerrarSesion();
                     errorMessage.textContent = 'Acceso denegado: Solo Tesorería o Administración pueden acceder a esta caja.';
                     return;
@@ -85,7 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (perfil.rol === 'cajero') {
                     sessionStorage.setItem('cajaSeleccionada', caja);
                 } else if (perfil.rol === 'tesoreria') {
-                    sessionStorage.setItem('cajaSeleccionada', 'Caja Tesoreria');
+                    sessionStorage.setItem('cajaSeleccionada', 'Tesoreria');
                 } else if (perfil.rol === 'admin') {
                     // Admin no tiene caja específica (tiene acceso a todas)
                     sessionStorage.removeItem('cajaSeleccionada');

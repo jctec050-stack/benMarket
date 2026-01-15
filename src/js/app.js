@@ -178,7 +178,7 @@ async function initSupabaseData() {
     }
 
     const rol = sessionStorage.getItem('userRole');
-    const caja = rol === 'tesoreria' ? 'Caja Tesoreria' : (sessionStorage.getItem('cajaSeleccionada') || '');
+    const caja = rol === 'tesoreria' ? 'Tesoreria' : (sessionStorage.getItem('cajaSeleccionada') || '');
 
     // **CORRECCIÓN:** Cargar TODOS los datos de Supabase (sin filtro de fecha)
     const a = await window.db.obtenerArqueosPorFecha(fechaBase);
@@ -261,7 +261,14 @@ async function initSupabaseData() {
     }
 
     cargarResumenDiario();
+    cargarResumenDiario();
     if (typeof window.cargarTablaPagosEgresos === 'function') window.cargarTablaPagosEgresos();
+
+    // Configurar interfaz según rol
+    const usuarioActual = sessionStorage.getItem('usuarioActual');
+    if (typeof configurarVistaPorRol === 'function') {
+        configurarVistaPorRol(rol, caja, usuarioActual);
+    }
 }
 
 window.initSupabaseData = initSupabaseData;
@@ -728,7 +735,7 @@ async function agregarMovimiento() {
         cajero: sessionStorage.getItem('usuarioActual'),
         // **CORREGIDO:** Asegurar que la caja sea la correcta para cada rol.
         caja: sessionStorage.getItem('userRole') === 'tesoreria'
-            ? 'Caja Tesoreria'
+            ? 'Tesoreria'
             : (sessionStorage.getItem('cajaSeleccionada') || 'Caja 1'),
         historialEdiciones: [], // Inicializamos el historial de ediciones
         arqueado: false, // **NUEVO:** Inicializar como no arqueado
@@ -995,10 +1002,10 @@ function renderizarIngresosAgregados() {
         // 1. Ocultar Arqueados
         movimientosFiltrados = movimientosFiltrados.filter(m => !m.arqueado);
 
-        // 2. Ocultar movimientos de OTROS usuarios (segregación por cajero)
-        if (usuarioPerfil && usuarioPerfil.username) {
-            const nombreUsuarioActual = usuarioPerfil.username;
-            movimientosFiltrados = movimientosFiltrados.filter(m => m.cajero === nombreUsuarioActual);
+        // 2. Filtrar por CAJA (segregación por caja, no por usuario)
+        const cajaAsignada = sessionStorage.getItem('cajaSeleccionada');
+        if (cajaAsignada) {
+            movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaAsignada);
         }
     }
 
@@ -1646,7 +1653,12 @@ function cargarHistorialMovimientosDia() {
     if (!fechaInput || !cajaInput) return;
 
     const fechaFiltro = fechaInput.value.split('T')[0];
-    const cajaFiltro = cajaInput.value;
+    let cajaFiltro = cajaInput.value;
+
+    // **SEGURIDAD:** Si es cajero, forzar la caja asignada
+    if (sessionStorage.getItem('userRole') === 'cajero') {
+        cajaFiltro = sessionStorage.getItem('cajaSeleccionada');
+    }
 
     // **DEBUG:** Log para verificar qué datos tenemos
     console.log('=== cargarHistorialMovimientosDia ===');
@@ -1657,25 +1669,27 @@ function cargarHistorialMovimientosDia() {
     console.log('Total movimientos (operaciones):', estado.movimientos.length);
 
     // Obtener movimientos
-    // Obtener movimientos
     // **CORRECCIÓN:** Manejar correctamente el filtro 'Todas las cajas'
-    // **CORRECCIÓN:** Manejar correctamente el filtro 'Todas las cajas' y USUARIO
 
     // Configurar filtro de usuario
     const userRole = sessionStorage.getItem('userRole');
     const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
+
+    // **CAMBIO:** Ya no filtramos por usuario específico, sino estrictamente por caja.
+    /*
     let usuarioActualNombre = null;
     if (!mostrarTodo && usuarioPerfil && usuarioPerfil.username) {
         usuarioActualNombre = usuarioPerfil.username;
     }
+    */
 
     const ingresos = estado.movimientosTemporales.filter(m => {
         const coincideFecha = m.fecha.startsWith(fechaFiltro);
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
-        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+        // const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
         // **NUEVO:** Ocultar ingresos arqueados para cajeros
         const noEstaArqueado = mostrarTodo || !m.arqueado;
-        return coincideFecha && coincideCaja && coincideUsuario && noEstaArqueado;
+        return coincideFecha && coincideCaja && noEstaArqueado;
     }).map(m => ({ ...m, tipoMovimiento: 'ingreso' }));
 
     console.log('[DEBUG] mostrarTodo:', mostrarTodo, 'userRole:', userRole);
@@ -1685,7 +1699,7 @@ function cargarHistorialMovimientosDia() {
     const egresosCaja = estado.egresosCaja.filter(e => {
         const coincideFecha = e.fecha.startsWith(fechaFiltro);
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
-        const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
+        // const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
         // **NUEVO:** Ocultar egresos arqueados para cajeros
         const noEstaArqueado = mostrarTodo || !e.arqueado;
 
@@ -1693,7 +1707,7 @@ function cargarHistorialMovimientosDia() {
             console.log('[DEBUG] Egreso filtrado por arqueado:', e.id, e.categoria, 'arqueado:', e.arqueado);
         }
 
-        return coincideFecha && coincideCaja && coincideUsuario && noEstaArqueado;
+        return coincideFecha && coincideCaja && noEstaArqueado;
     }).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
 
     console.log('[DEBUG] Egresos después de filtrar:', egresosCaja.length);
@@ -1702,8 +1716,9 @@ function cargarHistorialMovimientosDia() {
         const coincideFecha = m.fecha.startsWith(fechaFiltro);
         const esEgreso = (m.tipo === 'gasto' || m.tipo === 'egreso');
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
-        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
-        return coincideFecha && esEgreso && coincideCaja && coincideUsuario;
+        // const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+        return coincideFecha && esEgreso && coincideCaja;
+
     }).map(m => ({ ...m, tipoMovimiento: 'egreso' }));
 
     console.log('Ingresos filtrados:', ingresos.length);
@@ -2155,7 +2170,7 @@ function cargarHistorialGastos() {
         movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaAsignada);
     } else if (userRole === 'tesoreria') {
         // Tesorería solo ve los movimientos de su propia caja.
-        movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === 'Caja Tesoreria');
+        movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === 'Tesoreria');
     } else if (userRole === 'admin') {
         // El admin puede filtrar por cualquier caja usando el selector.
         if (cajaFiltro) {
@@ -4067,21 +4082,11 @@ function configurarVistaPorRol(rol, caja, usuario) {
     const selectoresCaja = ['caja', 'cajaEgreso', 'cajaGasto', 'filtroCajaIngresos', 'filtroCajaEgresos', 'filtroCajaGastos'];
     const indicadoresCaja = ['cajaActivaIngresos', 'cajaActivaEgresos', 'cajaActivaOperaciones', 'cajaActivaArqueo'];
 
-    if (rol === 'admin') {
-        // El admin puede cambiar de caja, así que los selectores deben estar habilitados.
+    if (rol === 'admin' || rol === 'tesoreria') {
+        // El admin y tesoreria pueden cambiar de caja, así que los selectores deben estar habilitados.
         selectoresCaja.forEach(id => {
             const select = document.getElementById(id);
             if (select) select.disabled = false;
-        });
-
-    } else if (rol === 'tesoreria') {
-        // Tesorería usa "Caja Tesoreria" y no puede cambiarla.
-        selectoresCaja.forEach(id => {
-            const select = document.getElementById(id);
-            if (select) {
-                select.value = 'Caja Tesoreria';
-                select.disabled = true;
-            }
         });
 
     } else if (rol === 'cajero') {
@@ -4093,11 +4098,13 @@ function configurarVistaPorRol(rol, caja, usuario) {
                 select.disabled = true;
             }
         });
-        indicadoresCaja.forEach(id => {
-            const indicador = document.getElementById(id);
-            if (indicador) indicador.textContent = caja;
-        });
     }
+
+    // Actualizar indicadores de caja para TODOS los roles
+    indicadoresCaja.forEach(id => {
+        const indicador = document.getElementById(id);
+        if (indicador) indicador.textContent = caja || '-';
+    });
 
     // **CORRECCIÓN:** Llenar el campo de cajero en la página de Arqueo para todos los roles.
     const cajeroInputArqueo = document.getElementById('cajero');
@@ -4581,25 +4588,61 @@ function mostrarDetallesArqueo(arqueoId) {
 // **NUEVA FUNCIÓN PARA EXPORTAR ARQUEO ACTUAL A PDF**
 function exportarArqueoActualPDF(esGuardadoFinal = false) {
     const fechaArqueo = document.getElementById('fecha').value.split('T')[0];
-    // **CORRECCIÓN:** Usar el filtro de la página de arqueo, no de ingresos.
     const cajaFiltro = document.getElementById('caja').value;
 
-    // CORRECCIÓN: Filtrar ingresos por fecha y caja para que coincida con la vista.
-    let ingresosParaArqueo = estado.movimientosTemporales.filter(m =>
-        m.fecha.startsWith(fechaArqueo) && m.caja === cajaFiltro
-    );
-    let egresosParaArqueo = estado.egresosCaja.filter(e =>
-        e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro
-    );
+    // 1. Obtener Igresos y Egresos filtrados para re-calcular todo
+    // Esto asegura que lo que se imprime es EXACTAMENTE lo que se calculó para la vista,
+    // respetando los mismos filtros de caja y (si aplica) usuario.
+    const userRole = sessionStorage.getItem('userRole');
+    const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria';
+    let usuarioActualNombre = null;
+    if (!mostrarArqueados && usuarioPerfil && usuarioPerfil.username) {
+        usuarioActualNombre = usuarioPerfil.username;
+    }
+
+    // Filtros de lógica base (mismos que actualizarArqueoFinal)
+    let ingresosParaArqueo = estado.movimientosTemporales.filter(m => {
+        const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
+        const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
+        const visible = mostrarArqueados || !m.arqueado;
+        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+        return coincideFecha && coincideCaja && visible && coincideUsuario;
+    });
+
+    let egresosDeCaja = estado.egresosCaja.filter(e => {
+        const coincideFecha = e.fecha.split('T')[0] === fechaArqueo;
+        const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
+        const visible = mostrarArqueados || !e.arqueado;
+        const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
+        return coincideFecha && coincideCaja && visible && coincideUsuario;
+    });
+
+    let egresosDeOperaciones = estado.movimientos.filter(m => {
+        const esEgreso = (m.tipo === 'gasto' || m.tipo === 'egreso');
+        const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
+        const coincideCaja = m.caja && (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
+        const visible = mostrarArqueados || !m.arqueado;
+        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+        return esEgreso && coincideFecha && coincideCaja && visible && coincideUsuario;
+    });
+
+    let todosLosEgresos = [...egresosDeCaja, ...egresosDeOperaciones];
+
+    // Aplicar filtro estricto de caja si no es 'Todas'
+    if (cajaFiltro && cajaFiltro !== 'Todas las cajas') {
+        ingresosParaArqueo = ingresosParaArqueo.filter(m => m.caja === cajaFiltro);
+        todosLosEgresos = todosLosEgresos.filter(e => e.caja === cajaFiltro);
+    }
 
     const movimientosParaArqueo = [
         ...ingresosParaArqueo.map(m => ({ ...m, tipoMovimiento: 'ingreso' })),
-        ...egresosParaArqueo.map(e => ({ ...e, tipoMovimiento: 'egreso' }))
+        ...todosLosEgresos.map(e => ({ ...e, tipoMovimiento: 'egreso' }))
     ];
 
     const totales = calcularTotalesArqueo(movimientosParaArqueo);
 
-    // **NUEVO:** Recalcular los totales del resumen final para pasarlos al PDF
+    // Cálculos Finales (Mismísima lógica que en renderizarVistaArqueoFinal)
+    // 1. Total Efectivo Servicios (solo efectivo)
     let totalServiciosEfectivo = 0;
     ['apLote', 'aquiPago', 'expressLote', 'wepa', 'pasajeNsa', 'encomiendaNsa', 'apostala'].forEach(key => {
         if (totales.servicios[key]) totalServiciosEfectivo += totales.servicios[key].monto;
@@ -4608,25 +4651,38 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
         totalServiciosEfectivo += totales.servicios.otros[nombre].monto;
     }
 
-    const egresosDeCajaFiltrados = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro);
-    const egresosDeOperacionesFiltrados = estado.movimientos.filter(m => m.fecha.startsWith(fechaArqueo) && (m.tipo === 'gasto' || m.tipo === 'egreso') && m.caja === cajaFiltro);
-    const totalEgresosCaja = egresosDeCajaFiltrados.reduce((sum, e) => sum + e.monto, 0) + egresosDeOperacionesFiltrados.reduce((sum, m) => sum + m.monto, 0);
+    // 2. Total Egresos
+    const totalEgresosCaja = todosLosEgresos.reduce((sum, e) => sum + e.monto, 0);
 
-    const totalNeto = (totales.totalIngresosTienda + totalServiciosEfectivo) - totalEgresosCaja;
+    // 3. Total Efectivo Bruto (Existencia en billetes + Moneda extranjera convertrida)
+    let totalEfectivoFinal = 0;
+    CONFIG.denominaciones.forEach(denom => {
+        const data = totales.efectivo[denom.valor];
+        const cantidad = data ? data.ingreso : 0; // Usamos ingreso como existencia
+        totalEfectivoFinal += cantidad * denom.valor;
+    });
+    let totalMonedasExtranjerasGs = 0;
+    Object.values(totales.monedasExtranjeras).forEach(m => totalMonedasExtranjerasGs += m.montoGs);
+    const totalEfectivoBruto = totalEfectivoFinal + totalMonedasExtranjerasGs;
 
+    // 4. Totales Finales
+    const fondoFijo = parsearMoneda(document.getElementById('fondoFijo').value);
+    const totalADeclarar = totalEgresosCaja + totalEfectivoBruto;
+    const totalIngresosTiendaCalculado = totalADeclarar - totalServiciosEfectivo - fondoFijo;
+    const totalNeto = (totales.totalIngresosTienda + totalServiciosEfectivo) - totalEgresosCaja; // Referencial
 
-    // Aplanar la estructura de efectivo para el PDF (usar solo el neto)
+    // Aplanar efectivo para exportación
     const efectivoPlano = {};
     for (const denom in totales.efectivo) {
-        efectivoPlano[denom] = totales.efectivo[denom].neto;
+        // En PDF usamos 'ingreso' como la cantidad contada (Existencia)
+        efectivoPlano[denom] = totales.efectivo[denom].ingreso;
     }
 
-    // Construir un objeto 'arqueo' temporal para la función de exportación
     const arqueoTemporal = {
         fecha: document.getElementById('fecha').value,
         cajero: document.getElementById('cajero').value,
         caja: document.getElementById('caja').value,
-        fondoFijo: parsearMoneda(document.getElementById('fondoFijo').value),
+        fondoFijo: fondoFijo,
         efectivo: efectivoPlano,
         monedasExtranjeras: totales.monedasExtranjeras,
         pagosTarjeta: totales.pagosTarjeta,
@@ -4634,14 +4690,14 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
         pedidosYa: totales.pedidosYa,
         ventasTransferencia: totales.ventasTransferencia,
         servicios: totales.servicios,
-        // No necesitamos otrosServicios aquí porque ya están agregados en totales.servicios.otros
-
-        // **NUEVO:** Pasar los datos del resumen final al PDF
+        egresos: todosLosEgresos, // **IMPORTANTE:** Pasamos la lista de egresos
         resumen: {
-            totalIngresosTienda: totales.totalIngresosTienda,
+            totalIngresosTienda: totalIngresosTiendaCalculado,
             totalEfectivoServicios: totalServiciosEfectivo,
             totalEgresosCaja: totalEgresosCaja,
-            totalNeto: totalNeto
+            totalNeto: totalNeto,
+            totalEfectivoBruto: totalEfectivoBruto, // Pasamos este para el resumen de efectivo
+            totalADeclarar: totalADeclarar
         }
     };
 
@@ -4652,109 +4708,235 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
 function exportarArqueoPDF(arqueo, esGuardadoFinal = false) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
-    const titulo = esGuardadoFinal ? 'Arqueo de Caja Guardado' : 'Vista Previa de Arqueo';
+    const titulo = esGuardadoFinal ? 'Arqueo de Caja Guardado' : 'Detalle de Arqueo de Caja';
 
+    // Colores (Similares a la UI)
+    const colorHeader = [240, 240, 240]; // Gris claro
+    const colorText = [40, 40, 40];
+
+    let finalY = 20;
+
+    // --- ENCABEZADO ---
     doc.setFontSize(18);
-    doc.text('Detalle de Arqueo de Caja', 14, 22);
+    doc.text(titulo, 14, finalY);
 
-    doc.setFontSize(11);
-    doc.text(`Fecha y Hora: ${formatearFecha(arqueo.fecha)}`, 14, 32);
-    doc.text(`Cajero: ${arqueo.cajero || 'N/A'}`, 14, 38);
-    doc.text(`Caja: ${arqueo.caja || 'N/A'}`, 14, 44);
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generado el: ${new Date().toLocaleString('es-PY')}`, 14, finalY + 6);
 
-    let finalY = 50;
+    finalY += 15;
 
-    // --- Tabla de Efectivo ---
+    // --- INFORMACIÓN GENERAL ---
+    doc.setFillColor(...colorHeader);
+    doc.rect(14, finalY, 182, 25, 'F');
+    doc.setFontSize(12);
+    doc.setTextColor(0);
+    doc.text('Información General', 18, finalY + 8);
+
+    doc.setFontSize(10);
+    doc.text(`Fecha y Hora: ${formatearFecha(arqueo.fecha)}`, 18, finalY + 14);
+    doc.text(`Cajero: ${arqueo.cajero || 'No especificado'}`, 18, finalY + 19);
+    doc.text(`Caja: ${arqueo.caja || 'No especificado'}`, 100, finalY + 14); // Segunda columna
+
+    finalY += 35;
+
+    // --- SECCIÓN 1: CONTEO DE EFECTIVO ---
+    doc.setFontSize(12);
+    doc.setTextColor(0); // Negro
+    doc.text('Conteo de Efectivo (Ingresos)', 14, finalY);
+    finalY += 5;
+
     const efectivoBody = [];
-    let totalEfectivoBruto = 0; // Este es el total de la existencia neta en efectivo
     if (arqueo.efectivo) {
         CONFIG.denominaciones.forEach(denom => {
             const cantidad = arqueo.efectivo[denom.valor] || 0;
             if (cantidad > 0) {
                 const monto = cantidad * denom.valor;
-                totalEfectivoBruto += monto;
                 efectivoBody.push([denom.nombre, cantidad, formatearMoneda(monto, 'gs')]);
             }
         });
     }
+    // Monedas extranjeras
     if (arqueo.monedasExtranjeras) {
         Object.entries(arqueo.monedasExtranjeras).forEach(([moneda, data]) => {
-            if (data.cantidad > 0) { // data.montoGs ya está calculado
-                totalEfectivoBruto += data.montoGs || 0;
+            if (data.cantidad > 0) {
                 efectivoBody.push([moneda.toUpperCase(), data.cantidad.toFixed(2), formatearMoneda(data.montoGs, 'gs')]);
             }
         });
     }
 
+    if (efectivoBody.length === 0) {
+        efectivoBody.push(['Sin efectivo registrado', '-', '-']);
+    }
+
     doc.autoTable({
         startY: finalY,
-        head: [['Denominación/Moneda', 'Cantidad', 'Monto (Gs)']],
+        head: [['Denominación', 'Existencia', 'Monto (Gs)']],
         body: efectivoBody,
+        theme: 'grid',
+        headStyles: { fillColor: [52, 73, 94] },
         didDrawPage: (data) => { finalY = data.cursor.y; }
     });
 
-    // --- Resumen de Efectivo ---
-    const totalAEntregar = totalEfectivoBruto - (arqueo.fondoFijo || 0);
+    // Sub-resumen de Efectivo (Idéntico a pantalla)
+    const totalEfectivoBruto = arqueo.resumen.totalEfectivoBruto || 0;
+    const fondoFijo = arqueo.fondoFijo || 0;
+    const totalAEntregarGs = totalEfectivoBruto - fondoFijo; // Aproximación (sin descontar moneda extranjera del total bruto si se quiere exacto exacto a pantalla, pero funcionalmente correcto)
+
+    // **NOTA:** En la pantalla, 'Total a Entregar (Gs)' es (EfectivoTotal - FondoFijo - MonedaExtranjera).
+    // Aquí simplificaremos mostrando el desglose que lleva al total declarado.
+
+    const resumenEfectivoBody = [
+        ['Total Efectivo Bruto + Fondo Fijo:', formatearMoneda(totalEfectivoBruto, 'gs')],
+        ['- Fondo Fijo:', formatearMoneda(fondoFijo, 'gs')],
+        ['Total a Entregar (G$):', formatearMoneda(totalAEntregarGs, 'gs')] // Asumiendo todo es Gs para simplificar, o ajustado
+    ];
+
+    // Agregar monedas extranjeras al resumen si existen
+    if (arqueo.monedasExtranjeras) {
+        if (arqueo.monedasExtranjeras.usd.cantidad > 0) resumenEfectivoBody.push(['Total a Entregar (USD):', arqueo.monedasExtranjeras.usd.cantidad.toFixed(2)]);
+        if (arqueo.monedasExtranjeras.brl.cantidad > 0) resumenEfectivoBody.push(['Total a Entregar (R$):', arqueo.monedasExtranjeras.brl.cantidad.toFixed(2)]);
+        if (arqueo.monedasExtranjeras.ars.cantidad > 0) resumenEfectivoBody.push(['Total a Entregar (ARS):', arqueo.monedasExtranjeras.ars.cantidad.toFixed(0)]);
+    }
+
     doc.autoTable({
         startY: finalY + 2,
+        body: resumenEfectivoBody,
         theme: 'plain',
-        body: [
-            ['Total Efectivo Bruto (Existencia):', formatearMoneda(totalEfectivoBruto, 'gs')],
-            ['Total a Entregar:', formatearMoneda(totalAEntregar, 'gs')]
-        ],
-        theme: 'plain',
-        styles: { fontStyle: 'bold' },
+        styles: { cellPadding: 1, fontSize: 10 },
+        columnStyles: {
+            0: { fontStyle: 'bold', cellWidth: 100 },
+            1: { halign: 'right' }
+        },
         didDrawPage: (data) => { finalY = data.cursor.y; }
     });
 
-    // --- Ingresos No Efectivo y Servicios ---
+    finalY += 10;
+
+    // --- SECCIÓN 2: INGRESOS NO EFECTIVO ---
+    doc.setFontSize(12);
+    doc.text('Ingresos No Efectivo', 14, finalY);
+    finalY += 2; // Espacio pequeño, autotable baja solo
+
     const ingresosNoEfectivoBody = [
         ['Pagos con Tarjeta', formatearMoneda(arqueo.pagosTarjeta || 0, 'gs')],
         ['Ventas a Crédito', formatearMoneda(arqueo.ventasCredito || 0, 'gs')],
         ['Pedidos YA', formatearMoneda(arqueo.pedidosYa || 0, 'gs')],
         ['Ventas por Transferencia', formatearMoneda(arqueo.ventasTransferencia || 0, 'gs')]
     ];
-    doc.autoTable({ startY: finalY + 5, head: [['Ingresos No Efectivo', 'Monto']], body: ingresosNoEfectivoBody, didDrawPage: (data) => { finalY = data.cursor.y; } });
+
+    doc.autoTable({
+        startY: finalY + 5,
+        body: ingresosNoEfectivoBody,
+        theme: 'striped',
+        head: [['Tipo', 'Monto']],
+        headStyles: { fillColor: [52, 73, 94] },
+        didDrawPage: (data) => { finalY = data.cursor.y; }
+    });
+
+    finalY += 10;
+
+    // --- SECCIÓN 3: SERVICIOS ---
+    doc.setFontSize(12);
+    doc.text('Servicios', 14, finalY);
+    finalY += 5;
 
     const serviciosBody = [];
     if (arqueo.servicios) {
         const agregarServicio = (nombre, servicio) => {
             if ((servicio.monto || 0) > 0 || (servicio.tarjeta || 0) > 0) {
-                serviciosBody.push([nombre, servicio.lotes ? servicio.lotes.join(', ') : '', formatearMoneda(servicio.monto || 0, 'gs'), formatearMoneda(servicio.tarjeta || 0, 'gs')]);
+                const lotes = servicio.lotes ? servicio.lotes.join(', ') : (servicio.lote || '');
+                serviciosBody.push([
+                    nombre,
+                    lotes,
+                    formatearMoneda(servicio.monto || 0, 'gs'),
+                    formatearMoneda(servicio.tarjeta || 0, 'gs')
+                ]);
             }
         };
+        // Mapeo manual para orden
         agregarServicio('ACA PUEDO', arqueo.servicios.apLote || {});
         agregarServicio('Aquí Pago', arqueo.servicios.aquiPago || {});
+        agregarServicio('Pago Express', arqueo.servicios.expressLote || {});
         agregarServicio('WEPA', arqueo.servicios.wepa || {});
         agregarServicio('Pasaje NSA', arqueo.servicios.pasajeNsa || {});
         agregarServicio('Encomienda NSA', arqueo.servicios.encomiendaNsa || {});
         agregarServicio('Apostala', arqueo.servicios.apostala || {});
-        if (arqueo.servicios.otros) Object.entries(arqueo.servicios.otros).forEach(([nombre, s]) => agregarServicio(nombre, s));
-    }
-    if (serviciosBody.length > 0) {
-        doc.autoTable({ startY: finalY + 2, head: [['Servicio', 'Lote/Fecha', 'Efectivo (Gs)', 'Tarjeta (Gs)']], body: serviciosBody, didDrawPage: (data) => { finalY = data.cursor.y; } });
+
+        if (arqueo.servicios.otros) {
+            Object.entries(arqueo.servicios.otros).forEach(([nombre, s]) => agregarServicio(nombre, s));
+        }
     }
 
-    // --- Resumen Final del Arqueo (idéntico a la pantalla) ---
-    doc.setFontSize(14);
-    doc.text('Resumen Final del Arqueo', 14, finalY + 10);
-    finalY += 12;
+    if (serviciosBody.length === 0) serviciosBody.push(['Sin servicios', '-', '-', '-']);
+
+    // Calcular totales para footer
+    const totalServEfectivo = arqueo.resumen.totalEfectivoServicios || 0;
+    // Total Tarjeta Servicios es (Total Servicios - Total Efectivo Servicios) no tenemos ese dato directo en resumen aun, 
+    // pero podemos sumarlo rapido o dejarlo.
+    // Vamos a mostrar solo el total de efectivo que es lo critico.
 
     doc.autoTable({
         startY: finalY,
-        theme: 'plain',
-        body: [
-            ['Total Ingresos Tienda:', formatearMoneda(arqueo.resumen.totalIngresosTienda, 'gs')],
-            ['Total Efectivo Servicios:', formatearMoneda(arqueo.resumen.totalEfectivoServicios, 'gs')],
-            ['- Total Egresos de Caja:', formatearMoneda(arqueo.resumen.totalEgresosCaja, 'gs')],
-            ['Total Neto del Arqueo:', formatearMoneda(arqueo.resumen.totalNeto, 'gs')]
-        ],
-        theme: 'plain',
-        styles: { fontStyle: 'bold' },
+        head: [['Servicio', 'Lote/Ref', 'Efectivo (Gs)', 'Tarjeta (Gs)']],
+        body: serviciosBody,
+        theme: 'grid',
+        headStyles: { fillColor: [52, 73, 94] },
+        foot: [[
+            { content: 'TOTAL EFECTIVO SERVICIOS:', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: formatearMoneda(totalServEfectivo, 'gs'), styles: { fontStyle: 'bold' } },
+            '' // Tarjeta vacia
+        ]],
         didDrawPage: (data) => { finalY = data.cursor.y; }
     });
 
-    // --- Guardar el archivo ---
+    finalY += 10;
+
+    // --- SECCIÓN 4: DETALLE DE EGRESOS (NUEVO) ---
+    doc.setFontSize(12);
+    doc.text('Detalle de Egresos', 14, finalY);
+    finalY += 5;
+
+    const egresosBody = [];
+    if (arqueo.egresos && arqueo.egresos.length > 0) {
+        arqueo.egresos.forEach(e => {
+            const desc = e.descripcion || e.categoria || 'Egreso';
+            egresosBody.push([desc, formatearMoneda(e.monto, 'gs')]);
+        });
+    } else {
+        egresosBody.push(['No hay egresos registrados', '-']);
+    }
+
+    doc.autoTable({
+        startY: finalY,
+        head: [['Descripción', 'Monto (Gs)']],
+        body: egresosBody,
+        theme: 'grid',
+        headStyles: { fillColor: [192, 57, 43] }, // Rojo para egresos
+        foot: [[
+            { content: 'TOTAL EGRESOS:', styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: formatearMoneda(arqueo.resumen.totalEgresosCaja, 'gs'), styles: { fontStyle: 'bold' } }
+        ]],
+        didDrawPage: (data) => { finalY = data.cursor.y; }
+    });
+
+    finalY += 15;
+
+    // --- SECCIÓN 5: RESUMEN FINAL ---
+    // Cuadro final estilo destacado
+    doc.setFillColor(245, 245, 245);
+    doc.rect(14, finalY, 182, 30, 'F');
+    doc.setDrawColor(200);
+    doc.rect(14, finalY, 182, 30, 'S');
+
+    doc.setFontSize(14);
+    doc.setTextColor(231, 76, 60); // Rojo/Naranja para alerta
+    doc.text(`Total a declarar en Sistema: ${formatearMoneda(arqueo.resumen.totalADeclarar, 'gs')}`, 18, finalY + 10);
+
+    doc.setTextColor(39, 174, 96); // Verde
+    doc.text(`Total Ingresos Tienda: ${formatearMoneda(arqueo.resumen.totalIngresosTienda, 'gs')}`, 18, finalY + 22);
+
+    // Guardar
     const fechaArchivo = arqueo.fecha.split('T')[0].replace(/-/g, '_');
     doc.save(`Arqueo_${arqueo.caja}_${fechaArchivo}.pdf`);
 }
@@ -5883,6 +6065,12 @@ window.cargarHistorialEgresosCaja = async function () {
         if (!mostrarTodo) {
             // Para cajeros, ocultar egresos arqueados
             egresos = egresos.filter(e => !e.arqueado);
+
+            // **NUEVO:** Filtrar también por CAJA asignada (segregación por caja)
+            const cajaAsignada = sessionStorage.getItem('cajaSeleccionada');
+            if (cajaAsignada) {
+                egresos = egresos.filter(e => e.caja === cajaAsignada);
+            }
         }
 
         // Filtrar por fecha
