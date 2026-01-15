@@ -769,7 +769,7 @@ async function agregarMovimiento() {
         }
     });
 
-    // Capturar otros servicios dinámicos
+    // Capturar otros servicios dinámicos (con tarjeta)
     document.querySelectorAll('.fila-servicio-dinamico').forEach(fila => {
         const nombre = fila.querySelector('.nombre-servicio-dinamico').value;
         const lote = fila.querySelector('.lote-servicio-dinamico').value;
@@ -777,6 +777,17 @@ async function agregarMovimiento() {
 
         if (nombre && tarjeta > 0) {
             movimiento.otrosServicios.push({ nombre, lote, monto: 0, tarjeta });
+        }
+    });
+
+    // Capturar otros servicios dinámicos (con efectivo)
+    document.querySelectorAll('.fila-servicio-efectivo-dinamico').forEach(fila => {
+        const nombre = fila.querySelector('.nombre-servicio-efectivo-dinamico').value;
+        const lote = fila.querySelector('.lote-servicio-efectivo-dinamico').value;
+        const efectivo = parsearMoneda(fila.querySelector('.efectivo-servicio-dinamico').value);
+
+        if (nombre && efectivo > 0) {
+            movimiento.otrosServicios.push({ nombre, lote, monto: efectivo, tarjeta: 0 });
         }
     });
 
@@ -901,9 +912,14 @@ function limpiarFormularioMovimiento() {
     document.getElementById('formularioMovimiento').reset();
     document.getElementById('indiceMovimientoEditar').value = ''; // Limpiar índice de edición
 
+    // **CORRECCIÓN:** Limpiar inputs de cantidad de billetes en la tabla de efectivo
+    document.querySelectorAll('#tablaDenominacionesMovimiento .cantidad-denominacion-movimiento').forEach(input => {
+        input.value = '0';
+    });
+
     // Limpiar visualmente la tabla de efectivo
     document.querySelectorAll('#tablaDenominacionesMovimiento .monto-parcial-movimiento, #tablaDenominacionesMovimiento .monto-moneda-movimiento').forEach(celda => celda.textContent = '0');
-    document.getElementById('totalEfectivoMovimiento').textContent = '0';
+    document.getElementById('totalEfectivoMovimiento').textContent = 'G$ 0';
 
     // Resetear valores de campos formateados a '0'
     const camposFormateados = [
@@ -3132,7 +3148,7 @@ async function cargarResumenDiario() {
 }
 
 // **NUEVO:** Función para cargar la tabla de Pagos/Egresos en Resumen
-window.cargarTablaPagosEgresos = function() {
+window.cargarTablaPagosEgresos = function () {
     const tbody = document.getElementById('tbodyPagosEgresos');
     const tfoot = document.getElementById('tfootPagosEgresos');
     if (!tbody) return;
@@ -3140,6 +3156,12 @@ window.cargarTablaPagosEgresos = function() {
     const fechaDesde = document.getElementById('fechaResumenDesde')?.value;
     const fechaHasta = document.getElementById('fechaResumenHasta')?.value;
     const cajaFiltro = document.getElementById('filtroCajaGeneral')?.value;
+
+    // **NUEVO:** Filtros por columna
+    const fCajero = document.getElementById('filtroPagoCajero')?.value.toLowerCase() || '';
+    const fCategoria = document.getElementById('filtroPagoCategoria')?.value.toLowerCase() || '';
+    const fDescripcion = document.getElementById('filtroPagoDescripcion')?.value.toLowerCase() || '';
+    const fMonto = parseFloat(document.getElementById('filtroPagoMonto')?.value) || 0;
 
     // Filtrar Egresos de Caja
     const egresosCaja = (estado.egresosCaja || []).filter(e => {
@@ -3158,18 +3180,41 @@ window.cargarTablaPagosEgresos = function() {
         return matchFecha && matchCaja && esEgreso;
     });
 
-    const todos = [...egresosCaja, ...egresosOperaciones].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    let todos = [...egresosCaja, ...egresosOperaciones].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+
+    // **NUEVO:** Aplicar filtros por columna
+    if (fCajero || fCategoria || fDescripcion || fMonto > 0) {
+        todos = todos.filter(item => {
+            const cajero = (item.cajero || '').toLowerCase();
+
+            let categoria = (item.categoria || item.tipo || 'Egreso').toLowerCase();
+            if (categoria === 'gasto') categoria = 'gasto general';
+            if (categoria === 'egreso') categoria = 'pago a proveedor';
+            if (categoria === 'operacion') categoria = 'operación bancaria';
+            if (categoria === 'transferencia') categoria = 'transferencia';
+
+            const descripcion = (item.descripcion || '').toLowerCase();
+            const monto = item.monto || 0;
+
+            const matchCajero = !fCajero || cajero.includes(fCajero);
+            const matchCategoria = !fCategoria || categoria.includes(fCategoria);
+            const matchDescripcion = !fDescripcion || descripcion.includes(fDescripcion);
+            const matchMonto = !fMonto || monto >= fMonto; // Filtrar montos mayores o iguales
+
+            return matchCajero && matchCategoria && matchDescripcion && matchMonto;
+        });
+    }
 
     tbody.innerHTML = '';
     let total = 0;
 
     if (todos.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No hay pagos/egresos registrados</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No hay pagos/egresos registrados con estos filtros</td></tr>';
     } else {
         todos.forEach(item => {
             const monto = item.monto || 0;
             total += monto;
-            
+
             let categoria = item.categoria || item.tipo || 'Egreso';
             if (categoria === 'gasto') categoria = 'Gasto General';
             if (categoria === 'egreso') categoria = 'Pago a Proveedor';
@@ -3253,7 +3298,15 @@ function renderizarLista(contenedor, items, tipo) {
             if (tipo === 'IngresosTienda' && item.valorVenta > 0) {
                 montoTotal = item.valorVenta;
             } else if (tipo === 'IngresosTienda') {
+                // Sumar efectivo (denominaciones)
                 montoTotal = Object.entries(item.efectivo || {}).reduce((sum, [d, c]) => sum + (parseInt(d) * c), 0);
+
+                // **CORRECCIÓN:** Sumar monedas extranjeras convertidas a guaraníes
+                if (item.monedasExtranjeras) {
+                    if (item.monedasExtranjeras.usd) montoTotal += (item.monedasExtranjeras.usd.montoGs || 0);
+                    if (item.monedasExtranjeras.brl) montoTotal += (item.monedasExtranjeras.brl.montoGs || 0);
+                    if (item.monedasExtranjeras.ars) montoTotal += (item.monedasExtranjeras.ars.montoGs || 0);
+                }
             } else if (tipo === 'Ingreso No Efectivo') {
                 montoTotal = (item.pagosTarjeta || 0) + (item.ventasCredito || 0) + (item.pedidosYa || 0) + (item.ventasTransferencia || 0);
             } else if (tipo === 'IngresosServiciosEfectivo') {

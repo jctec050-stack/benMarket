@@ -36,14 +36,30 @@
     <main class="container">
         <!-- Sección de Operaciones/Gastos -->
         <section id="gastos" class="seccion activa">
-            <h2>Operaciones de Tesorería</h2>
+            <!-- **NUEVO:** Caja Activa (Estilo Egresos) -->
+            <div id="header-operaciones"
+                style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 1rem;">
+                <div
+                    style="background: var(--color-primario); color: white; padding: 0.5rem 1rem; border-radius: 4px; font-weight: bold;">
+                    <span>📦 Caja: </span><span id="cajaActivaOperaciones">-</span>
+                </div>
+            </div>
+
             <form id="formularioGastos" class="formulario-gastos">
                 <input type="hidden" id="idGastoEditar">
-                <div class="form-grid">
+
+                <!-- Fecha y Hora Formato Destacado -->
+                <div style="max-width: 300px; margin-bottom: 1.5rem;">
                     <div class="form-grupo">
-                        <label for="fechaGasto">Fecha y Hora:</label>
-                        <input type="datetime-local" id="fechaGasto" required>
+                        <label for="fechaGasto" style="font-weight: bold; font-size: 1.1rem;">📅 Fecha y Hora:</label>
+                        <input type="datetime-local" id="fechaGasto" required
+                            style="font-size: 1rem; padding: 0.6rem; border: 2px solid var(--color-primario);">
                     </div>
+                </div>
+
+                <input type="hidden" id="cajaGasto">
+
+                <div class="form-grid">
                     <div class="form-grupo">
                         <label for="tipoGasto">Tipo de Movimiento:</label>
                         <select id="tipoGasto" required>
@@ -55,18 +71,20 @@
                         </select>
                     </div>
                 </div>
+
                 <div class="form-grid">
                     <div class="form-grupo" id="receptor-gasto-container" style="display: none;">
                         <label for="receptorGasto">Recibido por:</label>
                         <input type="text" id="receptorGasto" placeholder="Nombre de quien recibe el dinero">
                     </div>
-                    <div class="form-grupo">
+                    <div class="form-grupo" style="flex: 2;"> <!-- Damos mas espacio a descripcion -->
                         <label for="descripcionGasto">Descripción:</label>
                         <input type="text" id="descripcionGasto" placeholder="Descripción detallada del movimiento"
                             required>
                     </div>
                 </div>
-                <div class="form-grid">
+
+                <div class="form-grid" style="grid-template-columns: 1fr 1fr 1fr;"> <!-- 3 columnas para esta fila -->
                     <div class="form-grupo">
                         <label for="montoGasto">Monto:</label>
                         <input type="text" inputmode="numeric" id="montoGasto" required>
@@ -80,22 +98,12 @@
                             <option value="ars">Pesos (ARS)</option>
                         </select>
                     </div>
-                </div>
-                <div class="form-grid">
-                    <div class="form-grupo">
-                        <label for="cajaGasto">Caja:</label>
-                        <select id="cajaGasto" required>
-                            <option value="Caja 1">Caja 1</option>
-                            <option value="Caja 2">Caja 2</option>
-                            <option value="Caja 3">Caja 3</option>
-                            <option value="Caja Tesoreria">Caja Tesoreria</option>
-                        </select>
-                    </div>
                     <div class="form-grupo">
                         <label for="referenciaGasto">Referencia (opcional):</label>
-                        <input type="text" id="referenciaGasto" placeholder="Número de factura, recibo, etc.">
+                        <input type="text" id="referenciaGasto" placeholder="Factura, recibo...">
                     </div>
                 </div>
+
                 <div class="form-botones">
                     <button type="submit" class="btn btn-primario">Guardar Movimiento</button>
                     <button type="button" class="btn btn-secundario"

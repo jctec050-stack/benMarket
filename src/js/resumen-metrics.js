@@ -4,7 +4,7 @@
  */
 window.actualizarMetricasResumen = function () {
     // Verificar que estamos en la página de resumen
-    if (!document.getElementById('metricTotalEfectivo')) return;
+    if (!document.getElementById('metricTotalTarjeta')) return;
 
     // Obtener fechas del filtro
     const fechaDesde = document.getElementById('fechaResumenDesde')?.value || '';
@@ -33,19 +33,9 @@ window.actualizarMetricasResumen = function () {
     }
 
     // Calcular totales por tipo, siguiendo reglas estrictas del usuario
-    let totalEfectivo = 0;
     let totalTarjeta = 0;
     let totalCredito = 0;
     let totalPedidosYa = 0;
-
-    // Helper para identificar si es ingreso de tienda (no servicio)
-    const esIngresoTienda = (m) => {
-        let esServicio = false;
-        if (m.servicios) esServicio = Object.values(m.servicios).some(s => (parseFloat(s.monto) || 0) > 0);
-        if (!esServicio && m.otrosServicios && m.otrosServicios.length > 0)
-            esServicio = m.otrosServicios.some(s => (parseFloat(s.monto) || 0) > 0);
-        return !esServicio;
-    };
 
     // Procesar movimientos de ingresos
     movimientosFiltrados.forEach(m => {
@@ -61,44 +51,114 @@ window.actualizarMetricasResumen = function () {
 
         // 3. Ventas a Credito: el total de movimientos de Ventas a Credito
         totalCredito += (m.ventasCredito || 0);
-
-        // 4. Efectivo: tomar el monto resultante en Total Ingresos Tienda
-        // Lógica de Ingresos Tienda: Si no es servicio, sumar valorVenta o efectivo
-        if (esIngresoTienda(m)) {
-            // Mirroring logic from calcularTotalesArqueo in app.js
-            if (m.valorVenta > 0) {
-                totalEfectivo += m.valorVenta;
-            } else {
-                // Sumar efectivo (denominaciones)
-                if (m.efectivo) {
-                    Object.entries(m.efectivo).forEach(([denom, cant]) => {
-                        totalEfectivo += parseInt(denom) * cant;
-                    });
-                }
-                // Sumar moneda extranjera
-                if (m.monedasExtranjeras) {
-                    if (m.monedasExtranjeras.usd) totalEfectivo += (m.monedasExtranjeras.usd.montoGs || 0);
-                    if (m.monedasExtranjeras.brl) totalEfectivo += (m.monedasExtranjeras.brl.montoGs || 0);
-                    if (m.monedasExtranjeras.ars) totalEfectivo += (m.monedasExtranjeras.ars.montoGs || 0);
-                }
-            }
-        }
     });
 
     // Actualizar UI
     const elTarjeta = document.getElementById('metricTotalTarjeta');
     const elPedidosYa = document.getElementById('metricTotalPedidosYa');
     const elCredito = document.getElementById('metricTotalCredito');
-    const elEfectivo = document.getElementById('metricTotalEfectivo');
 
     if (elTarjeta) elTarjeta.textContent = formatearMoneda(totalTarjeta, 'gs');
     if (elPedidosYa) elPedidosYa.textContent = formatearMoneda(totalPedidosYa, 'gs');
     if (elCredito) elCredito.textContent = formatearMoneda(totalCredito, 'gs');
-    if (elEfectivo) elEfectivo.textContent = formatearMoneda(totalEfectivo, 'gs');
+
+    // **NUEVO:** Hacer las tarjetas clicables
+    const addClickListener = (id, tipo) => {
+        const card = document.querySelector(`.${id}`);
+        if (card) {
+            // Remover listeners anteriores para evitar duplicados (clonando el nodo)
+            const newCard = card.cloneNode(true);
+            card.parentNode.replaceChild(newCard, card);
+            newCard.addEventListener('click', () => mostrarDetalleMetrica(tipo, movimientosFiltrados));
+        }
+    };
+
+    addClickListener('metric-tarjeta', 'tarjeta');
+    addClickListener('metric-pedidosya', 'pedidosya');
+    addClickListener('metric-credito', 'credito');
+    // addClickListener('metric-efectivo', 'efectivo');
 
     // Actualizar Tabla Recaudacion
     actualizarTablaRecaudacion(movimientosFiltrados, fechaDesde, fechaHasta, filtroCajaGeneral);
 };
+
+// **NUEVO:** Funciones para el Modal de Detalle
+window.mostrarDetalleMetrica = function (tipo, movimientos) {
+    const modal = document.getElementById('modalDetalleMetrica');
+    const tbody = document.getElementById('tbodyDetalleMetrica');
+    const titulo = document.getElementById('tituloModalMetrica');
+    const totalEl = document.getElementById('totalModalMetrica');
+    if (!modal || !tbody) return;
+
+    let movimientosFiltrados = [];
+    let tituloTexto = '';
+    let total = 0;
+
+    // Helper para identificar si es ingreso de tienda (no servicio) - Reutilizado
+    const esIngresoTienda = (m) => {
+        let esServicio = false;
+        if (m.servicios) esServicio = Object.values(m.servicios).some(s => (parseFloat(s.monto) || 0) > 0);
+        if (!esServicio && m.otrosServicios && m.otrosServicios.length > 0)
+            esServicio = m.otrosServicios.some(s => (parseFloat(s.monto) || 0) > 0);
+        return !esServicio;
+    };
+
+    if (tipo === 'tarjeta') {
+        tituloTexto = 'Detalle Pagos con Tarjeta';
+        movimientosFiltrados = movimientos.filter(m => (m.pagosTarjeta || 0) > 0);
+        total = movimientosFiltrados.reduce((sum, m) => sum + (m.pagosTarjeta || 0), 0);
+    } else if (tipo === 'pedidosya') {
+        tituloTexto = 'Detalle Pedidos Ya';
+        movimientosFiltrados = movimientos.filter(m => (m.pedidosYa || 0) > 0);
+        total = movimientosFiltrados.reduce((sum, m) => sum + (m.pedidosYa || 0), 0);
+    } else if (tipo === 'credito') {
+        tituloTexto = 'Detalle Ventas a Crédito';
+        movimientosFiltrados = movimientos.filter(m => (m.ventasCredito || 0) > 0);
+        total = movimientosFiltrados.reduce((sum, m) => sum + (m.ventasCredito || 0), 0);
+    }
+
+    titulo.textContent = tituloTexto;
+    tbody.innerHTML = '';
+
+    if (movimientosFiltrados.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No hay movimientos registrados.</td></tr>';
+    } else {
+        movimientosFiltrados.forEach(m => {
+            let montoMostrar = 0;
+            if (tipo === 'tarjeta') montoMostrar = m.pagosTarjeta;
+            else if (tipo === 'pedidosya') montoMostrar = m.pedidosYa;
+            else if (tipo === 'credito') montoMostrar = m.ventasCredito;
+
+            const row = `
+                <tr>
+                    <td>${formatearFecha(m.fecha)}</td>
+                    <td>${m.cajero || 'N/A'}</td>
+                    <td>${m.caja || 'N/A'}</td>
+                    <td>${m.descripcion || 'Sin descripción'}</td>
+                    <td style="text-align: right; font-weight: bold;">${formatearMoneda(montoMostrar, 'gs')}</td>
+                </tr>
+            `;
+            tbody.innerHTML += row;
+        });
+    }
+
+    if (totalEl) totalEl.textContent = formatearMoneda(total, 'gs');
+    modal.style.display = 'block';
+};
+
+window.cerrarModalMetrica = function () {
+    const modal = document.getElementById('modalDetalleMetrica');
+    if (modal) modal.style.display = 'none';
+};
+
+// Cerrar modal al hacer click fuera
+window.onclick = function (event) {
+    const modal = document.getElementById('modalDetalleMetrica');
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+};
+
 
 // Nueva función para la tabla de Recaudación
 function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroCaja) {
@@ -133,14 +193,13 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
     tbody.innerHTML = '';
     tfoot.innerHTML = '';
 
-    // Agrupar por cajero
-    const datosPorCajero = {};
+    // Agrupar por cajero Y caja
+    const datosPorClave = {}; // Clave: "Cajero_Caja"
 
     // --- LÓGICA HÍBRIDA: PRIORIZAR ARQUEOS CERRADOS ---
-    // 1. Agrupar Arqueos existentes por cajero (si existen en estado.arqueos)
+    // 1. Agrupar Arqueos existentes
     console.log('[DEBUG] estado.arqueos =', estado.arqueos);
-    console.log('[DEBUG] Cantidad de arqueOS:', estado.arqueos ? estado.arqueos.length : 0);
-    
+
     if (estado.arqueos) {
         estado.arqueos.forEach(a => {
             const fechaArqueo = a.fecha.split('T')[0];
@@ -149,19 +208,24 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             if (filtroCaja && filtroCaja !== 'Todas las Cajas' && a.caja !== filtroCaja) return;
 
             const cajero = a.cajero || 'Desconocido';
-            if (!datosPorCajero[cajero]) {
-                datosPorCajero[cajero] = {
+            const caja = a.caja || 'Desconocida';
+            const clave = `${cajero}_${caja}`;
+
+            if (!datosPorClave[clave]) {
+                datosPorClave[clave] = {
+                    nombreCajero: cajero,
+                    nombreCaja: caja,
                     tarjeta: 0, pedidosYa: 0, credito: 0, efectivo: 0, sobrante: 0, faltante: 0,
                     egresos: 0, fondoFijo: 0, totalDeclarar: 0, ingresoTiendaCalculado: 0,
                     esArqueoCerrado: true
                 };
             } else {
-                datosPorCajero[cajero].esArqueoCerrado = true;
+                datosPorClave[clave].esArqueoCerrado = true;
             }
 
-            datosPorCajero[cajero].tarjeta += (a.pagosTarjeta || 0);
-            datosPorCajero[cajero].pedidosYa += (a.pedidosYa || 0);
-            datosPorCajero[cajero].credito += (a.ventasCredito || 0);
+            datosPorClave[clave].tarjeta += (a.pagosTarjeta || 0);
+            datosPorClave[clave].pedidosYa += (a.pedidosYa || 0);
+            datosPorClave[clave].credito += (a.ventasCredito || 0);
 
             let serviciosEfectivo = 0;
             if (a.servicios) {
@@ -186,41 +250,68 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             let efectivoFisico = (a.totalEfectivo || 0);
             if (!efectivoFisico && a.total_efectivo) efectivoFisico = a.total_efectivo;
 
+            // Sumar monedas extranjeras del arqueo si existen (Soporte camelCase y snake_case)
+            const monedas = a.monedasExtranjeras || a.monedas_extranjeras;
+            if (monedas) {
+                // Función helper para obtener monto en Gs de una moneda
+                const obtenerMontoMoneda = (monedaData) => {
+                    if (!monedaData) return 0;
+                    // Prioridad 1: Monto ya calculado y guardado
+                    let monto = monedaData.montoGs || monedaData.monto_gs;
+                    // Prioridad 2: Calcular si tenemos cantidad y cotización
+                    if (!monto && monedaData.cantidad > 0 && monedaData.cotizacion > 0) {
+                        monto = monedaData.cantidad * monedaData.cotizacion;
+                    }
+                    return monto || 0;
+                };
+
+                // USD
+                efectivoFisico += obtenerMontoMoneda(monedas.usd);
+                // BRL
+                efectivoFisico += obtenerMontoMoneda(monedas.brl);
+                // ARS
+                efectivoFisico += obtenerMontoMoneda(monedas.ars);
+            }
+
             let egresos = (a.total_egresos !== undefined) ? a.total_egresos : (a.totalEgresos || 0);
             let fondo = (a.fondo_fijo !== undefined) ? a.fondo_fijo : (a.fondoFijo || 0);
 
             // Almacenar valores crudos
-            datosPorCajero[cajero].totalDeclarar = efectivoFisico; // Asumimos que esto es "Total a declarar"
-            datosPorCajero[cajero].egresos = egresos;
-            datosPorCajero[cajero].fondoFijo = fondo;
+            datosPorClave[clave].totalDeclarar = efectivoFisico; // Asumimos que esto es "Total a declarar"
+            datosPorClave[clave].egresos = egresos;
+            datosPorClave[clave].fondoFijo = fondo;
 
             // FÓRMULA CORREGIDA: Total Ingresos Tienda = Total a declarar Sistema - Total Servicios - Fondo fijo
             let ingresoTiendaCalculado = efectivoFisico - serviciosEfectivo - fondo;
 
-            console.log(`[DEBUG ARQUEO - ${cajero}] efectivoFisico=${efectivoFisico}, serviciosEfectivo=${serviciosEfectivo}, fondo=${fondo}, RESULTADO=${ingresoTiendaCalculado}`);
+            console.log(`[DEBUG ARQUEO - ${cajero} ${caja}] efectivoFisico=${efectivoFisico}, serviciosEfectivo=${serviciosEfectivo}, fondo=${fondo}, RESULTADO=${ingresoTiendaCalculado}`);
 
             if (ingresoTiendaCalculado < 0) ingresoTiendaCalculado = 0;
 
             // Almacenar el Total Ingresos Tienda calculado
-            datosPorCajero[cajero].ingresoTiendaCalculado = ingresoTiendaCalculado;
+            datosPorClave[clave].ingresoTiendaCalculado = ingresoTiendaCalculado;
         });
     }
 
-    // 2. Procesar Movimientos (SOLO si no hay arqueo cerrado para ese cajero/dia)
-    // Primero, consolidar datos de movimientos por cajero
-    const datosPorCajeroTemp = {};
-    
+    // 2. Procesar Movimientos (SOLO si no hay arqueo cerrado para ese cajero/caja/dia)
+    // Primero, consolidar datos de movimientos por cajero+caja
+    const datosPorClaveTemp = {};
+
     movimientos.forEach((m, idx) => {
         const esIngreso = !m.tipo || m.tipo === 'ingreso';
         if (!esIngreso) return;
 
         const cajero = m.cajero || 'Desconocido';
+        const caja = m.caja || 'Desconocida';
+        const clave = `${cajero}_${caja}`;
 
         // Si ya cargamos datos desde un arqueo cerrado, ignoramos movimientos sueltos
-        if (datosPorCajero[cajero] && datosPorCajero[cajero].esArqueoCerrado) return;
+        if (datosPorClave[clave] && datosPorClave[clave].esArqueoCerrado) return;
 
-        if (!datosPorCajeroTemp[cajero]) {
-            datosPorCajeroTemp[cajero] = {
+        if (!datosPorClaveTemp[clave]) {
+            datosPorClaveTemp[clave] = {
+                nombreCajero: cajero,
+                nombreCaja: caja,
                 efectivoBruto: 0,
                 servicios: 0,
                 tarjeta: 0,
@@ -229,22 +320,37 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             };
         }
 
-        datosPorCajeroTemp[cajero].tarjeta += (m.pagosTarjeta || 0);
-        datosPorCajeroTemp[cajero].pedidosYa += (m.pedidosYa || 0);
-        datosPorCajeroTemp[cajero].credito += (m.ventasCredito || 0);
+        datosPorClaveTemp[clave].tarjeta += (m.pagosTarjeta || 0);
+        datosPorClaveTemp[clave].pedidosYa += (m.pedidosYa || 0);
+        datosPorClaveTemp[clave].credito += (m.ventasCredito || 0);
 
         let efectivoMovimiento = 0;
         if (m.valorVenta > 0) {
             efectivoMovimiento = m.valorVenta;
         } else {
             if (m.efectivo) Object.entries(m.efectivo).forEach(([d, c]) => efectivoMovimiento += parseInt(d) * c);
-            if (m.monedasExtranjeras) {
-                if (m.monedasExtranjeras.usd) efectivoMovimiento += (m.monedasExtranjeras.usd.montoGs || 0);
-                if (m.monedasExtranjeras.brl) efectivoMovimiento += (m.monedasExtranjeras.brl.montoGs || 0);
-                if (m.monedasExtranjeras.ars) efectivoMovimiento += (m.monedasExtranjeras.ars.montoGs || 0);
+            // Sumar monedas extranjeras (Soporte camelCase y snake_case)
+            const monedas = m.monedasExtranjeras || m.monedas_extranjeras;
+            if (monedas) {
+                // Función helper dentro del loop de movimientos
+                const obtenerMontoMonedaMov = (monedaData) => {
+                    if (!monedaData) return 0;
+                    let monto = monedaData.montoGs || monedaData.monto_gs;
+                    if (!monto && monedaData.cantidad > 0 && monedaData.cotizacion > 0) {
+                        monto = monedaData.cantidad * monedaData.cotizacion;
+                    }
+                    return monto || 0;
+                };
+
+                // USD
+                efectivoMovimiento += obtenerMontoMonedaMov(monedas.usd);
+                // BRL
+                efectivoMovimiento += obtenerMontoMonedaMov(monedas.brl);
+                // ARS
+                efectivoMovimiento += obtenerMontoMonedaMov(monedas.ars);
             }
         }
-        datosPorCajeroTemp[cajero].efectivoBruto += efectivoMovimiento;
+        datosPorClaveTemp[clave].efectivoBruto += efectivoMovimiento;
 
         let montoServicioEfectivo = 0;
         if (m.servicios) {
@@ -259,32 +365,35 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
                 if (monto > 0) montoServicioEfectivo += monto;
             });
         }
-        datosPorCajeroTemp[cajero].servicios += montoServicioEfectivo;
+        datosPorClaveTemp[clave].servicios += montoServicioEfectivo;
     });
 
     // Ahora procesar datos consolidados
-    Object.keys(datosPorCajeroTemp).forEach(cajero => {
-        const temp = datosPorCajeroTemp[cajero];
+    Object.keys(datosPorClaveTemp).forEach(clave => {
+        const temp = datosPorClaveTemp[clave];
+        const { nombreCajero, nombreCaja } = temp;
 
-        if (!datosPorCajero[cajero]) {
-            datosPorCajero[cajero] = {
+        if (!datosPorClave[clave]) {
+            datosPorClave[clave] = {
+                nombreCajero, nombreCaja,
                 tarjeta: 0, pedidosYa: 0, credito: 0, efectivo: 0, sobrante: 0, faltante: 0,
                 egresos: 0, fondoFijo: 0, totalDeclarar: 0, ingresoTiendaCalculado: 0
             };
         }
 
-        datosPorCajero[cajero].tarjeta = temp.tarjeta;
-        datosPorCajero[cajero].pedidosYa = temp.pedidosYa;
-        datosPorCajero[cajero].credito = temp.credito;
+        datosPorClave[clave].tarjeta = temp.tarjeta;
+        datosPorClave[clave].pedidosYa = temp.pedidosYa;
+        datosPorClave[clave].credito = temp.credito;
 
-        // Calcular Total Egresos para este cajero desde estado.egresosCaja
+        // Calcular Total Egresos para este cajero Y caja desde estado.egresosCaja
         let egresosDelCajero = 0;
         if (estado.egresosCaja && estado.egresosCaja.length > 0) {
             egresosDelCajero = estado.egresosCaja
-                .filter(e => !e.cajero || e.cajero === cajero || e.cajero === 'Todas las cajas')
+                .filter(e => (!e.cajero || e.cajero === nombreCajero || e.cajero === 'Todas las cajas') &&
+                    (!e.caja || e.caja === nombreCaja))
                 .reduce((sum, e) => sum + (e.monto || 0), 0);
         }
-        
+
         // Usar fondo fijo por defecto (700000)
         const fondoFijo = 700000;
 
@@ -292,7 +401,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         const totalADeclarar = temp.efectivoBruto + egresosDelCajero;
         const ingresoTiendaCalculado = totalADeclarar - temp.servicios - fondoFijo;
 
-        console.log(`[DEBUG CONSOLIDADO - ${cajero}]`, {
+        console.log(`[DEBUG CONSOLIDADO - ${nombreCajero} ${nombreCaja}]`, {
             efectivoBruto: temp.efectivoBruto,
             egresos: egresosDelCajero,
             servicios: temp.servicios,
@@ -301,19 +410,21 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             ingresoTiendaCalculado: Math.max(0, ingresoTiendaCalculado)
         });
 
-        datosPorCajero[cajero].totalDeclarar = totalADeclarar;
-        datosPorCajero[cajero].egresos = egresosDelCajero;
-        datosPorCajero[cajero].fondoFijo = fondoFijo;
-        datosPorCajero[cajero].ingresoTiendaCalculado = Math.max(0, ingresoTiendaCalculado);
-        datosPorCajero[cajero].efectivo = temp.efectivoBruto;
+        datosPorClave[clave].totalDeclarar = totalADeclarar;
+        datosPorClave[clave].egresos = egresosDelCajero;
+        datosPorClave[clave].fondoFijo = fondoFijo;
+        datosPorClave[clave].ingresoTiendaCalculado = Math.max(0, ingresoTiendaCalculado);
+        datosPorClave[clave].efectivo = temp.efectivoBruto;
     });
 
     // Renderizar Filas
-    Object.keys(datosPorCajero).sort().forEach(cajero => {
-        const d = datosPorCajero[cajero];
+    Object.keys(datosPorClave).sort().forEach(clave => {
+        const d = datosPorClave[clave];
+        const { nombreCajero, nombreCaja } = d;
 
         const row = document.createElement('tr');
-        row.dataset.cajero = cajero;
+        row.dataset.cajero = nombreCajero;
+        row.dataset.caja = nombreCaja;
 
         // Calcular valores iniciales
         // Usamos totalDeclarar si existe (caso Arqueo), o fallback a efectivo (caso Movs sueltos)
@@ -324,10 +435,14 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         const ingresoTiendaReal = d.ingresoTiendaCalculado || 0;
 
         const rowHTML = `
-            <td>${cajero}</td>
+            <td>
+                <div>${nombreCajero}</div>
+                <div style="font-size: 0.85em; color: #666; font-weight: normal;">${nombreCaja}</div>
+            </td>
             <td style="text-align: right; padding-right: 10px;"><strong>${formatearMoneda(ingresoTiendaReal, 'gs')}</strong></td>
             <td><input type="number" class="input-recaudacion" value="0" 
-                data-cajero="${cajero}"
+                data-cajero="${nombreCajero}"
+                data-caja="${nombreCaja}"
                 data-system="${totalDeclararSystem}" 
                 data-egresos="${egresosSystem}" 
                 data-fondo="${fondoSystem}"
@@ -340,23 +455,26 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
 
         // Update function for this row
         const input = row.querySelector('.input-recaudacion');
-        
+
         // Crear clave de localStorage con fecha + caja + cajero
-        const clave = `recaudacion_${fechaDesde}_${filtroCaja || 'Todas'}_${cajero}`;
-        
+        // **IMPORTANTE**: Usar nombreCaja específico para la clave, no el filtro global
+        // Si el filtro global de caja está activo, nombreCaja coincidirá.
+        // Si es 'Todas las Cajas', nombreCaja será la caja específica de esa fila.
+        const claveStorage = `recaudacion_${fechaDesde}_${nombreCaja}_${nombreCajero}`;
+
         // Recuperar valor guardado en localStorage (prioridad 1)
-        let storedValue = localStorage.getItem(clave);
-        
+        let storedValue = localStorage.getItem(claveStorage);
+
         // Si no está en localStorage, intentar recuperar de Supabase (prioridad 2)
         if (!storedValue && recaudacionGuardada) {
-            const claveSupabase = `${cajero}_${filtroCaja || 'Todas'}`;
+            const claveSupabase = `${nombreCajero}_${nombreCaja}`;
             storedValue = recaudacionGuardada[claveSupabase];
         }
-        
+
         if (storedValue) {
             input.value = storedValue;
         }
-        
+
         const updateRow = () => {
             // Parsear valor removiendo puntos de formato
             const rawValue = input.value.replace(/\./g, '');
@@ -391,7 +509,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             // Guardar en localStorage
             const rawValue = input.value.replace(/\./g, '');
             const numValue = parseFloat(rawValue) || 0;
-            localStorage.setItem(clave, numValue);
+            localStorage.setItem(claveStorage, numValue);
         });
         input.addEventListener('blur', () => {
             const value = parseFloat(input.value) || 0;
@@ -400,13 +518,14 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
                 input.value = Math.floor(value).toLocaleString('es-PY');
             }
             // Guardar en localStorage
-            localStorage.setItem(clave, value);
-            
+            localStorage.setItem(claveStorage, value);
+
             // Guardar en Supabase
-            if (db && db.guardarRecaudacion && fechaDesde && filtroCaja) {
-                db.guardarRecaudacion(fechaDesde, cajero, filtroCaja, value).then(success => {
+            if (db && db.guardarRecaudacion && fechaDesde) {
+                // Guardar usando la caja específica de la fila
+                db.guardarRecaudacion(fechaDesde, nombreCajero, nombreCaja, value).then(success => {
                     if (success) {
-                        console.log(`✓ Recaudación guardada en BD para ${cajero}`);
+                        console.log(`✓ Recaudación guardada en BD para ${nombreCajero} (${nombreCaja})`);
                     }
                 });
             }
@@ -428,13 +547,25 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
     tfoot.appendChild(rowTotal);
 
     function actualizarTotalesFooter() {
-        let tEfectivo = 0, tSobrante = 0, tFaltante = 0, tSub = 0;
+        let tIngresoTienda = 0, tEfectivo = 0, tSobrante = 0, tFaltante = 0, tSub = 0;
 
         document.querySelectorAll('#tbodyRecaudacion tr').forEach(tr => {
-            if (tr.querySelector('input')) {
-                tEfectivo += parseFloat(tr.querySelector('input').value) || 0;
+            const input = tr.querySelector('input');
+            if (input) {
+                // Sumar Column 2: Total Ingresos Tienda (dataset)
+                tIngresoTienda += parseFloat(input.dataset.ingresoTienda) || 0;
+
+                // Sumar Column 3: Efectivo (Input value, removing dots)
+                const valorInput = parseFloat(input.value.replace(/\./g, '')) || 0;
+                tEfectivo += valorInput;
+
+                // Sumar Column 4: Sobrante
                 tSobrante += parsearMoneda(tr.querySelector('.col-sobrante').textContent);
+
+                // Sumar Column 5: Faltante
                 tFaltante += parsearMoneda(tr.querySelector('.col-faltante').textContent);
+
+                // Sumar Column 6: Subtotales
                 tSub += parsearMoneda(tr.querySelector('.col-subtotal').textContent);
             }
         });
@@ -443,10 +574,11 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         if (row) {
             row.innerHTML = `
                 <td>TOTAL RECAUDADO:</td>
-                <td>${formatearMoneda(tEfectivo, 'gs')}</td>
+                <td style="text-align: right; padding-right: 10px;"><strong>${formatearMoneda(tIngresoTienda, 'gs')}</strong></td>
+                <td><strong>${formatearMoneda(tEfectivo, 'gs')}</strong></td>
                 <td>${formatearMoneda(tSobrante, 'gs')}</td>
                 <td class="negativo">${formatearMoneda(tFaltante, 'gs')}</td>
-                <td>${formatearMoneda(tSub, 'gs')}</td>
+                <td><strong>${formatearMoneda(tSub, 'gs')}</strong></td>
             `;
         }
     }

@@ -42,11 +42,13 @@
             <div class="resumen-filtros">
                 <div class="form-grupo">
                     <label for="fechaResumenDesde">Desde:</label>
-                    <input type="date" id="fechaResumenDesde" onchange="cargarResumenDiario(); cargarTablaPagosEgresos()">
+                    <input type="date" id="fechaResumenDesde"
+                        onchange="cargarResumenDiario(); cargarTablaPagosEgresos()">
                 </div>
                 <div class="form-grupo">
                     <label for="fechaResumenHasta">Hasta:</label>
-                    <input type="date" id="fechaResumenHasta" onchange="cargarResumenDiario(); cargarTablaPagosEgresos()">
+                    <input type="date" id="fechaResumenHasta"
+                        onchange="cargarResumenDiario(); cargarTablaPagosEgresos()">
                 </div>
                 <div class="form-grupo">
                     <label for="filtroCajaGeneral">Caja:</label>
@@ -55,6 +57,7 @@
                         <option value="Caja 1">Caja 1</option>
                         <option value="Caja 2">Caja 2</option>
                         <option value="Caja 3">Caja 3</option>
+                        <option value="Caja Tesoreria">Caja Tesoreria</option>
                     </select>
                 </div>
             </div>
@@ -91,15 +94,7 @@
                     </div>
                 </div>
 
-                <!-- 4. Total Efectivo -->
-                <div class="metric-card metric-efectivo">
-                    <div class="metric-icon">💵</div>
-                    <div class="metric-content">
-                        <div class="metric-label">Total Efectivo</div>
-                        <div class="metric-value" id="metricTotalEfectivo">G$ 0</div>
-                        <div class="metric-subtitle">Pagos en efectivo</div>
-                    </div>
-                </div>
+
             </div>
 
             <!-- Seccion Recaudacion -->
@@ -137,6 +132,25 @@
                                 <th>DESCRIPCIÓN</th>
                                 <th>MONTO</th>
                             </tr>
+                            <!-- Filtros por columna -->
+                            <tr class="filter-row" style="background-color: #f8fafc;">
+                                <th style="padding: 5px;"><input type="text" id="filtroPagoCajero"
+                                        onkeyup="cargarTablaPagosEgresos()" placeholder="Filtrar..."
+                                        style="width: 100%; border: 1px solid #ddd; padding: 4px; border-radius: 4px; font-weight: normal;">
+                                </th>
+                                <th style="padding: 5px;"><input type="text" id="filtroPagoCategoria"
+                                        onkeyup="cargarTablaPagosEgresos()" placeholder="Filtrar..."
+                                        style="width: 100%; border: 1px solid #ddd; padding: 4px; border-radius: 4px; font-weight: normal;">
+                                </th>
+                                <th style="padding: 5px;"><input type="text" id="filtroPagoDescripcion"
+                                        onkeyup="cargarTablaPagosEgresos()" placeholder="Filtrar..."
+                                        style="width: 100%; border: 1px solid #ddd; padding: 4px; border-radius: 4px; font-weight: normal;">
+                                </th>
+                                <th style="padding: 5px;"><input type="number" id="filtroPagoMonto"
+                                        onkeyup="cargarTablaPagosEgresos()" placeholder="Min..."
+                                        style="width: 100%; border: 1px solid #ddd; padding: 4px; border-radius: 4px; font-weight: normal;">
+                                </th>
+                            </tr>
                         </thead>
                         <tbody id="tbodyPagosEgresos">
                         </tbody>
@@ -148,6 +162,37 @@
 
         </section>
     </main>
+
+    <!-- Modal de Detalle de Métricas -->
+    <div id="modalDetalleMetrica" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="cerrarModalMetrica()">&times;</span>
+            <h2 id="tituloModalMetrica">Detalle de Movimientos</h2>
+            <div class="table-responsive">
+                <table class="tabla-recaudacion">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Cajero</th>
+                            <th>Caja</th>
+                            <th>Descripción</th>
+                            <th>Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyDetalleMetrica">
+                    </tbody>
+                </table>
+            </div>
+            <!-- Total en el modal -->
+            <div class="resumen-totales"
+                style="margin-top: 1rem; border-top: 1px solid var(--color-borde); padding-top: 1rem;">
+                <div class="total-item final">
+                    <span>Total:</span>
+                    <span id="totalModalMetrica">G$ 0</span>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
@@ -165,7 +210,7 @@
                 setTimeout(() => {
                     window.actualizarMetricasResumen();
                 }, 500);
-                setTimeout(() => { if(window.cargarTablaPagosEgresos) window.cargarTablaPagosEgresos(); }, 600);
+                setTimeout(() => { if (window.cargarTablaPagosEgresos) window.cargarTablaPagosEgresos(); }, 600);
             }
         });
     </script>
