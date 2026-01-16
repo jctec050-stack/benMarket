@@ -72,6 +72,13 @@
                             </select>
                         </div>
                         <div class="form-grupo">
+                            <label for="filtroCajeroArqueo">Filtrar por Cajero:</label>
+                            <select id="filtroCajeroArqueo" name="filtroCajeroArqueo"
+                                onchange="actualizarArqueoFinal()">
+                                <option value="">Todos los cajeros</option>
+                            </select>
+                        </div>
+                        <div class="form-grupo">
                             <label for="cajero">Cajero:</label>
                             <input type="text" id="cajero" name="cajero" placeholder="Nombre del cajero" required
                                 disabled style="background-color: #f1f5f9;">

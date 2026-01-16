@@ -281,10 +281,24 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             datosPorClave[clave].egresos = egresos;
             datosPorClave[clave].fondoFijo = fondo;
 
-            // FÓRMULA CORREGIDA: Total Ingresos Tienda = Total a declarar Sistema - Total Servicios - Fondo fijo
-            let ingresoTiendaCalculado = efectivoFisico - serviciosEfectivo - fondo;
+            // FÓRMULA CORRECTA: Total Ingresos Tienda = (Efectivo físico + Egresos) - Servicios efectivo - Fondo fijo
+            let ingresoTiendaCalculado = (efectivoFisico + egresos) - serviciosEfectivo - fondo;
 
-            console.log(`[DEBUG ARQUEO - ${cajero} ${caja}] efectivoFisico=${efectivoFisico}, serviciosEfectivo=${serviciosEfectivo}, fondo=${fondo}, RESULTADO=${ingresoTiendaCalculado}`);
+            console.log(`[DEBUG ARQUEO - ${cajero} ${caja}] efectivoFisico=${efectivoFisico}, egresos=${egresos}, serviciosEfectivo=${serviciosEfectivo}, fondo=${fondo}, RESULTADO=${ingresoTiendaCalculado}`);
+
+            // DEBUG ADICIONAL para Cajero4 - Caja 1
+            if (cajero === 'Cajero4' && caja === 'Caja 1') {
+                console.log('[DEBUG DETALLADO Cajero4-Caja1]', {
+                    efectivoFisico,
+                    egresos,
+                    serviciosEfectivo,
+                    serviciosDetalle: a.servicios,
+                    otrosServicios: a.otrosServicios,
+                    fondo,
+                    calculo: `(${efectivoFisico} + ${egresos}) - ${serviciosEfectivo} - ${fondo} = ${ingresoTiendaCalculado}`,
+                    arqueoCompleto: a
+                });
+            }
 
             if (ingresoTiendaCalculado < 0) ingresoTiendaCalculado = 0;
 
@@ -356,13 +370,15 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         if (m.servicios) {
             Object.values(m.servicios).forEach(s => {
                 const monto = parseFloat(s.monto) || 0;
-                if (monto > 0) montoServicioEfectivo += monto;
+                // **MODIFICADO:** Sumar todos los montos (positivos Y negativos)
+                montoServicioEfectivo += monto;
             });
         }
         if (m.otrosServicios) {
             m.otrosServicios.forEach(s => {
                 const monto = parseFloat(s.monto) || 0;
-                if (monto > 0) montoServicioEfectivo += monto;
+                // **MODIFICADO:** Sumar todos los montos (positivos Y negativos)
+                montoServicioEfectivo += monto;
             });
         }
         datosPorClaveTemp[clave].servicios += montoServicioEfectivo;
@@ -397,7 +413,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         // Usar fondo fijo por defecto (700000)
         const fondoFijo = 700000;
 
-        // FÓRMULA FINAL: Total Ingresos Tienda = (Efectivo Bruto + Egresos) - Servicios - Fondo Fijo
+        // FÓRMULA CORRECTA: Total Ingresos Tienda = (Efectivo Bruto + Egresos) - Servicios - Fondo Fijo
         const totalADeclarar = temp.efectivoBruto + egresosDelCajero;
         const ingresoTiendaCalculado = totalADeclarar - temp.servicios - fondoFijo;
 
@@ -405,6 +421,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             efectivoBruto: temp.efectivoBruto,
             egresos: egresosDelCajero,
             servicios: temp.servicios,
+            serviciosDetalle: temp.serviciosDetalle, // **NUEVO:** Ver detalle de servicios
             fondoFijo: fondoFijo,
             totalADeclarar: totalADeclarar,
             ingresoTiendaCalculado: Math.max(0, ingresoTiendaCalculado)
@@ -433,6 +450,15 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         const fondoSystem = d.fondoFijo || 0;
         // Guardamos el "Ingreso Tienda" real calculado para comparaciones
         const ingresoTiendaReal = d.ingresoTiendaCalculado || 0;
+
+        // DEBUG: Log para verificar el valor antes de renderizar
+        console.log(`[RENDER ROW] ${nombreCajero} - ${nombreCaja}: ingresoTiendaReal = ${ingresoTiendaReal}`, {
+            totalDeclarar: d.totalDeclarar,
+            efectivo: d.efectivo,
+            egresos: d.egresos,
+            fondoFijo: d.fondoFijo,
+            ingresoTiendaCalculado: d.ingresoTiendaCalculado
+        });
 
         const rowHTML = `
             <td>

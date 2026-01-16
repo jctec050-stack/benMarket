@@ -1900,15 +1900,29 @@ async function guardarArqueo() {
     // **REFACTORIZADO:** Usar los totales ya calculados para la vista en pantalla.
     const fechaArqueo = arqueo.fecha.split('T')[0];
     const cajaFiltro = arqueo.caja;
+    const cajeroFiltro = arqueo.cajero; // **NUEVO:** Filtrar también por cajero
 
     // CORRECCIÓN: Filtrar ingresos también por la fecha del arqueo.
-    // **NUEVO:** Excluir movimientos ya arqueados
+    // **NUEVO:** Excluir movimientos ya arqueados Y filtrar por cajero
     const ingresosParaArqueo = estado.movimientosTemporales.filter(m =>
-        m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo) && m.arqueado !== true
+        m.caja === cajaFiltro &&
+        m.cajero === cajeroFiltro && // **NUEVO:** Filtrar por cajero
+        m.fecha.startsWith(fechaArqueo) &&
+        m.arqueado !== true
     );
-    // **NUEVO:** Excluir egresos ya arqueados
-    const egresosDeCaja = estado.egresosCaja.filter(e => e.fecha.startsWith(fechaArqueo) && e.caja === cajaFiltro && e.arqueado !== true);
-    const egresosDeOperaciones = estado.movimientos.filter(m => m.fecha.startsWith(fechaArqueo) && (m.tipo === 'gasto' || m.tipo === 'egreso') && m.caja === cajaFiltro);
+    // **NUEVO:** Excluir egresos ya arqueados Y filtrar por cajero
+    const egresosDeCaja = estado.egresosCaja.filter(e =>
+        e.fecha.startsWith(fechaArqueo) &&
+        e.caja === cajaFiltro &&
+        (e.cajero === cajeroFiltro || e.usuario === cajeroFiltro) && // **NUEVO:** Filtrar por cajero
+        e.arqueado !== true
+    );
+    const egresosDeOperaciones = estado.movimientos.filter(m =>
+        m.fecha.startsWith(fechaArqueo) &&
+        (m.tipo === 'gasto' || m.tipo === 'egreso') &&
+        m.caja === cajaFiltro &&
+        m.cajero === cajeroFiltro // **NUEVO:** Filtrar por cajero
+    );
     const todosLosEgresos = [...egresosDeCaja, ...egresosDeOperaciones];
 
     const movimientosParaArqueo = [
@@ -6159,32 +6173,7 @@ window.limpiarFormularioEgresoCaja = function () {
 };
 
 // Duplicate function code deleted to use the main definition around line 2500
-const userRole = sessionStorage.getItem('userRole');
-const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
 
-if (!mostrarTodo) {
-    // Para cajeros, ocultar egresos arqueados
-    egresos = egresos.filter(e => !e.arqueado);
-
-    // **NUEVO:** Filtrar también por CAJA asignada (segregación por caja)
-    const cajaAsignada = sessionStorage.getItem('cajaSeleccionada');
-    if (cajaAsignada) {
-        egresos = egresos.filter(e => e.caja === cajaAsignada);
-    }
-}
-
-// Filtrar por fecha
-if (fechaFiltro) {
-    egresos = egresos.filter(e => e.fecha.startsWith(fechaFiltro));
-}
-// Filtrar por caja
-if (cajaFiltro) {
-    egresos = egresos.filter(e => e.caja === cajaFiltro);
-}
-
-// Ordenar por fecha descendente
-egresos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-// Duplicate function bodies deleted
 
 // Cargar historial al inicio si estamos en la página correcta
 if (document.getElementById('listaEgresosCaja')) {
@@ -6658,4 +6647,73 @@ async function verificarYActualizarArqueo(fecha, caja) {
     } catch (error) {
         console.error("Error al actualizar arqueo reactivo:", error);
     }
+}
+
+// ==========================================
+// FUNCIONES PARA FILTRO DE CAJERO EN ARQUEO
+// ==========================================
+
+// Poblar el dropdown de cajeros con los cajeros que tienen movimientos
+window.poblarFiltroCajeroArqueo = function () {
+    const filtroCajero = document.getElementById('filtroCajeroArqueo');
+    if (!filtroCajero) return;
+
+    const fechaInput = document.getElementById('fecha');
+    const cajaInput = document.getElementById('caja');
+
+    if (!fechaInput || !cajaInput) return;
+
+    const fecha = fechaInput.value.split('T')[0];
+    const caja = cajaInput.value;
+
+    // Obtener lista única de cajeros que tienen movimientos en esa fecha/caja
+    const cajerosSet = new Set();
+
+    // Revisar movimientos temporales
+    if (estado.movimientosTemporales) {
+        estado.movimientosTemporales.forEach(m => {
+            if (m.fecha && m.fecha.startsWith(fecha)) {
+                if (caja === 'Todas las cajas' || m.caja === caja) {
+                    if (m.cajero) cajerosSet.add(m.cajero);
+                }
+            }
+        });
+    }
+
+    // Revisar egresos
+    if (estado.egresosCaja) {
+        estado.egresosCaja.forEach(e => {
+            if (e.fecha && e.fecha.startsWith(fecha)) {
+                if (caja === 'Todas las cajas' || e.caja === caja) {
+                    if (e.cajero || e.usuario) cajerosSet.add(e.cajero || e.usuario);
+                }
+            }
+        });
+    }
+
+    // Limpiar y repoblar el dropdown
+    const valorActual = filtroCajero.value;
+    filtroCajero.innerHTML = '<option value="">Todos los cajeros</option>';
+
+    Array.from(cajerosSet).sort().forEach(cajero => {
+        const option = document.createElement('option');
+        option.value = cajero;
+        option.textContent = cajero;
+        filtroCajero.appendChild(option);
+    });
+
+    // Restaurar selección si existe
+    if (valorActual && cajerosSet.has(valorActual)) {
+        filtroCajero.value = valorActual;
+    }
+};
+
+// Inicializar el filtro cuando se carga la página de arqueo
+if (document.getElementById('filtroCajeroArqueo')) {
+    // Esperar a que los datos estén cargados
+    setTimeout(() => {
+        if (typeof window.poblarFiltroCajeroArqueo === 'function') {
+            window.poblarFiltroCajeroArqueo();
+        }
+    }, 500);
 }
