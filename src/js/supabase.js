@@ -384,6 +384,27 @@ const db = {
         }
     },
 
+    async eliminarMovimiento(id) {
+        if (supabaseClient) {
+            try {
+                const { error } = await supabaseClient
+                    .from('movimientos')
+                    .delete()
+                    .eq('id', id);
+                if (error) throw error;
+                return { success: true };
+            } catch (error) {
+                console.error('Error eliminando movimiento:', error);
+                return { success: false, error };
+            }
+        } else {
+            const items = JSON.parse(localStorage.getItem('movimientos')) || [];
+            const next = items.filter(m => m.id !== id);
+            localStorage.setItem('movimientos', JSON.stringify(next));
+            return { success: true };
+        }
+    },
+
     // Obtener movimientos por fecha
     async obtenerMovimientos() {
         if (supabaseClient) {
@@ -972,7 +993,7 @@ async function guardarRecaudacion(fecha, cajero, caja, efectivo_ingresado) {
 
     try {
         const usuario = usuarioActual ? usuarioActual.email : 'desconocido';
-        
+
         const { data, error } = await supabaseClient
             .from('recaudacion')
             .upsert({

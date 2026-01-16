@@ -2385,6 +2385,11 @@ async function eliminarGasto(id) {
         confirmButtonType: 'danger'
     });
     if (confirmed) {
+        // **CORRECCIÓN:** Eliminar de Supabase
+        if (window.db && window.db.eliminarMovimiento) {
+            await window.db.eliminarMovimiento(id);
+        }
+
         estado.movimientos = estado.movimientos.filter(m => m.id !== id);
         guardarEnLocalStorage();
         mostrarMensaje('Movimiento eliminado', 'info');
@@ -2569,6 +2574,7 @@ function cargarHistorialEgresosCaja() {
     }
 
     // Renderizar egresos
+    console.log('[DEBUG] Renderizando historial egresos, cantidad:', egresosFiltrados.length);
     egresosFiltrados.forEach(egreso => {
         const div = document.createElement('div');
         div.className = 'movimiento-item';
@@ -2591,7 +2597,7 @@ function cargarHistorialEgresosCaja() {
                         <small><strong>Descripción:</strong> ${egreso.descripcion}</small>
                     </div>
                     ${egreso.referencia ? `<div class="movimiento-referencia"><small><strong>Referencia:</strong> ${egreso.referencia}</small></div>` : ''}
-                    <div class="movimiento-acciones">
+                    <div class="movimiento-acciones" style="display: flex; gap: 5px;">
                         <button class="btn-accion editar" onclick="iniciarEdicionEgresoCaja('${egreso.id}')">Editar</button>
                         <button class="btn-accion eliminar" onclick="eliminarEgresoCaja('${egreso.id}')">Eliminar</button>
                     </div>
@@ -6152,124 +6158,33 @@ window.limpiarFormularioEgresoCaja = function () {
     }
 };
 
-// Función para cargar el historial de egresos
-window.cargarHistorialEgresosCaja = async function () {
-    const listaContainer = document.getElementById('listaEgresosCaja');
-    const fechaFiltro = document.getElementById('fechaFiltroEgresos')?.value;
-    const cajaFiltro = document.getElementById('filtroCajaEgresos')?.value;
+// Duplicate function code deleted to use the main definition around line 2500
+const userRole = sessionStorage.getItem('userRole');
+const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
 
-    if (!listaContainer) return;
+if (!mostrarTodo) {
+    // Para cajeros, ocultar egresos arqueados
+    egresos = egresos.filter(e => !e.arqueado);
 
-    listaContainer.innerHTML = '<div class="cargando">Cargando egresos...</div>';
-
-    try {
-        let egresos = [];
-        if (window.db && window.db.obtenerEgresosCaja) {
-            const resultado = await window.db.obtenerEgresosCaja();
-            if (resultado.success) {
-                egresos = resultado.data || [];
-                if (egresos.length > 0) {
-                    console.log('=== ESTRUCTURA REAL DE EGRESOS_CAJA ===');
-                    console.log('Ejemplo de registro existente:', egresos[0]);
-                    console.log('Columnas disponibles:', Object.keys(egresos[0]));
-                }
-            } else {
-                throw new Error(resultado.error);
-            }
-        }
-
-        // **NUEVO:** Filtrar por rol y arqueado
-        const userRole = sessionStorage.getItem('userRole');
-        const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
-
-        if (!mostrarTodo) {
-            // Para cajeros, ocultar egresos arqueados
-            egresos = egresos.filter(e => !e.arqueado);
-
-            // **NUEVO:** Filtrar también por CAJA asignada (segregación por caja)
-            const cajaAsignada = sessionStorage.getItem('cajaSeleccionada');
-            if (cajaAsignada) {
-                egresos = egresos.filter(e => e.caja === cajaAsignada);
-            }
-        }
-
-        // Filtrar por fecha
-        if (fechaFiltro) {
-            egresos = egresos.filter(e => e.fecha.startsWith(fechaFiltro));
-        }
-        // Filtrar por caja
-        if (cajaFiltro) {
-            egresos = egresos.filter(e => e.caja === cajaFiltro);
-        }
-
-        // Ordenar por fecha descendente
-        egresos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-
-        listaContainer.innerHTML = '';
-
-        if (egresos.length === 0) {
-            listaContainer.innerHTML = '<p class="sin-resultados">No se encontraron egresos registrados.</p>';
-            return;
-        }
-
-        egresos.forEach(egreso => {
-            const div = document.createElement('div');
-            div.className = 'movimiento-item tipo-gasto';
-
-            // Formatear fecha
-            const fecha = new Date(egreso.fecha).toLocaleString('es-PY', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-            });
-
-            const montoFormateado = formatearMoneda(egreso.monto, 'gs');
-
-            div.innerHTML = `
-                <div class="movimiento-header">
-                    <span class="movimiento-categoria">${egreso.categoria}</span>
-                    <span class="movimiento-monto">-${montoFormateado}</span>
-                </div>
-                <div class="movimiento-detalles">
-                    <small>${fecha} | ${egreso.caja} | Por: ${egreso.usuario || 'Desconocido'}</small>
-                    <p class="movimiento-descripcion">${egreso.descripcion}</p>
-                    ${egreso.referencia ? `<small class="referencia">Ref: ${egreso.referencia}</small>` : ''}
-                </div>
-                ${window.sessionStorage.getItem('userRole') === 'admin' ?
-                    `<button class="btn-eliminar-sm" onclick="eliminarEgresoCaja('${egreso.id}')" title="Eliminar">🗑️</button>` : ''}
-            `;
-            listaContainer.appendChild(div);
-        });
-
-    } catch (error) {
-        console.error('Error al cargar historial de egresos:', error);
-        listaContainer.innerHTML = '<p class="error-msg">Error al cargar el historial.</p>';
+    // **NUEVO:** Filtrar también por CAJA asignada (segregación por caja)
+    const cajaAsignada = sessionStorage.getItem('cajaSeleccionada');
+    if (cajaAsignada) {
+        egresos = egresos.filter(e => e.caja === cajaAsignada);
     }
-};
+}
 
-// Función para eliminar egreso (solo admin)
-window.eliminarEgresoCaja = async function (id) {
-    const confirmado = await window.showConfirm('¿Está seguro de eliminar este egreso? Esta acción no se puede deshacer.', {
-        title: 'Eliminar Egreso',
-        type: 'danger',
-        confirmButtonType: 'danger',
-        confirmText: 'Eliminar'
-    });
+// Filtrar por fecha
+if (fechaFiltro) {
+    egresos = egresos.filter(e => e.fecha.startsWith(fechaFiltro));
+}
+// Filtrar por caja
+if (cajaFiltro) {
+    egresos = egresos.filter(e => e.caja === cajaFiltro);
+}
 
-    if (confirmado) {
-        if (window.db && window.db.eliminarEgresoCaja) {
-            const resultado = await window.db.eliminarEgresoCaja(id);
-            if (resultado.success) {
-                mostrarMensaje('Egreso eliminado correctamente.', 'exito');
-                cargarHistorialEgresosCaja();
-                if (typeof actualizarMetricasEgresos === 'function') {
-                    actualizarMetricasEgresos();
-                }
-            } else {
-                mostrarMensaje('Error al eliminar: ' + (resultado.error.message || 'Error desconocido'), 'error');
-            }
-        }
-    }
-};
+// Ordenar por fecha descendente
+egresos.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+// Duplicate function bodies deleted
 
 // Cargar historial al inicio si estamos en la página correcta
 if (document.getElementById('listaEgresosCaja')) {
