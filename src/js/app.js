@@ -782,7 +782,7 @@ async function agregarMovimiento() {
         const lote = fila.querySelector('.lote-servicio-dinamico').value;
         const tarjeta = parsearMoneda(fila.querySelector('.tarjeta-servicio-dinamico').value);
 
-        if (nombre && tarjeta > 0) {
+        if (nombre && tarjeta !== 0) {
             movimiento.otrosServicios.push({ nombre, lote, monto: 0, tarjeta });
         }
     });
@@ -793,7 +793,7 @@ async function agregarMovimiento() {
         const lote = fila.querySelector('.lote-servicio-efectivo-dinamico').value;
         const efectivo = parsearMoneda(fila.querySelector('.efectivo-servicio-dinamico').value);
 
-        if (nombre && efectivo > 0) {
+        if (nombre && efectivo !== 0) {
             movimiento.otrosServicios.push({ nombre, lote, monto: efectivo, tarjeta: 0 });
         }
     });
@@ -841,8 +841,15 @@ async function agregarMovimiento() {
         const original = estado.movimientosTemporales[indiceEditar];
 
         // --- INICIO DE DEPURACIÓN ---
+        // **CORRECCIÓN CRÍTICA:** Asegurar que mantenemos el ID original
+        // El objeto 'movimiento' tiene un ID nuevo generado al inicio de esta función.
+        // Al hacer { ...original, ...movimiento }, el ID nuevo sobrescribe al viejo.
+        // Debemos restaurar el ID original.
+        movimiento.id = original.id;
+
         console.log('>> DATOS A ENVIAR (EDICIÓN):', { ...original, ...movimiento });
         // --- FIN DE DEPURACIÓN ---
+
         const actualizado = { ...original, ...movimiento };
         await window.db.guardarMovimientoTemporal(actualizado);
         estado.movimientosTemporales[indiceEditar] = actualizado;
@@ -852,6 +859,9 @@ async function agregarMovimiento() {
         estado.movimientosTemporales.push(movimiento);
         mostrarMensaje('Movimiento agregado. ' + `Total: ${estado.movimientosTemporales.length}`, 'exito');
     }
+
+    // **NUEVO:** Trigger reactive update
+    await verificarYActualizarArqueo(movimiento.fecha, movimiento.caja);
 
     limpiarFormularioMovimiento();
 
@@ -970,6 +980,17 @@ function limpiarFormularioMovimiento() {
         }
     });
 
+    // **CORRECCIÓN:** Limpiar campos de Monedas Extranjeras que se estaban quedando con valor
+    document.querySelectorAll('.cantidad-moneda-movimiento').forEach(input => {
+        input.value = '';
+        // Disparar evento input para actualizar cualquier cálculo dependiente si existe
+        input.dispatchEvent(new Event('input'));
+    });
+    // Limpiar visualmente los montos convertidos
+    document.querySelectorAll('.monto-moneda-movimiento').forEach(span => {
+        span.textContent = '0';
+    });
+
     limpiarFilasServiciosDinamicos();
 }
 
@@ -997,6 +1018,12 @@ function renderizarIngresosAgregados() {
 
     // **NUEVO:** Filtrar movimientos ya arqueados, EXCEPTO para admin y tesoreria
     const userRole = sessionStorage.getItem('userRole');
+
+    // **NUEVO:** Filtrar por USUARIO para cajeros (Aislamiento)
+    const usuarioActual = sessionStorage.getItem('usuarioActual');
+    if (userRole === 'cajero' && usuarioActual) {
+        movimientosFiltrados = movimientosFiltrados.filter(m => m.cajero === usuarioActual);
+    }
 
     if (userRole !== 'admin' && userRole !== 'tesoreria') {
         // 1. Ocultar Arqueados
@@ -1053,7 +1080,7 @@ function renderizarIngresosAgregados() {
                 (typeof mov.pagosTarjeta === 'number' ? mov.pagosTarjeta : 0) +
                 (typeof mov.ventasCredito === 'number' ? mov.ventasCredito : 0) +
                 (typeof mov.pedidosYa === 'number' ? mov.pedidosYa : 0) +
-                (typeof mov.ventasTransferencia === 'number' ? mov.ventasTransferencia : 0) +
+                ((typeof mov.ventasTransferencia === 'number' ? mov.ventasTransferencia : 0) || (typeof mov.ventas_transferencia === 'number' ? mov.ventas_transferencia : 0)) +
                 totalServicios;
         }
 
@@ -1069,14 +1096,17 @@ function renderizarIngresosAgregados() {
         if ((mov.pagosTarjeta || 0) > 0) detallesHTML.push(`<p><span class="detalle-icono">💳</span><strong>Pago con Tarjeta:</strong> ${formatearMoneda(mov.pagosTarjeta, 'gs')}</p>`);
         if ((mov.ventasCredito || 0) > 0) detallesHTML.push(`<p><span class="detalle-icono">🧾</span><strong>Venta a Crédito:</strong> ${formatearMoneda(mov.ventasCredito, 'gs')}</p>`);
         if ((mov.pedidosYa || 0) > 0) detallesHTML.push(`<p><span class="detalle-icono">🛵</span><strong>PedidosYA:</strong> ${formatearMoneda(mov.pedidosYa, 'gs')}</p>`);
-        if ((mov.ventasTransferencia || 0) > 0) detallesHTML.push(`<p><span class="detalle-icono">💻</span><strong>Venta por Transferencia:</strong> ${formatearMoneda(mov.ventasTransferencia, 'gs')}</p>`);
+
+        // **CORRECCIÓN:** Leer también ventas_transferencia (snake_case)
+        const valTransferencia = mov.ventasTransferencia || mov.ventas_transferencia || 0;
+        if (valTransferencia > 0) detallesHTML.push(`<p><span class="detalle-icono">💻</span><strong>Venta por Transferencia:</strong> ${formatearMoneda(valTransferencia, 'gs')}</p>`);
 
         // **MODIFICADO:** Detallar los servicios individualmente
-        if (totalServicios > 0) {
+        if (totalServicios !== 0) {
             const agregarDetalleServicio = (nombre, servicio) => {
                 if (!servicio) return;
                 const totalServicio = servicio.monto + servicio.tarjeta;
-                if (totalServicio > 0) {
+                if (totalServicio !== 0) {
                     detallesHTML.push(`<p><span class="detalle-icono">⚙️</span><strong>${nombre}:</strong> ${formatearMoneda(totalServicio, 'gs')}</p>`);
                 }
             };
@@ -1156,7 +1186,7 @@ function iniciarEdicionMovimiento(index) {
     document.getElementById('pedidosYaMovimiento').value = movimiento.pedidosYa;
     document.getElementById('ventasTransfMovimiento').value = movimiento.ventasTransferencia;
 
-    // Cargar servicios fijos
+    // Cargar servicios fijos (Tarjeta)
     document.getElementById('apLoteCantMovimiento').value = movimiento.servicios.apLote.lote;
     document.getElementById('apLoteTarjetaMovimiento').value = movimiento.servicios.apLote.tarjeta;
     document.getElementById('aquiPagoLoteMovimiento').value = movimiento.servicios.aquiPago.lote;
@@ -1172,19 +1202,80 @@ function iniciarEdicionMovimiento(index) {
     document.getElementById('apostalaLoteMovimiento').value = movimiento.servicios.apostala.lote;
     document.getElementById('apostalaTarjetaMovimiento').value = movimiento.servicios.apostala.tarjeta;
 
+    // **NUEVO:** Cargar servicios fijos (Efectivo) - Faltaba esta lógica
+    document.getElementById('apLoteEfectivoMovimiento').value = movimiento.servicios.apLote.lote || '';
+    document.getElementById('apLoteEfectivoMontoMovimiento').value = movimiento.servicios.apLote.monto || 0;
+    document.getElementById('aquiPagoEfectivoMovimiento').value = movimiento.servicios.aquiPago.lote || '';
+    document.getElementById('aquiPagoEfectivoMontoMovimiento').value = movimiento.servicios.aquiPago.monto || 0;
+    document.getElementById('expressEfectivoMovimiento').value = movimiento.servicios.expressLote.lote || '';
+    document.getElementById('expressEfectivoMontoMovimiento').value = movimiento.servicios.expressLote.monto || 0;
+    document.getElementById('wepaEfectivoMovimiento').value = movimiento.servicios.wepa.lote || '';
+    document.getElementById('wepaEfectivoMontoMovimiento').value = movimiento.servicios.wepa.monto || 0;
+    document.getElementById('pasajeNsaEfectivoMovimiento').value = movimiento.servicios.pasajeNsa.lote || '';
+    document.getElementById('pasajeNsaEfectivoMontoMovimiento').value = movimiento.servicios.pasajeNsa.monto || 0;
+    document.getElementById('encomiendaNsaEfectivoMovimiento').value = movimiento.servicios.encomiendaNsa.lote || '';
+    document.getElementById('encomiendaNsaEfectivoMontoMovimiento').value = movimiento.servicios.encomiendaNsa.monto || 0;
+    document.getElementById('apostalaEfectivoMovimiento').value = movimiento.servicios.apostala.lote || '';
+    document.getElementById('apostalaEfectivoMontoMovimiento').value = movimiento.servicios.apostala.monto || 0;
+
+
     // Limpiar y cargar otros servicios dinámicos
     limpiarFilasServiciosDinamicos();
     movimiento.otrosServicios.forEach(servicio => {
-        agregarFilaServicioDinamico(); // Crea una nueva fila vacía
-        const nuevaFila = document.querySelector('.fila-servicio-dinamico:last-child');
-        nuevaFila.querySelector('.nombre-servicio-dinamico').value = servicio.nombre;
-        nuevaFila.querySelector('.lote-servicio-dinamico').value = servicio.lote;
-        nuevaFila.querySelector('.tarjeta-servicio-dinamico').value = servicio.tarjeta;
+        // Cargar Servicios Dinámicos de Tarjeta
+        if (servicio.tarjeta > 0) {
+            agregarFilaServicioDinamico();
+            const nuevaFila = document.querySelector('.fila-servicio-dinamico:last-child');
+            if (nuevaFila) {
+                nuevaFila.querySelector('.nombre-servicio-dinamico').value = servicio.nombre;
+                nuevaFila.querySelector('.lote-servicio-dinamico').value = servicio.lote;
+                nuevaFila.querySelector('.tarjeta-servicio-dinamico').value = servicio.tarjeta;
+            }
+        }
+        // Cargar Servicios Dinámicos de Efectivo
+        if (servicio.monto > 0) {
+            agregarFilaServicioEfectivoDinamico();
+            const nuevaFila = document.querySelector('.fila-servicio-efectivo-dinamico:last-child');
+            if (nuevaFila) {
+                nuevaFila.querySelector('.nombre-servicio-efectivo-dinamico').value = servicio.nombre;
+                nuevaFila.querySelector('.lote-servicio-efectivo-dinamico').value = servicio.lote;
+                nuevaFila.querySelector('.efectivo-servicio-dinamico').value = servicio.monto;
+            }
+        }
     });
 
-    // Llevar al usuario al formulario
-    document.getElementById('ingreso-movimiento').scrollIntoView({ behavior: 'smooth' });
-    mostrarMensaje('Editando movimiento. Realice los cambios y presione "Agregar Movimiento" para guardar.', 'info');
+    // **LÓGICA DE APERTURA AUTOMÁTICA DEL MODAL**
+    let modalId = null;
+    let tituloModal = 'Editar Movimiento';
+
+    const tieneServicioEfectivo = Object.values(movimiento.servicios).some(s => s.monto > 0) || movimiento.otrosServicios.some(s => s.monto > 0);
+    const tieneServicioTarjeta = Object.values(movimiento.servicios).some(s => s.tarjeta > 0) || movimiento.otrosServicios.some(s => s.tarjeta > 0);
+    const tieneNoEfectivo = (movimiento.pagosTarjeta > 0) || (movimiento.ventasCredito > 0) || (movimiento.pedidosYa > 0) || (movimiento.ventasTransferencia > 0) || (movimiento.ventas_transferencia > 0);
+    const tieneEfectivo = Object.values(movimiento.efectivo).some(val => val > 0) || Object.values(movimiento.monedasExtranjeras).some(m => m.cantidad > 0);
+
+    if (tieneServicioEfectivo) {
+        modalId = 'contenido-servicios-efectivo';
+        tituloModal = 'Servicios con Efectivo';
+    } else if (tieneServicioTarjeta) {
+        modalId = 'contenido-servicios';
+        tituloModal = 'Servicios c/ Tarjeta';
+    } else if (tieneNoEfectivo) {
+        modalId = 'contenido-no-efectivo';
+        tituloModal = 'Ingresos No Efectivo';
+    } else {
+        // Por defecto, o si tiene efectivo puro
+        modalId = 'contenido-efectivo';
+        tituloModal = 'Conteo de Efectivo';
+    }
+
+    if (modalId) {
+        abrirModal(modalId, tituloModal);
+        mostrarMensaje('Modo Edición: Realice sus cambios en el modal.', 'info');
+    } else {
+        // Fallback
+        document.getElementById('ingreso-movimiento').scrollIntoView({ behavior: 'smooth' });
+        mostrarMensaje('Editando movimiento. Seleccione una opción para ver detalles.', 'info');
+    }
 }
 
 async function eliminarIngresoAgregado(index) {
@@ -1207,6 +1298,10 @@ async function eliminarIngresoAgregado(index) {
         cargarResumenDiario(); // **NUEVO:** Actualizar resumen en tiempo real
         guardarEnLocalStorage();
         showNotification('Movimiento eliminado correctamente', 'success');
+
+        // **NUEVO:** Trigger reactive update
+        await verificarYActualizarArqueo(mov.fecha, mov.caja);
+
         // **CORRECCIÓN:** Actualizar métricas después de eliminar un ingreso (ya se llama en renderizar)
 
     }
@@ -1297,10 +1392,10 @@ function calcularTotalesArqueo(movimientosParaArqueo) {
         }
 
         // Solo sumar estos campos si existen (no son egresos)
-        totales.pagosTarjeta += mov.pagosTarjeta || 0;
-        totales.ventasCredito += mov.ventasCredito || 0;
-        totales.pedidosYa += mov.pedidosYa || 0;
-        totales.ventasTransferencia += mov.ventasTransferencia || 0;
+        totales.pagosTarjeta += (mov.pagosTarjeta || mov.pagos_tarjeta || 0);
+        totales.ventasCredito += (mov.ventasCredito || mov.ventas_credito || 0);
+        totales.pedidosYa += (mov.pedidosYa || mov.pedidos_ya || 0);
+        totales.ventasTransferencia += (mov.ventasTransferencia || mov.ventas_transferencia || 0);
 
         const sumarServicio = (nombreServicio) => {
             // Solo procesar servicios si el movimiento tiene servicios (no es un egreso)
@@ -1338,12 +1433,11 @@ function calcularTotalesArqueo(movimientosParaArqueo) {
  * Esta función solo se encarga de la presentación, no de los cálculos.
  * @param {Object} totales - El objeto con los totales pre-calculados.
  */
-function renderizarVistaArqueoFinal(totales) {
+function renderizarVistaArqueoFinal(totales, todosLosEgresos = []) {
     const contenedorVista = document.getElementById('vistaArqueoFinal');
     if (!contenedorVista) return;
 
     const fondoFijo = parsearMoneda(document.getElementById('fondoFijo').value);
-    const cajaFiltro = document.getElementById('caja').value;
 
     // Generar HTML para cada sección del resumen
     let efectivoHTML = '';
@@ -1374,13 +1468,13 @@ function renderizarVistaArqueoFinal(totales) {
                 <td>${moneda.toUpperCase()}</td>
                 <td style="text-align: center;">${cantidad.toFixed(2)}</td>
                 <td>${formatearMoneda(montoGs, 'gs')}</td>
-            </tr>`; // Adjusted colspan removed since we have 3 columns now
+            </tr>`;
         }
     });
 
     let serviciosHTML = '';
     const renderizarServicio = (nombre, servicio) => {
-        if (servicio.monto > 0 || servicio.tarjeta > 0) {
+        if (servicio.monto !== 0 || servicio.tarjeta !== 0) {
             serviciosHTML += `<tr><td><strong>${nombre}</strong></td><td>${servicio.lotes.join(', ')}</td><td>${formatearMoneda(servicio.monto, 'gs')}</td><td>${formatearMoneda(servicio.tarjeta, 'gs')}</td></tr>`;
         }
     };
@@ -1396,55 +1490,33 @@ function renderizarVistaArqueoFinal(totales) {
     }
 
     let totalServiciosArqueo = 0;
-    let totalServiciosEfectivo = 0; // **NUEVO:** Variable para sumar solo efectivo de servicios
+    let totalServiciosEfectivo = 0;
     ['apLote', 'aquiPago', 'expressLote', 'wepa', 'pasajeNsa', 'encomiendaNsa', 'apostala'].forEach(key => {
         const servicio = totales.servicios[key];
         if (servicio) {
             totalServiciosArqueo += servicio.monto + servicio.tarjeta;
-            totalServiciosEfectivo += servicio.monto; // Sumar solo efectivo
+            totalServiciosEfectivo += servicio.monto;
         }
     });
     for (const nombre in totales.servicios.otros) {
         const servicio = totales.servicios.otros[nombre];
         totalServiciosArqueo += servicio.monto + servicio.tarjeta;
-        totalServiciosEfectivo += servicio.monto; // Sumar solo efectivo
+        totalServiciosEfectivo += servicio.monto;
     }
 
-    const totalEfectivoBruto = totalEfectivoFinal + totalMonedasExtranjerasGs; // Efectivo Gs + Moneda Extranjera
-    // **CORRECCIÓN:** El total a entregar debe ser el resultado de (Total Efectivo Bruto + Fondo Fijo) - Fondo Fijo,
-    // lo que es igual al Total Efectivo Bruto. La variable 'totalAEntregar' ahora contendrá este valor.
+    const totalEfectivoBruto = totalEfectivoFinal + totalMonedasExtranjerasGs;
     const totalAEntregar = totalEfectivoBruto;
-    // **CORRECCIÓN:** Total a entregar GS = Efectivo GS - Fondo Fijo (sin monedas extranjeras)
     const totalAEntregarGs = totalEfectivoFinal - fondoFijo;
-    const totalIngresoEfectivo = totalServiciosEfectivo; // **NUEVA LÓGICA:** El total de ingreso efectivo es solo el efectivo de servicios.
+    const totalIngresoEfectivo = totalServiciosEfectivo;
 
-    // **NUEVO:** Filtrar arqueados para cajeros
-    const userRole = sessionStorage.getItem('userRole');
-    const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
+    // Calcular totales de egresos usando el array pasado como argumento
+    const totalEgresosCaja = todosLosEgresos.reduce((sum, e) => sum + e.monto, 0);
 
-    const egresosDeCajaFiltrados = estado.egresosCaja.filter(e =>
-        e.fecha.startsWith(document.getElementById('fecha').value.split('T')[0]) &&
-        (cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro) &&
-        (mostrarTodo || !e.arqueado) // Ocultar arqueados para cajeros
-    );
-    const egresosDeOperacionesFiltrados = estado.movimientos.filter(m =>
-        m.fecha.startsWith(document.getElementById('fecha').value.split('T')[0]) &&
-        (m.tipo === 'gasto' || m.tipo === 'egreso') &&
-        (cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro)
-    );
-
-    const totalEgresosCaja = egresosDeCajaFiltrados.reduce((sum, e) => sum + e.monto, 0) +
-        egresosDeOperacionesFiltrados.reduce((sum, m) => sum + m.monto, 0);
-
-    // **NUEVO:** Total a declarar = Egresos (positivo) + (Total Efectivo Bruto + Fondo Fijo)
     const totalADeclarar = totalEgresosCaja + totalEfectivoBruto;
-
-    // **NUEVO REQUERIMIENTO:** Total Ingresos Tienda = Total a declarar - Total efectivo servicios - Fondo Fijo
     const totalIngresosTiendaCalculado = totalADeclarar - totalIngresoEfectivo - fondoFijo;
 
     const totalNeto = (totales.totalIngresosTienda + totalIngresoEfectivo) - totalEgresosCaja;
 
-    // Preparar HTML para totales de monedas extranjeras
     let totalesMonedasHTML = '';
     if (totales.monedasExtranjeras.usd.cantidad > 0) {
         totalesMonedasHTML += `<div class="total-item final" style="margin-top: 0.5rem;"><strong>Total a Entregar (USD):</strong><strong>${totales.monedasExtranjeras.usd.cantidad.toFixed(2)}</strong></div>`;
@@ -1456,9 +1528,8 @@ function renderizarVistaArqueoFinal(totales) {
         totalesMonedasHTML += `<div class="total-item final" style="margin-top: 0.5rem;"><strong>Total a Entregar (ARS):</strong><strong>${totales.monedasExtranjeras.ars.cantidad.toFixed(0)}</strong></div>`;
     }
 
-    // **NUEVO:** Preparar HTML para la tabla de Egresos
+    // Prepare HTML for Egresos table
     let egresosHTML = '';
-    const todosLosEgresos = [...egresosDeCajaFiltrados, ...egresosDeOperacionesFiltrados];
 
     if (todosLosEgresos.length > 0) {
         todosLosEgresos.forEach(egreso => {
@@ -1578,20 +1649,16 @@ function actualizarArqueoFinal() {
     const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria';
 
     // **NUEVO:** Segregación por usuario para no mezclar cajas de diferentes cajeros
-    let usuarioActualNombre = null;
-    if (!mostrarArqueados && usuarioPerfil && usuarioPerfil.username) {
-        usuarioActualNombre = usuarioPerfil.username;
-    }
+    const usuarioActual = sessionStorage.getItem('usuarioActual');
 
     // 1. Obtener ingresos del día
-    // **CORRECCIÓN:** Filtrar también los ingresos por la fecha seleccionada.
-    // **NUEVO:** Excluir movimientos ya arqueados (Salvo Admins) y respetar filtro caja y USUARIO
     let ingresosParaArqueo = estado.movimientosTemporales.filter(m => {
         const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
         const visible = mostrarArqueados || !m.arqueado;
-        // User check
-        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+
+        // Regla: Aislamiento de Usuario (Cajeros solo suman SU dinero)
+        const coincideUsuario = (userRole !== 'cajero') || (!usuarioActual || m.cajero === usuarioActual);
 
         return coincideFecha && coincideCaja && visible && coincideUsuario;
     });
@@ -1602,7 +1669,7 @@ function actualizarArqueoFinal() {
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
         const visible = mostrarArqueados || !e.arqueado;
         // User check
-        const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
+        const coincideUsuario = (userRole !== 'cajero') || (!usuarioActual || e.cajero === usuarioActual || e.usuario === usuarioActual);
         return coincideFecha && coincideCaja && visible && coincideUsuario;
     });
 
@@ -1612,14 +1679,9 @@ function actualizarArqueoFinal() {
         const esEgreso = (m.tipo === 'gasto' || m.tipo === 'egreso');
         const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
         const coincideCaja = m.caja && (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
-        // Nota: Operaciones suelen ser historicas, no temporales, asi que 'arqueado' flag quizas no aplica igual,
-        // pero por consistencia si tuvieran flag, lo respetamos. Si no tienen flag, !undefined es true -> ocultaria?
-        // No, !undefined es true. wait. !undefined is true.
-        // Si m.arqueado es undefined, !m.arqueado es true.
-        // PERO si queremos OCULTAR los arqueados (true), !true es false.
-        // Si m.arqueado es undefined (no tiene), !undefined -> true. Visible. Correcto.
+
         const visible = mostrarArqueados || !m.arqueado;
-        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+        const coincideUsuario = (userRole !== 'cajero') || (!usuarioActual || m.cajero === usuarioActual);
 
         return esEgreso && coincideFecha && coincideCaja && visible && coincideUsuario;
     });
@@ -1640,7 +1702,7 @@ function actualizarArqueoFinal() {
     ];
 
     const totales = calcularTotalesArqueo(movimientosParaArqueo);
-    renderizarVistaArqueoFinal(totales);
+    renderizarVistaArqueoFinal(totales, todosLosEgresos);
     cargarHistorialMovimientosDia(); // Actualizar el historial visual
 }
 
@@ -1801,7 +1863,7 @@ async function guardarArqueo() {
         dolares: {
             cantidad: 0, monto: 0
         },
-        id: generarId(),
+        id: document.getElementById('idArqueoEditar')?.value || generarId(), // **MODIFICADO:** Conservar ID si es edición
         totalEfectivo: 0,
         pagosTarjeta: 0,
         ventasCredito: 0,
@@ -1818,6 +1880,22 @@ async function guardarArqueo() {
             ars: { cantidad: 0, monto: 0 }
         }
     };
+
+    // **NUEVO:** Verificar modo edición
+    const idEdicion = document.getElementById('idArqueoEditar')?.value;
+    const esEdicion = !!idEdicion;
+
+    if (esEdicion) {
+        // Si es edición, recuperar el objeto original para preservar datos si es necesario, 
+        // pero RECALCULAR lo que dependa de los inputs actuales (efectivo y fondo fijo).
+        const arqueoOriginal = estado.arqueos.find(a => a.id === idEdicion);
+        if (arqueoOriginal) {
+            console.log("Editando arqueo, preservando ID:", idEdicion);
+            // Preservar metadatos originales que no cambian
+            arqueo.cajero = arqueoOriginal.cajero;
+            // arqueo.fecha ya viene del input que se pobló al iniciar edición, igual que caja y fondoFijo.
+        }
+    }
 
     // **REFACTORIZADO:** Usar los totales ya calculados para la vista en pantalla.
     const fechaArqueo = arqueo.fecha.split('T')[0];
@@ -1908,30 +1986,55 @@ async function guardarArqueo() {
 
     // Guardar en base de datos
     console.log('[DEBUG GUARDAR ARQUEO] Datos a enviar a Supabase:', datosParaBD);
-    if (window.db && window.db.guardarArqueo) {
-        const resultado = await window.db.guardarArqueo(datosParaBD);
+    if (window.db) {
+        let resultado;
+        if (esEdicion) {
+            // **CASO EDICIÓN:** Usar actualizarArqueo
+            // Asegurar de pasar el ID existente
+            resultado = await window.db.actualizarArqueo(arqueo.id, datosParaBD);
+        } else if (window.db.guardarArqueo) {
+            // **CASO CREACIÓN:** Usar guardarArqueo
+            resultado = await window.db.guardarArqueo(datosParaBD);
+        }
+
         console.log('[DEBUG GUARDAR ARQUEO] Resultado de Supabase:', resultado);
-        if (!resultado.success) {
-            console.error('Error al guardar arqueo en base de datos:', resultado.error);
+        if (resultado && !resultado.success) {
+            console.error('Error al guardar/actualizar arqueo en base de datos:', resultado.error);
             mostrarMensaje('Error al guardar en base de datos: ' + resultado.error, 'peligro');
             return; // Detener si hay error
         } else {
-            console.log('✅ Arqueo guardado exitosamente en Supabase');
+            console.log('✅ Arqueo guardado/actualizado exitosamente en Supabase');
         }
     } else {
-        console.warn('⚠️ window.db.guardarArqueo no disponible');
+        console.warn('⚠️ window.db.guardarArqueo/actualizarArqueo no disponible');
     }
 
     // Guardar en el estado local
-    estado.arqueos.push(arqueo);
+    if (esEdicion) {
+        const index = estado.arqueos.findIndex(a => a.id === arqueo.id);
+        if (index !== -1) {
+            estado.arqueos[index] = arqueo;
+        }
+    } else {
+        estado.arqueos.push(arqueo);
+    }
+
     guardarEnLocalStorage();
 
     // Mostrar mensaje de éxito
-    mostrarMensaje('Arqueo guardado exitosamente', 'exito');
-
+    mostrarMensaje(esEdicion ? 'Arqueo actualizado exitosamente' : 'Arqueo guardado exitosamente', 'exito');
 
     // **MODIFICADO:** Exportar el PDF con los datos consistentes de la pantalla
-    exportarArqueoActualPDF(true); // true indica que es un guardado final
+    // **IMPORTANTE:** Hacer esto ANTES de limpiar el formulario/modo edición
+    try {
+        exportarArqueoActualPDF(true); // true indica que es un guardado final
+    } catch (e) {
+        console.error('Error al generar PDF:', e);
+        mostrarMensaje('Arqueo guardado, pero hubo un error al generar el PDF.', 'advertencia');
+    }
+
+    // Limpiar modo edición si existía
+    cancelarEdicionArqueo();
 
     // **NUEVO:** Marcar movimientos como arqueados en lugar de borrarlos
     const movimientosArqueados = estado.movimientosTemporales.filter(m =>
@@ -2044,6 +2147,12 @@ function cerrarModal() {
         // Devolver el contenido a su contenedor original
         contenedores.appendChild(contenido);
     }
+
+    // Limpiar modo edición si se cierra sin guardar
+    if (document.getElementById('idArqueoEditar')?.value) {
+        cancelarEdicionArqueo();
+    }
+
     modal.style.display = 'none'; // Ocultar el modal
 }
 
@@ -2368,6 +2477,9 @@ async function guardarEgresoCaja(event) {
         estado.egresosCaja.push(egreso);
         mostrarMensaje('Egreso guardado con éxito.', 'exito');
     }
+
+    // **NUEVO:** Trigger reactive update
+    await verificarYActualizarArqueo(egreso.fecha, egreso.caja);
 
     if (window.db && window.db.guardarEgresoCaja) {
         await window.db.guardarEgresoCaja(egreso);
@@ -2785,7 +2897,14 @@ async function eliminarEgresoCaja(id) {
         // Eliminar de localStorage
         console.log('Eliminando de localStorage...');
         const cantidadAntes = estado.egresosCaja.length;
+        // **NUEVO:** Capturar datos para actualización reactiva antes de eliminar del estado local
+        const egresoAEliminar = estado.egresosCaja.find(e => e.id === id);
+
         estado.egresosCaja = estado.egresosCaja.filter(e => e.id !== id);
+
+        if (egresoAEliminar) {
+            await verificarYActualizarArqueo(egresoAEliminar.fecha, egresoAEliminar.caja);
+        }
         const cantidadDespues = estado.egresosCaja.length;
         console.log(`Egresos antes: ${cantidadAntes}, después: ${cantidadDespues}`);
 
@@ -4568,6 +4687,7 @@ function mostrarDetallesArqueo(arqueoId) {
             <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
                 <div>
                     ${esAdmin ? `<button class="btn btn-peligro" onclick="eliminarArqueo('${arqueo.id}', event); cerrarModal();" style="background-color: var(--color-peligro);">🗑️ Eliminar Arqueo</button>` : ''}
+                    ${(esAdmin || userRole === 'tesoreria') ? `<button class="btn btn-advertencia" onclick="iniciarEdicionArqueo('${arqueo.id}');" style="margin-left: 10px; background-color: var(--color-advertencia);">✏️ Editar Arqueo</button>` : ''}
                 </div>
                 <div>
                     <button class="btn" onclick="exportarArqueoPDFById('${arqueo.id}')">Exportar a PDF</button>
@@ -6414,9 +6534,213 @@ function cerrarModalDetalleServicio() {
     }
 }
 
-window.onclick = function (event) {
-    const modal = document.getElementById('modalDetalleServicio');
-    if (event.target == modal) {
-        cerrarModalDetalleServicio();
+// ============================================
+// NUEVAS FUNCIONES PARA EDICIÓN DE ARQUEOS
+// ============================================
+
+/**
+ * Prepara la interfaz para editar un arqueo existente.
+ * Carga los datos físicos (efectivo, fondo fijo) en el formulario para corrección manual.
+ */
+function iniciarEdicionArqueo(arqueoId) {
+    const arqueo = estado.arqueos.find(a => a.id === arqueoId);
+    if (!arqueo) return;
+
+    // Cerrar modal de detalles
+    cerrarModal();
+
+    // Marcar estado de edición (usando campo oculto o variable global implícita)
+    let inputId = document.getElementById('idArqueoEditar');
+    if (!inputId) {
+        // Crear campo oculto si no existe (probablemente debería estar en el HTML, pero lo aseguramos aquí)
+        inputId = document.createElement('input');
+        inputId.type = 'hidden';
+        inputId.id = 'idArqueoEditar';
+        document.getElementById('formularioArqueo').appendChild(inputId);
     }
-};
+    inputId.value = arqueo.id;
+
+    // Cargar Datos Principales
+    document.getElementById('fecha').value = arqueo.fecha.split('T')[0]; // Ajustar formato fecha
+    document.getElementById('caja').value = arqueo.caja;
+    document.getElementById('cajero').value = arqueo.cajero;
+    document.getElementById('fondoFijo').value = formatearMoneda(arqueo.fondo_fijo || arqueo.fondoFijo || 0, 'gs').replace('Gs ', '').trim();
+
+    // Cargar Billetes (Efectivo Físico)
+    // Primero resetear inputs
+    document.querySelectorAll('.cantidad-denominacion').forEach(input => input.value = 0);
+
+    if (arqueo.efectivo) {
+        Object.entries(arqueo.efectivo).forEach(([denom, cant]) => {
+            const input = document.querySelector(`.cantidad-denominacion[data-denominacion="${denom}"]`);
+            if (input) input.value = cant;
+        });
+    }
+
+    // Cargar Monedas Extranjeras (si aplica a los inputs visuales del arqueo, aunque suelen ser calculados desde movimientos)
+    // Nota: En el arqueo original, las monedas extranjeras se calculan desde movimientos. Si visualmente hay inputs manuales para esto, 
+    // deberíamos cargarlos. Si son solo calculados, no hay input que cargar. 
+    // Asumimos flujo estándar: Solo Billetes y Fondo Fijo son editables manualmente en la pantalla principal.
+
+    // Cambiar Botón de Guardar
+    const btnGuardar = document.querySelector('button[onclick="guardarArqueo()"]');
+    if (btnGuardar) {
+        btnGuardar.innerHTML = '💾 Actualizar Arqueo';
+        btnGuardar.classList.add('btn-warning'); // Color diferente para indicar edición
+    }
+
+    // Mostrar botón de cancelar
+    let btnCancelar = document.getElementById('btnCancelarEdicionArqueo');
+    if (!btnCancelar) {
+        btnCancelar = document.createElement('button');
+        btnCancelar.id = 'btnCancelarEdicionArqueo';
+        btnCancelar.type = 'button';
+        btnCancelar.className = 'btn btn-secundario';
+        btnCancelar.style.marginLeft = '10px';
+        btnCancelar.innerHTML = '❌ Cancelar Edición';
+        btnCancelar.onclick = cancelarEdicionArqueo;
+        if (btnGuardar) btnGuardar.parentNode.insertBefore(btnCancelar, btnGuardar.nextSibling);
+    }
+
+    // Calcular totales visuales con los datos cargados
+    // Necesitamos simular inputs para recalcularTodo O confiar en que el usuario tocará algo.
+    // Lo mejor es forzar un recalculado visual.
+    // Pero calcularTotalesArqueo depende de movimientosTemporales. 
+    // Al cargar fecha y caja, actualizarArqueoFinal() filtrará los movimientos de ese día
+    // y recalculará los totales del sistema.
+    // Lo único Manual es el efectivo.
+    actualizarArqueoFinal();
+
+    mostrarMensaje('Modo Edición Activado: Puede corregir Fondo Fijo y Billetes.', 'info');
+    document.getElementById('formularioArqueo').scrollIntoView({ behavior: 'smooth' });
+}
+
+function cancelarEdicionArqueo() {
+    const inputId = document.getElementById('idArqueoEditar');
+    if (inputId) inputId.value = '';
+
+    document.getElementById('formularioArqueo').reset();
+    document.getElementById('fecha').value = new Date().toISOString().split('T')[0]; // Restaurar hoy
+
+    // Restaurar botón
+    const btnGuardar = document.querySelector('button[onclick="guardarArqueo()"]');
+    if (btnGuardar) {
+        btnGuardar.innerHTML = '💾 Guardar Arqueo';
+        btnGuardar.classList.remove('btn-warning');
+    }
+
+    // Ocultar cancelar
+    const btnCancelar = document.getElementById('btnCancelarEdicionArqueo');
+    if (btnCancelar) btnCancelar.remove();
+
+    actualizarArqueoFinal();
+}
+
+/**
+ * Función CLAVE: Actualiza reactivamente un arqueo ya cerrado cuando se modifican sus movimientos base.
+ * Se llama desde guardarMovimiento, eliminarMovimiento, etc.
+ */
+async function recalcularArqueoExistente(fechaISO, caja) {
+    if (!fechaISO || !caja) return;
+
+    const fechaArqueo = fechaISO.split('T')[0];
+
+    // Buscar arqueo existente
+    const arqueoIndex = estado.arqueos.findIndex(a =>
+        a.fecha.split('T')[0] === fechaArqueo && a.caja === caja
+    );
+
+    if (arqueoIndex === -1) return; // No existe arqueo para actualizar
+
+    console.log(`[RECALCULO REACTIVO] Actualizando arqueo para ${fechaArqueo} - ${caja}`);
+    const arqueoExistente = estado.arqueos[arqueoIndex];
+
+    // Recalcular TOTALES DEL SISTEMA basándonos en el estado ACTUAL de movimientos
+    // (Incluye el movimiento recién editado/eliminado/agregado)
+
+    // 1. Reconstruir lista de movimientos relevantes
+    const ingresos = estado.movimientosTemporales.filter(m =>
+        m.caja === caja && m.fecha.startsWith(fechaArqueo)
+        // Nota: Incluimos TODOS, incluso si ya tienen 'arqueado: true', porque estamos recalculando EL arqueo
+    ).map(m => ({ ...m, tipoMovimiento: 'ingreso' }));
+
+    const egresosCaja = estado.egresosCaja.filter(e =>
+        e.caja === caja && e.fecha.startsWith(fechaArqueo)
+    ).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
+
+    const egresosOperaciones = estado.movimientos.filter(m =>
+        m.caja === caja && m.fecha.startsWith(fechaArqueo) &&
+        (m.tipo === 'gasto' || m.tipo === 'egreso')
+    ).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
+
+    const todosLosMovimientos = [...ingresos, ...egresosCaja, ...egresosOperaciones];
+
+    // 2. Calcular nuevos totales
+    const totales = calcularTotalesArqueo(todosLosMovimientos);
+
+    // 3. Actualizar campos calculados del objeto arqueo
+    // IMPORTANTE: NO tocamos 'efectivo' (billetes contados) ni 'fondo_fijo' 
+    // porque esos son datos "físicos" ingresados manualmente.
+
+    arqueoExistente.monedasExtranjeras = totales.monedasExtranjeras;
+    arqueoExistente.pagosTarjeta = totales.pagosTarjeta;
+    arqueoExistente.ventasCredito = totales.ventasCredito;
+    arqueoExistente.pedidosYa = totales.pedidosYa;
+    arqueoExistente.ventasTransferencia = totales.ventasTransferencia;
+    arqueoExistente.servicios = totales.servicios;
+    arqueoExistente.totalServicios = Object.values(totales.servicios).flat().reduce((sum, s) => sum + (s.monto || 0) + (s.tarjeta || 0), 0);
+
+    // Recalcular Total Efectivo Bruto (Suma de billetes físicos + Moneda Extranjera recalculada)
+    const efectivoFisicoGs = Object.entries(arqueoExistente.efectivo).reduce((sum, [denom, cant]) => sum + (parseInt(denom) * cant), 0);
+    const monedaExtranjeraGs = totales.monedasExtranjeras.usd.montoGs + totales.monedasExtranjeras.brl.montoGs + totales.monedasExtranjeras.ars.montoGs;
+
+    arqueoExistente.totalEfectivo = efectivoFisicoGs + monedaExtranjeraGs;
+
+    // Total Ingresos General
+    arqueoExistente.totalIngresos = arqueoExistente.totalEfectivo +
+        arqueoExistente.pagosTarjeta +
+        arqueoExistente.ventasCredito +
+        arqueoExistente.pedidosYa +
+        arqueoExistente.ventasTransferencia +
+        arqueoExistente.totalServicios;
+
+    arqueoExistente.saldo_caja = arqueoExistente.totalIngresos;
+
+    const totalEgresos = [...egresosCaja, ...egresosOperaciones].reduce((sum, e) => sum + (e.monto || 0), 0);
+
+    // Preparar objeto flat para actualizar BD
+    const datosUpdate = {
+        dolares: arqueoExistente.monedasExtranjeras.usd,
+        reales: arqueoExistente.monedasExtranjeras.brl,
+        pesos: arqueoExistente.monedasExtranjeras.ars,
+        pagos_tarjeta: arqueoExistente.pagosTarjeta,
+        ventas_credito: arqueoExistente.ventasCredito,
+        pedidos_ya: arqueoExistente.pedidosYa,
+        ventas_transferencia: arqueoExistente.ventasTransferencia,
+        servicios: arqueoExistente.servicios,
+        total_servicios: arqueoExistente.totalServicios,
+        total_efectivo: arqueoExistente.totalEfectivo,
+        total_ingresos: arqueoExistente.totalIngresos,
+        total_egresos: totalEgresos,
+        saldo_caja: arqueoExistente.totalIngresos
+    };
+
+    console.log('[RECALCULO] Guardando actualización en DB...', datosUpdate);
+
+    if (window.db && window.db.actualizarArqueo) {
+        await window.db.actualizarArqueo(arqueoExistente.id, datosUpdate);
+        // showNotification?? Mejor no interrumpir mucho, tal vez solo log
+        console.log('Arqueo actualizado en background.');
+    }
+
+    // Guardar estado local
+    guardarEnLocalStorage();
+}
+
+async function verificarYActualizarArqueo(fecha, caja) {
+    try {
+        await recalcularArqueoExistente(fecha, caja);
+    } catch (error) {
+        console.error("Error al actualizar arqueo reactivo:", error);
+    }
+}
