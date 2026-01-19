@@ -4702,7 +4702,7 @@ function configurarVistaPorRol(rol, caja, usuario) {
         // Admin ve TODO, incluyendo Usuarios
         if (navOperaciones) navOperaciones.style.display = '';
         if (navResumen) navResumen.style.display = '';
-        if (navUsuarios) navUsuarios.style.display = ''; // Solo admin ve Usuarios
+        if (navUsuarios) navUsuarios.style.display = 'none'; // Usuarios oculto también para admin
     } else {
         // Para cualquier otro rol o sin rol, ocultar todo excepto básico
         if (navOperaciones) navOperaciones.style.display = 'none';
