@@ -22,10 +22,11 @@
     }
 
     // Definir páginas restringidas por rol
+    // Lista de páginas a las que NO se puede acceder
     const paginasRestringidas = {
-        'cajero': ['operaciones.html', 'resumen.html', 'usuarios.html'],
+        'cajero': ['operaciones.html', 'resumen.html', 'resumenServicios.html', 'usuarios.html'],
         'tesoreria': ['usuarios.html'],
-        'admin': [] // Admin tiene acceso a todo
+        'admin': ['usuarios.html'] // Usuarios restringido para todos por ahora
     };
 
     // Verificar si la página actual está restringida para el rol

@@ -762,6 +762,26 @@ async function agregarMovimiento() {
         otrosServicios: []
     };
 
+    // **NUEVO:** Si es una venta a crédito, capturar detalles del cliente y descripción específica
+    if (movimiento.ventasCredito > 0) {
+        const clienteCredito = document.getElementById('clienteVentaCredito')?.value || '';
+        const descCredito = document.getElementById('descripcionVentaCredito')?.value || '';
+
+        const detallesCredito = [];
+        if (clienteCredito) detallesCredito.push(`Cliente: ${clienteCredito}`);
+        if (descCredito) detallesCredito.push(descCredito);
+
+        if (detallesCredito.length > 0) {
+            const infoExtra = detallesCredito.join(' - ');
+            // Si ya hay descripción, agregarla entre paréntesis, si no, usar la info de crédito
+            if (movimiento.descripcion) {
+                movimiento.descripcion += ` (${infoExtra})`;
+            } else {
+                movimiento.descripcion = infoExtra;
+            }
+        }
+    }
+
     console.log('=== SERVICIOS CAPTURADOS ===');
     console.log('apLote.lote:', movimiento.servicios.apLote.lote);
     console.log('aquiPago.lote:', movimiento.servicios.aquiPago.lote);
@@ -991,7 +1011,12 @@ function limpiarFormularioMovimiento() {
         span.textContent = '0';
     });
 
+    // Limpiar filas de servicios dinámicos
     limpiarFilasServiciosDinamicos();
+
+    // **NUEVO:** Limpiar campos de Ventas a Crédito
+    document.getElementById('clienteVentaCredito').value = '';
+    document.getElementById('descripcionVentaCredito').value = '';
 }
 
 function renderizarIngresosAgregados() {
@@ -1250,7 +1275,8 @@ function iniciarEdicionMovimiento(index) {
 
     const tieneServicioEfectivo = Object.values(movimiento.servicios).some(s => s.monto > 0) || movimiento.otrosServicios.some(s => s.monto > 0);
     const tieneServicioTarjeta = Object.values(movimiento.servicios).some(s => s.tarjeta > 0) || movimiento.otrosServicios.some(s => s.tarjeta > 0);
-    const tieneNoEfectivo = (movimiento.pagosTarjeta > 0) || (movimiento.ventasCredito > 0) || (movimiento.pedidosYa > 0) || (movimiento.ventasTransferencia > 0) || (movimiento.ventas_transferencia > 0);
+    const tieneNoEfectivo = (movimiento.pagosTarjeta > 0) || (movimiento.pedidosYa > 0) || (movimiento.ventasTransferencia > 0) || (movimiento.ventas_transferencia > 0);
+    const esVentaCredito = (movimiento.ventasCredito > 0);
     const tieneEfectivo = Object.values(movimiento.efectivo).some(val => val > 0) || Object.values(movimiento.monedasExtranjeras).some(m => m.cantidad > 0);
 
     if (tieneServicioEfectivo) {
@@ -1259,6 +1285,24 @@ function iniciarEdicionMovimiento(index) {
     } else if (tieneServicioTarjeta) {
         modalId = 'contenido-servicios';
         tituloModal = 'Servicios c/ Tarjeta';
+    } else if (esVentaCredito) {
+        // **NUEVO:** Priorizar modal de crédito y extraer datos de inscripción
+        modalId = 'contenido-ventas-credito';
+        tituloModal = 'Ventas a Crédito';
+
+        // Intentar parsear "Cliente: [Nombre] - [Desc]"
+        const descCompleta = movimiento.descripcion || '';
+        if (descCompleta.startsWith('Cliente: ')) {
+            const partes = descCompleta.split(' - ');
+            const clienteParte = partes[0].replace('Cliente: ', '');
+            const descParte = partes.slice(1).join(' - ').replace(/\s*\([^)]*\)$/, ''); // Eliminar posible duplicado entre paréntesis si existiera
+
+            document.getElementById('clienteVentaCredito').value = clienteParte;
+            document.getElementById('descripcionVentaCredito').value = descParte;
+        } else {
+            // Si no sigue el formato, poner todo en descripción
+            document.getElementById('descripcionVentaCredito').value = descCompleta;
+        }
     } else if (tieneNoEfectivo) {
         modalId = 'contenido-no-efectivo';
         tituloModal = 'Ingresos No Efectivo';
@@ -1651,6 +1695,9 @@ function actualizarArqueoFinal() {
     // **NUEVO:** Segregación por usuario para no mezclar cajas de diferentes cajeros
     const usuarioActual = sessionStorage.getItem('usuarioActual');
 
+    // **NUEVO:** Obtener filtro manual de cajero (para Arqueo)
+    const filtroCajeroValue = document.getElementById('filtroCajeroArqueo')?.value || '';
+
     // 1. Obtener ingresos del día
     let ingresosParaArqueo = estado.movimientosTemporales.filter(m => {
         const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
@@ -1658,7 +1705,9 @@ function actualizarArqueoFinal() {
         const visible = mostrarArqueados || !m.arqueado;
 
         // Regla: Aislamiento de Usuario (Cajeros solo suman SU dinero)
-        const coincideUsuario = (userRole !== 'cajero') || (!usuarioActual || m.cajero === usuarioActual);
+        // Y además aplicamos el filtro manual si existe
+        const coincideUsuario = (userRole !== 'cajero' || (!usuarioActual || m.cajero === usuarioActual)) &&
+            (!filtroCajeroValue || m.cajero === filtroCajeroValue);
 
         return coincideFecha && coincideCaja && visible && coincideUsuario;
     });
@@ -1668,8 +1717,11 @@ function actualizarArqueoFinal() {
         const coincideFecha = e.fecha.split('T')[0] === fechaArqueo;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
         const visible = mostrarArqueados || !e.arqueado;
-        // User check
-        const coincideUsuario = (userRole !== 'cajero') || (!usuarioActual || e.cajero === usuarioActual || e.usuario === usuarioActual);
+        // User check + Filtro manual
+        const cajeroEgreso = e.cajero || e.usuario;
+        const coincideUsuario = (userRole !== 'cajero' || (!usuarioActual || cajeroEgreso === usuarioActual)) &&
+            (!filtroCajeroValue || cajeroEgreso === filtroCajeroValue);
+
         return coincideFecha && coincideCaja && visible && coincideUsuario;
     });
 
@@ -1681,7 +1733,8 @@ function actualizarArqueoFinal() {
         const coincideCaja = m.caja && (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
 
         const visible = mostrarArqueados || !m.arqueado;
-        const coincideUsuario = (userRole !== 'cajero') || (!usuarioActual || m.cajero === usuarioActual);
+        const coincideUsuario = (userRole !== 'cajero' || (!usuarioActual || m.cajero === usuarioActual)) &&
+            (!filtroCajeroValue || m.cajero === filtroCajeroValue);
 
         return esEgreso && coincideFecha && coincideCaja && visible && coincideUsuario;
     });
@@ -7232,3 +7285,40 @@ if (document.getElementById('filtroCajeroArqueo')) {
         }
     }, 500);
 }
+// ============================================
+// CONTROL DE VISIBILIDAD DE MENÚ (RBAC)
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    const userRole = sessionStorage.getItem('userRole');
+    if (!userRole) return;
+
+    // Mapa de enlaces a ocultar según rol
+    const ocultarPara = {
+        'cajero': [
+            'operaciones.html',
+            'resumen.html',
+            'resumenServicios.html',
+            'usuarios.html'
+        ],
+        'tesoreria': ['usuarios.html'],
+        'admin': ['usuarios.html']
+    };
+
+    const enlacesOcultar = ocultarPara[userRole] || [];
+
+    // Iterar sobre todos los enlaces del menú
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach(link => {
+        const href = link.getAttribute('href');
+        if (enlacesOcultar.includes(href)) {
+            // Ocultar el elemento LI padre si es posible, o el link
+            if (link.parentElement.tagName === 'LI') {
+                link.parentElement.style.display = 'none';
+            } else {
+                link.style.display = 'none';
+            }
+        }
+    });
+
+    console.log(`[RBAC] Menú actualizado para rol: ${userRole}`);
+});

@@ -32,7 +32,7 @@
         </div>
     </nav>
 
-    <main class="container">
+    <main class="container" style="max-width: 900px;">
         <!-- Sección de Arqueo de Caja -->
         <section id="ingresos" class="seccion activa">
             <div id="header-arqueo"
@@ -47,23 +47,20 @@
             <div class="resumen-card" style="margin-bottom: 2rem;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                     <h3 style="margin: 0; color: var(--color-primario);">Configuración del Arqueo</h3>
-                    <div class="form-botones" style="margin: 0;">
-                        <button type="button" class="btn btn-primario" onclick="guardarArqueo()">
-                            💾 Guardar Arqueo
-                        </button>
-                    </div>
+                    <!-- Botón movido al final -->
                 </div>
 
                 <form id="controlesArqueo">
                     <div class="form-grid">
                         <div class="form-grupo">
                             <label for="fecha">Fecha y Hora:</label>
-                            <input type="datetime-local" id="fecha" name="fecha" required>
+                            <input type="datetime-local" id="fecha" name="fecha" required
+                                onchange="if(window.poblarFiltroCajeroArqueo) window.poblarFiltroCajeroArqueo(); actualizarArqueoFinal()">
                         </div>
                         <div class="form-grupo">
                             <label for="caja">Caja:</label>
                             <select id="caja" name="caja" required
-                                onchange="actualizarIndicadorCaja(); actualizarArqueoFinal()">
+                                onchange="actualizarIndicadorCaja(); if(window.poblarFiltroCajeroArqueo) window.poblarFiltroCajeroArqueo(); actualizarArqueoFinal()">
                                 <option value="Todas las cajas">Todas las cajas</option>
                                 <option value="Caja 1">Caja 1</option>
                                 <option value="Caja 2">Caja 2</option>
@@ -78,7 +75,7 @@
                                 <option value="">Todos los cajeros</option>
                             </select>
                         </div>
-                        <div class="form-grupo">
+                        <div class="form-grupo" style="display: none;">
                             <label for="cajero">Cajero:</label>
                             <input type="text" id="cajero" name="cajero" placeholder="Nombre del cajero" required
                                 disabled style="background-color: #f1f5f9;">
@@ -97,9 +94,17 @@
                     <!-- El resumen del arqueo se generará aquí -->
                 </div>
                 <div id="historialMovimientosDia" class="lista-movimientos"
-                    style="border: 1px solid var(--color-borde); padding: 1rem; border-radius: 0.5rem;">
+                    style="border: 1px solid var(--color-borde); padding: 1rem; border-radius: 0.5rem; display: none;">
                     <!-- Historial de movimientos del día se cargará aquí -->
                 </div>
+            </div>
+
+            <!-- Botón Guardar Arqueo (Movido al final) -->
+            <div class="form-botones" style="margin-top: 2rem; display: flex; justify-content: flex-end;">
+                <button type="button" class="btn btn-primario" onclick="guardarArqueo()"
+                    style="font-size: 1.1rem; padding: 0.8rem 1.5rem;">
+                    💾 Guardar Arqueo
+                </button>
             </div>
         </section>
     </main>
