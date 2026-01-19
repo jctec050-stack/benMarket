@@ -27,11 +27,28 @@ function inicializarSupabase() {
                 usuarioActual = session.user;
                 console.log('Usuario autenticado:', usuarioActual.email);
                 localStorage.setItem('usuario_actual', JSON.stringify(usuarioActual));
+
+                // **NUEVO:** Intentar sincronizar datos pendientes al autenticarse
+                if (navigator.onLine) {
+                    setTimeout(() => window.sincronizarDatosOffline(), 1000);
+                }
             } else {
                 usuarioActual = null;
                 localStorage.removeItem('usuario_actual');
                 console.log('Usuario desautenticado');
             }
+        });
+
+        // **NUEVO:** Listeners globales de conexión
+        window.addEventListener('online', () => {
+            console.log('🌐 Conexión restaurada. Iniciando sincronización...');
+            showNotification('Conexión restaurada. Sincronizando datos...', 'info');
+            window.sincronizarDatosOffline();
+        });
+
+        window.addEventListener('offline', () => {
+            console.log('🔌 Conexión perdida. Modo Offline activado.');
+            showNotification('Sin conexión. Los datos se guardarán localmente.', 'warning');
         });
 
         return true;
@@ -571,7 +588,15 @@ const db = {
     guardarEnLocalStorage(tipo, item) {
         try {
             const items = JSON.parse(localStorage.getItem(tipo)) || [];
-            items.push(item);
+
+            // **MEJORA:** Upsert en localStorage para evitar duplicados al editar offline
+            const index = items.findIndex(i => i.id === item.id);
+            if (index >= 0) {
+                items[index] = item;
+            } else {
+                items.push(item);
+            }
+
             localStorage.setItem(tipo, JSON.stringify(items));
             return { success: true };
         } catch (error) {
@@ -699,49 +724,94 @@ const db = {
 };
 
 // Función para migrar datos de localStorage a Supabase
-async function migrarDatosALocalStorage() {
-    if (!supabaseClient) {
-        console.warn('Supabase no está configurado');
+// Función ROBUSTA para sincronizar datos offline
+window.sincronizarDatosOffline = async function () {
+    if (!supabaseClient || !navigator.onLine) {
+        console.log('No se puede sincronizar: Offline o Supabase no listo.');
         return;
     }
 
-    try {
-        // Obtener todos los datos de localStorage
-        const arqueosLocal = JSON.parse(localStorage.getItem('arqueos')) || [];
-        const movimientosLocal = JSON.parse(localStorage.getItem('movimientos')) || [];
+    console.log('🔄 Iniciando sincronización de datos...');
+    let cambiosRealizados = false;
 
-        console.log(`Migrando ${arqueosLocal.length} arqueos y ${movimientosLocal.length} movimientos...`);
+    // Helper para sincronizar una colección específica
+    const sincronizarColeccion = async (keyStorage, tablaSupabase, idField = 'id') => {
+        try {
+            const items = JSON.parse(localStorage.getItem(keyStorage)) || [];
+            // Filtrar items que tienen flag de pendiente o simplemente intentar sincronizar todos los que no estén en BD?
+            // Estrategia segura: Sincronizar items marcados como 'pending_sync' O items creados offline
+            // Para simplificar y ser robusto: Intentamos upsert de TODO lo que hay en local que tenga 'pending_sync'
+            // O si queremos ser agresivos: Upsert de todo (puede ser costoso si hay muchos datos).
 
-        // Migrar arqueos
-        if (arqueosLocal.length > 0) {
-            const { data, error } = await supabaseClient
-                .from('arqueos')
-                .insert(arqueosLocal);
+            // Filtramos por pending_sync para ser eficientes
+            const pendientes = items.filter(i => i.pending_sync === true);
 
-            if (error) throw error;
-            console.log('Arqueos migrados exitosamente');
+            if (pendientes.length === 0) return 0;
+
+            console.log(`Sincronizando ${pendientes.length} items de ${keyStorage}...`);
+
+            let sincronizados = 0;
+            for (const item of pendientes) {
+                // Limpiar campos locales antes de enviar
+                const { pending_sync, ...itemLimpio } = item;
+
+                // Asegurar que user_id no vaya si causa problemas (aunque RLS lo suele manejar)
+                delete itemLimpio.user_id;
+
+                const { error } = await supabaseClient
+                    .from(tablaSupabase)
+                    .upsert(itemLimpio);
+
+                if (!error) {
+                    // Éxito: Actualizar item local para quitar flag pending_sync
+                    item.pending_sync = false;
+                    sincronizados++;
+                } else {
+                    console.error(`Error sincronizando ${keyStorage} ID ${item[idField]}:`, error);
+                }
+            }
+
+            // Guardar cambios en localStorage (para quitar los flags pending_sync)
+            if (sincronizados > 0) {
+                localStorage.setItem(keyStorage, JSON.stringify(items));
+                cambiosRealizados = true;
+            }
+
+            return sincronizados;
+
+        } catch (e) {
+            console.error(`Error general sincronizando ${keyStorage}:`, e);
+            return 0;
         }
+    };
 
-        // Migrar movimientos
-        if (movimientosLocal.length > 0) {
-            const { data, error } = await supabaseClient
-                .from('movimientos')
-                .insert(movimientosLocal);
+    // 1. Arqueos
+    const arqueosSync = await sincronizarColeccion('arqueos', 'arqueos');
 
-            if (error) throw error;
-            console.log('Movimientos migrados exitosamente');
-        }
+    // 2. Movimientos (Operaciones)
+    const movimientosSync = await sincronizarColeccion('movimientos', 'movimientos');
 
-        // Limpiar localStorage después de migrar
-        localStorage.removeItem('arqueos');
-        localStorage.removeItem('movimientos');
+    // 3. Egresos Caja
+    const egresosSync = await sincronizarColeccion('egresosCaja', 'egresos_caja');
 
-        console.log('Migración completada exitosamente');
+    // 4. Movimientos Temporales (Ingresos)
+    const temporalesSync = await sincronizarColeccion('movimientosTemporales', 'movimientos_temporales');
 
-    } catch (error) {
-        console.error('Error durante la migración:', error);
+    const totalSync = arqueosSync + movimientosSync + egresosSync + temporalesSync;
+
+    if (totalSync > 0) {
+        console.log(`✅ Sincronización completada. ${totalSync} registros subidos.`);
+        showNotification(`${totalSync} registros sincronizados con la nube.`, 'success');
+
+        // Opcional: Recargar datos desde la nube para asegurar consistencia total
+        // if (window.initSupabaseData) window.initSupabaseData(); 
+    } else {
+        console.log('Todo está actualizado.');
     }
-}
+};
+
+// Mantener compatibilidad con nombre anterior si es necesario, o eliminar
+window.migrarDatosALocalStorage = window.sincronizarDatosOffline;
 
 // Esquema de tablas para Supabase
 const ESQUEMA_TABLAS = {
