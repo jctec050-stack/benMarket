@@ -4,10 +4,28 @@ const fs = require('fs');
 const path = require('path');
 
 const server = http.createServer((req, res) => {
-    let filePath = '.' + req.url;
-    if (filePath === './') {
-        filePath = './index.html';
+    // Eliminar query params para el manejo de archivos
+    let url = req.url.split('?')[0];
+    
+    // Configuración de rutas similar a vercel.json
+    
+    // 1. Root -> index.html en pages
+    if (url === '/') {
+        url = '/src/pages/index.html';
     }
+    
+    // 2. Mapear carpetas de recursos a src/
+    if (url.startsWith('/css/') || url.startsWith('/js/') || url.startsWith('/images/')) {
+        url = '/src' + url;
+    }
+    
+    // 3. Mapear archivos HTML sueltos a src/pages/
+    // Evitar doble mapeo si ya empieza con /src/
+    if (url.endsWith('.html') && !url.startsWith('/src/')) {
+        url = '/src/pages' + url;
+    }
+
+    let filePath = '.' + url;
 
     const extname = String(path.extname(filePath)).toLowerCase();
     const mimeTypes = {
@@ -34,7 +52,7 @@ const server = http.createServer((req, res) => {
         if (error) {
             if (error.code === 'ENOENT') {
                 res.writeHead(404, { 'Content-Type': 'text/html' });
-                res.end('<h1>404 - Archivo no encontrado</h1>', 'utf-8');
+                res.end('<h1>404 - Archivo no encontrado</h1><p>Buscando en: ' + filePath + '</p>', 'utf-8');
             } else {
                 res.writeHead(500);
                 res.end('Error del servidor: ' + error.code + ' ..\n');
