@@ -43,12 +43,12 @@
                 <div class="form-grupo">
                     <label for="fechaResumenDesde">Desde:</label>
                     <input type="date" id="fechaResumenDesde"
-                        onchange="cargarResumenDiario(); cargarTablaPagosEgresos()">
+                        onchange="cargarResumenDiario(); cargarTablaPagosEgresos(); cargarTablaIngresosEgresos()">
                 </div>
                 <div class="form-grupo">
                     <label for="fechaResumenHasta">Hasta:</label>
                     <input type="date" id="fechaResumenHasta"
-                        onchange="cargarResumenDiario(); cargarTablaPagosEgresos()">
+                        onchange="cargarResumenDiario(); cargarTablaPagosEgresos(); cargarTablaIngresosEgresos()">
                 </div>
                 <div class="form-grupo">
                     <label for="filtroCajaGeneral">Caja:</label>
@@ -160,6 +160,30 @@
                 </div>
             </div>
 
+            <!-- Seccion Ingresos/Egresos Detallado -->
+            <div class="recaudacion-section" style="margin-top: 2rem;">
+                <div class="table-responsive">
+                    <table class="tabla-ingresos-egresos" id="tablaIngresosEgresos">
+                        <thead>
+                            <tr>
+                                <th style="width: 50%;">INGRESOS</th>
+                                <th style="width: 50%;">EGRESOS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyIngresosEgresos">
+                            <!-- Se llenará dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Botón de Exportar a Excel -->
+            <div style="text-align: center; margin-top: 2rem;">
+                <button id="btnExportarExcel" class="btn-exportar" onclick="exportarResumenAExcel()">
+                    📊 Exportar a Excel
+                </button>
+            </div>
+
         </section>
     </main>
 
@@ -198,6 +222,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <!-- **CORRECCIÓN:** Cargar app.js PRIMERO, antes de llamar a las funciones -->
     <script src="../js/benmark.js"></script>
+    <script src="../js/export-excel.js"></script>
     <script src="../js/resumen-metrics.js"></script>
     <script>
         if (window.inicializarSupabase) { window.inicializarSupabase(); }
@@ -211,6 +236,7 @@
                     window.actualizarMetricasResumen();
                 }, 500);
                 setTimeout(() => { if (window.cargarTablaPagosEgresos) window.cargarTablaPagosEgresos(); }, 600);
+                setTimeout(() => { if (window.cargarTablaIngresosEgresos) window.cargarTablaIngresosEgresos(); }, 700);
             }
         });
     </script>

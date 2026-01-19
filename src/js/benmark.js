@@ -3396,6 +3396,445 @@ window.cargarTablaPagosEgresos = function () {
     }
 };
 
+// **NUEVO:** Función para cargar la tabla de Ingresos/Egresos detallada
+window.cargarTablaIngresosEgresos = function () {
+    const tbody = document.getElementById('tbodyIngresosEgresos');
+    if (!tbody) return;
+
+    const fechaDesde = document.getElementById('fechaResumenDesde')?.value;
+    const fechaHasta = document.getElementById('fechaResumenHasta')?.value;
+    const cajaFiltro = document.getElementById('filtroCajaGeneral')?.value;
+
+    // Calcular ingresos por servicio (efectivo)
+    const ingresosPorServicio = calcularIngresosPorServicio(fechaDesde, fechaHasta, cajaFiltro);
+
+    // Obtener total de recaudaciones (efectivo)
+    const totalRecaudaciones = obtenerTotalRecaudaciones(fechaDesde, fechaHasta, cajaFiltro);
+
+    // Obtener inversiones desde Operaciones
+    const inversiones = obtenerInversiones(fechaDesde, fechaHasta, cajaFiltro);
+
+    // Calcular saldo del día anterior
+    let saldoDiaAnterior = calcularSaldoDiaAnterior(fechaDesde, cajaFiltro);
+    // Si devuelve un objeto (con propiedad .total), extraer el valor numérico
+    if (typeof saldoDiaAnterior === 'object' && saldoDiaAnterior !== null) {
+        saldoDiaAnterior = saldoDiaAnterior.total || 0;
+    }
+    console.log('[DEBUG] Saldo día anterior (después de conversión):', saldoDiaAnterior, 'tipo:', typeof saldoDiaAnterior);
+
+    // Obtener egresos (reutilizar lógica de cargarTablaPagosEgresos)
+    const egresosCaja = (estado.egresosCaja || []).filter(e => {
+        const fecha = e.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || e.caja === cajaFiltro);
+        return matchFecha && matchCaja;
+    });
+
+    const egresosOperaciones = (estado.movimientos || []).filter(m => {
+        const fecha = m.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
+        const esEgreso = ['gasto', 'egreso', 'transferencia', 'operacion'].includes(m.tipo);
+        return matchFecha && matchCaja && esEgreso;
+    });
+
+    const todosEgresos = [...egresosCaja, ...egresosOperaciones];
+
+    // Construir filas de la tabla
+    tbody.innerHTML = '';
+
+    const maxFilas = Math.max(
+        ingresosPorServicio.length + 3, // +3 para Inversiones, Efectivo y Saldo Anterior
+        todosEgresos.length
+    );
+
+    let totalIngresos = 0;
+    let totalEgresos = 0;
+
+    // Agregar filas de servicios
+    let totalServicios = 0;
+    ingresosPorServicio.forEach((servicio, index) => {
+        totalServicios += servicio.monto;
+    });
+    console.log('[DEBUG Total Ingresos] Total servicios:', totalServicios);
+    console.log('[DEBUG Total Ingresos] Total recaudaciones:', totalRecaudaciones);
+    console.log('[DEBUG Total Ingresos] Saldo día anterior:', saldoDiaAnterior);
+
+    // **CORREGIDO**: El total de ingresos es la suma de:
+    // 1. Servicios (Apostala, Wepa, etc.)
+    // 2. Inversiones (Depositos-Inversiones)
+    // 3. EFECTIVO (Ventas de tienda = Total Recaudado)
+    // 4. Saldo día anterior
+    totalIngresos = totalServicios + inversiones + totalRecaudaciones + saldoDiaAnterior;
+    console.log('[DEBUG Total Ingresos] Calculado: Servicios(' + totalServicios + ') + Inversiones(' + inversiones + ') + Efectivo(' + totalRecaudaciones + ') + Saldo(' + saldoDiaAnterior + ') = ' + totalIngresos);
+
+    console.log('[DEBUG Total Ingresos] Total final:', totalIngresos);
+
+    // Calcular total de egresos
+    todosEgresos.forEach(egreso => {
+        totalEgresos += egreso.monto || 0;
+    });
+
+    // **NUEVO**: Agrupar Egresos en 2 categorías
+    let totalPagoProveedores = 0;
+    let totalGastosAdmin = 0;
+
+    todosEgresos.forEach(egreso => {
+        const cat = (egreso.categoria || egreso.tipo || '').toLowerCase();
+        const desc = (egreso.descripcion || '').toLowerCase();
+
+        if (cat.includes('gasto') || cat.includes('administ') || desc.includes('gasto')) {
+            totalGastosAdmin += (egreso.monto || 0);
+        } else {
+            totalPagoProveedores += (egreso.monto || 0);
+        }
+    });
+
+    const itemsEgresos = [
+        { nombre: 'PAGO A PROVEEDORES', monto: totalPagoProveedores },
+        { nombre: 'GASTOS ADMINISTRATIVOS', monto: totalGastosAdmin }
+    ];
+
+    // **NUEVO**: Agregar operaciones bancarias individualmente
+    const operacionesBancarias = (estado.movimientos || []).filter(m => {
+        const fecha = m.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
+
+        // Filtrar operaciones bancarias (deposito, retiro, transferencia bancaria)
+        const esOperacionBancaria = m.tipo === 'operacion' || m.tipo === 'transferencia';
+        const esDeposito = m.descripcion && (
+            m.descripcion.toLowerCase().includes('deposito') ||
+            m.descripcion.toLowerCase().includes('retiro') ||
+            m.descripcion.toLowerCase().includes('banco')
+        );
+
+        return matchFecha && matchCaja && esOperacionBancaria && esDeposito;
+    });
+
+    // Agregar cada operación bancaria como línea individual
+    operacionesBancarias.forEach(op => {
+        itemsEgresos.push({
+            nombre: op.descripcion || 'DEPOSITO/RETIRO BANCARIO',
+            monto: op.monto || 0
+        });
+    });
+
+    // Renderizar filas (solo las que tienen datos)
+    for (let i = 0; i < maxFilas; i++) {
+        // Determinar si hay contenido en Ingresos
+        const tieneIngreso = i < ingresosPorServicio.length ||
+            i === ingresosPorServicio.length ||
+            i === ingresosPorServicio.length + 1 ||
+            i === ingresosPorServicio.length + 2;
+
+        // Determinar si hay contenido en Egresos
+        const tieneEgreso = i < itemsEgresos.length;
+
+        // Solo renderizar la fila si hay contenido en al menos una columna
+        if (!tieneIngreso && !tieneEgreso) {
+            continue; // Saltar filas completamente vacías
+        }
+
+        const tr = document.createElement('tr');
+
+        // Columna INGRESOS
+        const tdIngreso = document.createElement('td');
+        if (i < ingresosPorServicio.length) {
+            const servicio = ingresosPorServicio[i];
+            tdIngreso.innerHTML = `
+                <div style="display: flex; justify-content: space-between; padding: 2px 8px;">
+                    <span>${servicio.nombre}</span>
+                    <span style="text-align: right;">${formatearMoneda(servicio.monto, 'gs').replace('PYG', '').trim()}</span>
+                </div>
+            `;
+        } else if (i === ingresosPorServicio.length) {
+            // INVERSIONES
+            tdIngreso.innerHTML = `
+                <div style="display: flex; justify-content: space-between; padding: 2px 8px;">
+                    <span>INVERSIONES</span>
+                    <span style="text-align: right;">${formatearMoneda(inversiones, 'gs').replace('PYG', '').trim()}</span>
+                </div>
+            `;
+        } else if (i === ingresosPorServicio.length + 1) {
+            // Efectivo Total Recaudaciones
+            tdIngreso.innerHTML = `
+                <div style="display: flex; justify-content: space-between; padding: 2px 8px;">
+                    <span>EFECTIVO</span>
+                    <span style="text-align: right;">${formatearMoneda(totalRecaudaciones, 'gs').replace('PYG', '').trim()}</span>
+                </div>
+            `;
+        } else if (i === ingresosPorServicio.length + 2) {
+            // Saldo día anterior
+            tdIngreso.innerHTML = `
+                <div style="display: flex; justify-content: space-between; padding: 2px 8px;">
+                    <span>SALDO CAJA DÍA ANT.:</span>
+                    <span style="text-align: right;">${formatearMoneda(saldoDiaAnterior, 'gs').replace('PYG', '').trim()}</span>
+                </div>
+            `;
+        } else {
+            tdIngreso.innerHTML = '<div style="padding: 2px 8px;">&nbsp;</div>';
+        }
+
+        // Columna EGRESOS (Agrupada)
+        const tdEgreso = document.createElement('td');
+        if (i < itemsEgresos.length) {
+            const item = itemsEgresos[i];
+            tdEgreso.innerHTML = `
+                <div style="display: flex; justify-content: space-between; padding: 2px 8px;">
+                    <span>${item.nombre}</span>
+                    <span style="text-align: right;">${formatearMoneda(item.monto, 'gs').replace('PYG', '').trim()}</span>
+                </div>
+            `;
+        } else {
+            tdEgreso.innerHTML = '<div style="padding: 2px 8px;">&nbsp;</div>';
+        }
+
+        tr.appendChild(tdIngreso);
+        tr.appendChild(tdEgreso);
+        tbody.appendChild(tr);
+    }
+
+    // Fila de TOTALES
+    const trTotal = document.createElement('tr');
+    trTotal.className = 'total-row';
+    trTotal.innerHTML = `
+        <td style="background-color: #f3f4f6; font-weight: bold; border-top: 2px solid #000;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 8px;">
+                <span>TOTAL:</span>
+                <span style="text-align: right;">${formatearMoneda(totalIngresos, 'gs').replace('PYG', '').trim()}</span>
+            </div>
+        </td>
+        <td style="background-color: #f3f4f6; font-weight: bold; border-top: 2px solid #000;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 8px;">
+                <span>TOTAL:</span>
+                <span style="text-align: right;">${formatearMoneda(totalEgresos, 'gs').replace('PYG', '').trim()}</span>
+            </div>
+        </td>
+    `;
+    tbody.appendChild(trTotal);
+
+    // Fila de TOTAL GENERAL (diferencia)
+    const totalGeneral = totalIngresos - totalEgresos;
+    const trTotalGral = document.createElement('tr');
+    trTotalGral.className = 'total-general-row';
+    trTotalGral.innerHTML = `
+        <td colspan="2" style="background-color: #e0e7ff; font-weight: bold; border-top: 2px solid #000;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 8px;">
+                <span>TOTAL GRAL.</span>
+                <span style="text-align: right; color: ${totalGeneral >= 0 ? 'var(--color-exito)' : 'var(--color-peligro)'};">${formatearMoneda(totalGeneral, 'gs').replace('PYG', '').trim()}</span>
+            </div>
+        </td>
+    `;
+    tbody.appendChild(trTotalGral);
+};
+
+// Función auxiliar: Calcular ingresos por servicio (solo efectivo)
+function calcularIngresosPorServicio(fechaDesde, fechaHasta, cajaFiltro) {
+    const serviciosMap = {};
+
+    // **CORREGIDO**: Los ingresos están en movimientosTemporales, no en movimientos
+    const movimientosIngresos = (estado.movimientosTemporales || []).filter(m => {
+        const fecha = m.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
+        return matchFecha && matchCaja;
+    });
+
+    console.log('[DEBUG calcularIngresosPorServicio] Movimientos de ingresos encontrados:', movimientosIngresos.length);
+    if (movimientosIngresos.length > 0) {
+        console.log('[DEBUG calcularIngresosPorServicio] Primer movimiento:', movimientosIngresos[0]);
+    }
+
+    // Procesar servicios estándar
+    movimientosIngresos.forEach(mov => {
+        if (mov.servicios) {
+            console.log('[DEBUG calcularIngresosPorServicio] Servicios en movimiento:', mov.servicios);
+            Object.entries(mov.servicios).forEach(([key, servicio]) => {
+                console.log(`[DEBUG calcularIngresosPorServicio] Procesando servicio ${key}:`, servicio);
+                // **CORREGIDO**: Incluir montos negativos (ajustes/devoluciones)
+                if (servicio && servicio.monto !== 0) {
+                    // Mapear nombres de servicios
+                    let nombreServicio = key.toUpperCase();
+                    if (key === 'apLote') nombreServicio = 'ACA PUEDO';
+                    else if (key === 'aquiPago') nombreServicio = 'AQUI PAGO';
+                    else if (key === 'expressLote') nombreServicio = 'PAGO EXPRESS';
+                    else if (key === 'wepa') nombreServicio = 'WEPA';
+                    else if (key === 'pasajeNsa') nombreServicio = 'PASAJE NSA';
+                    else if (key === 'encomiendaNsa') nombreServicio = 'ENCOMIENDA NSA';
+                    else if (key === 'apostala') nombreServicio = 'APOSTALA';
+
+                    if (!serviciosMap[nombreServicio]) {
+                        serviciosMap[nombreServicio] = 0;
+                    }
+                    serviciosMap[nombreServicio] += servicio.monto;
+                    console.log(`[DEBUG calcularIngresosPorServicio] Agregado ${nombreServicio}: ${servicio.monto}, Total acumulado: ${serviciosMap[nombreServicio]}`);
+                }
+            });
+        }
+
+        // Procesar otros servicios dinámicos (solo efectivo)
+        if (mov.otrosServicios && Array.isArray(mov.otrosServicios)) {
+            mov.otrosServicios.forEach(servicio => {
+                if (servicio && servicio.monto !== 0) {
+                    const nombreServicio = servicio.nombre.toUpperCase();
+                    if (!serviciosMap[nombreServicio]) {
+                        serviciosMap[nombreServicio] = 0;
+                    }
+                    serviciosMap[nombreServicio] += servicio.monto;
+                    console.log(`[DEBUG calcularIngresosPorServicio] Agregado (otros) ${nombreServicio}: ${servicio.monto}`);
+                }
+            });
+        }
+    });
+
+    console.log('[DEBUG calcularIngresosPorServicio] serviciosMap final:', serviciosMap);
+
+    // Convertir a array y ordenar
+    const resultado = Object.entries(serviciosMap)
+        .map(([nombre, monto]) => ({ nombre, monto }))
+        .sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    console.log('[DEBUG calcularIngresosPorServicio] Resultado final:', resultado);
+
+    return resultado;
+}
+
+// Función auxiliar: Obtener total de recaudaciones (SUBTOTALES/USER de tabla Recaudaciones)
+// Función auxiliar: Obtener total de recaudaciones (SUBTOTALES/USER de tabla Recaudaciones)
+// Lee directamente del DOM de la tabla ya renderizada
+function obtenerTotalRecaudaciones(fechaDesde, fechaHasta, cajaFiltro) {
+    // Buscar la fila de totales en la tabla de Recaudaciones
+    const rowTotal = document.getElementById('rowTotalRecaudacion');
+
+    if (!rowTotal) {
+        console.log('[DEBUG obtenerTotalRecaudaciones] No se encontró rowTotalRecaudacion en el DOM');
+        return 0;
+    }
+
+    // La columna SUBTOTALES/USER es la última columna (índice 5)
+    // Pero ojo: el HTML puede tener 6 celdas
+    const cells = rowTotal.querySelectorAll('td');
+    // El formato es: 
+    // 0: TOTAL RECAUDADO:
+    // 1: Total Ingreso Tienda (dataset only?) No, muestra valor
+    // 2: Efectivo
+    // 3: Sobrante
+    // 4: Faltante
+    // 5: Subtotales
+
+    if (cells.length < 6) {
+        console.log('[DEBUG obtenerTotalRecaudaciones] No se encontraron suficientes columnas:', cells.length);
+        return 0;
+    }
+
+    // Obtener el texto de la última celda (Subtotales)
+    // El índice 5 es la última columna visible (Subtotal)
+    const subtotalText = cells[5].textContent;
+    const subtotalValue = parsearMoneda(subtotalText);
+
+    console.log('[DEBUG obtenerTotalRecaudaciones] Subtotal/User leído del DOM:', subtotalValue);
+    return subtotalValue;
+}
+
+// Función auxiliar: Obtener inversiones desde Operaciones (Depositos-Inversiones)
+function obtenerInversiones(fechaDesde, fechaHasta, cajaFiltro) {
+    console.log('[DEBUG obtenerInversiones] estado.movimientos completo:', estado.movimientos);
+
+    const operaciones = (estado.movimientos || []).filter(m => {
+        const fecha = m.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
+
+        // Filtrar por tipo "deposito-inversiones" (con guion)
+        const esInversion = m.tipo === 'deposito-inversiones';
+
+        return matchFecha && matchCaja && esInversion;
+    });
+
+    let totalInversiones = 0;
+    operaciones.forEach(op => {
+        totalInversiones += op.monto || 0;
+    });
+
+    console.log('[DEBUG obtenerInversiones] Total movimientos:', estado.movimientos?.length || 0);
+    console.log('[DEBUG obtenerInversiones] Operaciones filtradas:', operaciones.length);
+    console.log('[DEBUG obtenerInversiones] Total inversiones:', totalInversiones);
+    if (operaciones.length > 0) {
+        console.log('[DEBUG obtenerInversiones] Primera operación:', operaciones[0]);
+    }
+
+    return totalInversiones;
+}
+
+// Función auxiliar: Calcular ingresos negativos (devoluciones/ajustes)
+function calcularIngresosNegativos(fechaDesde, fechaHasta, cajaFiltro) {
+    // Buscar movimientos con monto negativo en movimientosTemporales
+    const movimientosNegativos = (estado.movimientosTemporales || []).filter(m => {
+        const fecha = m.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
+
+        // Verificar si tiene monto negativo o si es un ajuste negativo
+        const tieneMontoNegativo = m.monto && m.monto < 0;
+
+        return matchFecha && matchCaja && tieneMontoNegativo;
+    });
+
+    let totalNegativos = 0;
+    movimientosNegativos.forEach(mov => {
+        totalNegativos += mov.monto || 0; // Los montos ya son negativos
+    });
+
+    console.log('[DEBUG calcularIngresosNegativos] Total negativos:', totalNegativos);
+    return totalNegativos;
+}
+
+
+// Función auxiliar: Calcular saldo del día anterior (Ingresos - Egresos)
+function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
+    if (!fechaDesde) return 0;
+
+    // Calcular fecha del día anterior
+    const fecha = new Date(fechaDesde + 'T00:00:00');
+    fecha.setDate(fecha.getDate() - 1);
+    const fechaAnterior = fecha.toISOString().split('T')[0];
+
+    // Calcular ingresos del día anterior
+    const ingresosAnt = (estado.movimientos || []).filter(m => {
+        const fechaMov = m.fecha.split('T')[0];
+        const matchFecha = fechaMov === fechaAnterior;
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
+        const esIngreso = !['gasto', 'egreso', 'transferencia', 'operacion'].includes(m.tipo);
+        return matchFecha && matchCaja && esIngreso;
+    });
+
+    // Calcular egresos del día anterior
+    const egresosAnt = [...(estado.egresosCaja || []), ...(estado.movimientos || [])].filter(e => {
+        const fechaEgr = e.fecha.split('T')[0];
+        const matchFecha = fechaEgr === fechaAnterior;
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || e.caja === cajaFiltro);
+        const esEgreso = e.tipo ? ['gasto', 'egreso', 'transferencia', 'operacion'].includes(e.tipo) : true;
+        return matchFecha && matchCaja && esEgreso;
+    });
+
+    let totalIngresosAnt = 0;
+    ingresosAnt.forEach(ing => {
+        totalIngresosAnt += ing.monto || 0;
+    });
+
+    let totalEgresosAnt = 0;
+    egresosAnt.forEach(egr => {
+        totalEgresosAnt += egr.monto || 0;
+    });
+
+    const saldo = totalIngresosAnt - totalEgresosAnt;
+    console.log('[DEBUG calcularSaldoDiaAnterior] Saldo calculado:', saldo, 'tipo:', typeof saldo);
+    return saldo;
+}
+
+
+
 /**
  * Función auxiliar para renderizar una lista de movimientos en el DOM.
  * @param {HTMLElement} contenedor - El elemento del DOM donde se renderizará la lista.
@@ -6252,6 +6691,64 @@ function renderizarResumenServicios() {
     }
 
     const datosServicios = agruparMovimientosPorServicio(todosLosMovimientos);
+
+    // **NUEVO:** Calcular depósitos por servicio desde Operaciones (Deposito/Retiro bancario)
+    const depositosPorServicio = {};
+    const operacionesDeposito = (estado.movimientos || []).filter(m => {
+        const fecha = m.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = !cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro;
+        // Filtrar solo Deposito/Retiro bancario
+        const esDepositoBancario = m.tipo === 'operacion' && m.descripcion &&
+            (m.descripcion.toLowerCase().includes('deposito') ||
+                m.descripcion.toLowerCase().includes('retiro bancario'));
+        return matchFecha && matchCaja && esDepositoBancario;
+    });
+
+    // Mapear nombres de servicios conocidos para buscar en la descripción
+    // Incluye variaciones y typos encontrados en los depósitos reales
+    const nombresServicios = [
+        'apostala', 'wepa', 'tigo', 'personal', 'claro',
+        'aquipago', 'aquí pago', 'aqui pago', // Variantes de Aquí Pago
+        'aca puedo',
+        'pago express', 'pago expres', // Incluye typo común
+        'infonet', // Servicio INFONET
+        'atlas', // Servicio ATLAS
+        'zimple', 'billetera', 'sms', 'recarga', 'giros', 'nsa', 'pasaje'
+    ];
+
+    operacionesDeposito.forEach(op => {
+        const desc = (op.descripcion || '').toLowerCase();
+        let asignado = false;
+
+        nombresServicios.forEach(servicio => {
+            if (desc.includes(servicio) && !asignado) {
+                // Buscar el nombre real del servicio en datosServicios
+                const nombreReal = Object.keys(datosServicios).find(k => k.toLowerCase().includes(servicio));
+                if (nombreReal) {
+                    // **MODIFICADO:** Almacenar como array de items en lugar de solo el total
+                    if (!depositosPorServicio[nombreReal]) {
+                        depositosPorServicio[nombreReal] = { total: 0, items: [] };
+                    }
+                    depositosPorServicio[nombreReal].total += (op.monto || 0);
+                    depositosPorServicio[nombreReal].items.push({
+                        cajero: op.cajero || 'Tesorería',
+                        descripcion: op.descripcion || 'Depósito',
+                        monto: op.monto || 0
+                    });
+                    asignado = true;
+                }
+            }
+        });
+    });
+
+    console.log('[DEBUG Resumen Servicios] Operaciones de depósito encontradas:', operacionesDeposito.length);
+    console.log('[DEBUG Resumen Servicios] Descripciones de depósitos:');
+    operacionesDeposito.forEach(op => {
+        console.log('  -', op.descripcion, '| Monto:', op.monto);
+    });
+    console.log('[DEBUG Resumen Servicios] Depósitos por servicio:', depositosPorServicio);
+
     grid.innerHTML = '';
     grid.style.display = 'block'; // Cambiar de grid a block
 
@@ -6295,8 +6792,11 @@ function renderizarResumenServicios() {
         const tbody = document.createElement('tbody');
         let totalEfectivo = 0;
         let totalTarjeta = 0;
-        let totalDepositado = 0;
+        // **CORREGIDO:** Obtener los depósitos para este servicio (ahora es objeto con items y total)
+        const depositosServicio = depositosPorServicio[nombreServicio] || { total: 0, items: [] };
+        const totalDepositado = depositosServicio.total;
 
+        // Renderizar filas de efectivo/tarjeta
         datos.items.forEach(item => {
             const fila = document.createElement('tr');
             fila.innerHTML = `
@@ -6311,6 +6811,21 @@ function renderizarResumenServicios() {
             totalEfectivo += item.efectivo;
             totalTarjeta += item.tarjeta;
         });
+
+        // **NUEVO:** Renderizar filas de depósitos individualmente
+        depositosServicio.items.forEach(dep => {
+            const filaDep = document.createElement('tr');
+            filaDep.style.backgroundColor = '#e8f5e9'; // Verde claro para distinguir
+            filaDep.innerHTML = `
+                <td>${dep.cajero || '-'}</td>
+                <td style="font-style: italic;">DEPÓSITO</td>
+                <td style="text-align: right;">-</td>
+                <td style="text-align: right;">-</td>
+                <td style="text-align: right; color: #2e7d32; font-weight: 600;">${formatearMoneda(dep.monto, 'gs')}</td>
+            `;
+            tbody.appendChild(filaDep);
+        });
+
         tabla.appendChild(tbody);
 
         // Fila de totales

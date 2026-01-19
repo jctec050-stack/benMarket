@@ -607,5 +607,14 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
                 <td><strong>${formatearMoneda(tSub, 'gs')}</strong></td>
             `;
         }
+
+        // **NUEVO:** Guardar el total en variable global y actualizar tabla de Ingresos/Egresos
+        window.totalRecaudadoGlobal = tSub;
+        console.log('[DEBUG] Total recaudado actualizado en global:', window.totalRecaudadoGlobal);
+
+        // Llamar a la actualización de la tabla Ingresos/Egresos si existe
+        if (typeof window.cargarTablaIngresosEgresos === 'function') {
+            window.cargarTablaIngresosEgresos();
+        }
     }
 }

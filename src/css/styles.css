@@ -2640,26 +2640,26 @@ body {
 
 /* Estilos para el Modal de Métricas */
 .modal {
-    display: none; 
-    position: fixed; 
-    z-index: 1000; 
+    display: none;
+    position: fixed;
+    z-index: 1000;
     left: 0;
     top: 0;
-    width: 100%; 
-    height: 100%; 
-    overflow: auto; 
-    background-color: rgb(0,0,0); 
-    background-color: rgba(0,0,0,0.4); 
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgb(0, 0, 0);
+    background-color: rgba(0, 0, 0, 0.4);
 }
 
 .modal-content {
     background-color: #fefefe;
-    margin: 10% auto; 
+    margin: 10% auto;
     padding: 20px;
     border: 1px solid #888;
-    width: 60%; 
+    width: 60%;
     border-radius: 8px;
-    box-shadow: 0 4px 8px 0 rgba(0,0,0,0.2), 0 6px 20px 0 rgba(0,0,0,0.19);
+    box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
 }
 
 .close-modal {
@@ -2685,4 +2685,138 @@ body {
 .metric-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* ============================================ */
+/* TABLA INGRESOS/EGRESOS - Excel Style */
+/* ============================================ */
+
+.tabla-ingresos-egresos {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    border: 1px solid #000;
+}
+
+.tabla-ingresos-egresos thead th {
+    background-color: #1e3a8a;
+    color: white;
+    padding: 12px 8px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 1rem;
+    border: 1px solid #000;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tabla-ingresos-egresos tbody td {
+    padding: 0;
+    border: 1px solid #000;
+    vertical-align: top;
+    background: white;
+}
+
+.tabla-ingresos-egresos tbody tr:hover td {
+    background-color: #f9fafb;
+}
+
+.tabla-ingresos-egresos .total-row td {
+    background-color: #f3f4f6 !important;
+    font-weight: bold;
+    border-top: 2px solid #000;
+}
+
+.tabla-ingresos-egresos .total-general-row td {
+    background-color: #e0e7ff !important;
+    font-weight: bold;
+    border-top: 2px solid #000;
+}
+
+/* Responsive para tabla ingresos/egresos */
+@media (max-width: 768px) {
+    .tabla-ingresos-egresos {
+        font-size: 0.85rem;
+    }
+
+    .tabla-ingresos-egresos thead th {
+        padding: 8px 4px;
+        font-size: 0.9rem;
+    }
+}
+
+/* ============================================ */
+/* BOTÓN EXPORTAR A EXCEL - DISEÑO MODERNO */
+/* ============================================ */
+
+.btn-exportar {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem 2rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4),
+        0 2px 4px rgba(0, 0, 0, 0.1);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn-exportar::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.5s ease;
+}
+
+.btn-exportar:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5),
+        0 4px 8px rgba(0, 0, 0, 0.15);
+    background: linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%);
+}
+
+.btn-exportar:hover::before {
+    left: 100%;
+}
+
+.btn-exportar:active {
+    transform: translateY(-1px) scale(0.98);
+    box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4);
+}
+
+.btn-exportar:focus {
+    outline: none;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3),
+        0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+/* Animación de pulso sutil */
+@keyframes pulse-subtle {
+
+    0%,
+    100% {
+        box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 4px 25px rgba(16, 185, 129, 0.6);
+    }
+}
+
+.btn-exportar:not(:hover) {
+    animation: pulse-subtle 2s infinite;
 }
