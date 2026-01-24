@@ -2015,8 +2015,24 @@ body {
 
 @media (max-width: 768px) {
     .dashboard-metrics {
-        grid-template-columns: 1fr;
+        display: flex !important;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        padding-bottom: 0.5rem;
         gap: 1rem;
+        -webkit-overflow-scrolling: touch;
+        margin-right: -1rem;
+        /* Permite que el scroll llegue al borde */
+        padding-right: 1rem;
+    }
+
+    .metric-card {
+        min-width: 85%;
+        scroll-snap-align: center;
+        margin-bottom: 0;
+        /* Quitar margen inferior si lo tiene */
+        flex-shrink: 0;
+        /* Evitar que se encojan */
     }
 
     .metric-card {
@@ -2029,7 +2045,18 @@ body {
 
     .resumen-filtros {
         padding: 1rem;
-        flex-direction: column;
+        display: grid !important;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+    }
+
+    .resumen-filtros .form-grupo {
+        margin-bottom: 0;
+    }
+
+    /* El select de caja ocupa todo el ancho */
+    .resumen-filtros .form-grupo:last-child {
+        grid-column: 1 / -1;
     }
 
     .resumen-botones-excel {
@@ -2834,10 +2861,12 @@ body {
 }
 
 .table-responsive table {
-    min-width: 800px; /* Forzar scroll en móviles */
+    min-width: 800px;
+    /* Forzar scroll en móviles */
     width: 100%;
     margin-bottom: 0;
-    box-shadow: none; /* Quitar sombra de la tabla interna para no duplicar */
+    box-shadow: none;
+    /* Quitar sombra de la tabla interna para no duplicar */
 }
 
 /* Ajuste para que la tabla interna no tenga bordes duplicados si los tiene */
