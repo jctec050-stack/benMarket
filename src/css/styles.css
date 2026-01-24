@@ -2820,3 +2820,28 @@ body {
 .btn-exportar:not(:hover) {
     animation: pulse-subtle 2s infinite;
 }
+
+/* Tablas Responsivas */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-bottom: 1rem;
+    border: 1px solid var(--color-borde);
+    border-radius: 0.375rem;
+    box-shadow: var(--sombra);
+    background: white;
+}
+
+.table-responsive table {
+    min-width: 800px; /* Forzar scroll en móviles */
+    width: 100%;
+    margin-bottom: 0;
+    box-shadow: none; /* Quitar sombra de la tabla interna para no duplicar */
+}
+
+/* Ajuste para que la tabla interna no tenga bordes duplicados si los tiene */
+.table-responsive table {
+    border: none;
+    border-radius: 0;
+}
