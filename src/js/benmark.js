@@ -1,22 +1,5 @@
-// Configuración y utilidades
-const CONFIG = {
-    denominaciones: [
-        { valor: 100000, nombre: '100,000' },
-        { valor: 50000, nombre: '50,000' },
-        { valor: 20000, nombre: '20,000' },
-        { valor: 10000, nombre: '10,000' },
-        { valor: 5000, nombre: '5,000' },
-        { valor: 2000, nombre: '2,000' },
-        { valor: 1000, nombre: '1,000' },
-        { valor: 500, nombre: '500' }
-    ],
-    monedas: {
-        gs: 'Guaraníes',
-        usd: 'Dólares',
-        brl: 'Reales',
-        ars: 'Pesos'
-    }
-};
+// Configuración movida a config.js
+
 
 // Información del perfil del usuario actual
 let usuarioPerfil = null;
@@ -63,19 +46,8 @@ window.addEventListener('load', async () => {
     }
 });
 
-// **NUEVO:** Constante para centralizar los servicios de pagos
-// **MODIFICADO:** Lista de servicios dinámica cargada desde localStorage
-const SERVICIOS_DEFAULT = [
-    "Aca Puedo",
-    "Aqui Pago",
-    "Pago Express",
-    "Wepa",
-    "Pasaje NSA",
-    "Encomienda NSA",
-    "Apostala"
-];
+// Servicios movidos a config.js
 
-let SERVICIOS_PAGOS = JSON.parse(localStorage.getItem('serviciosPagos')) || SERVICIOS_DEFAULT;
 
 // Función para cargar los servicios en el select
 function cargarServicios() {
@@ -149,18 +121,8 @@ let estado = {
 };
 
 
-// Función para mostrar/ocultar secciones desplegables
-window.toggleSeccion = function (seccionId) {
-    const contenido = document.getElementById(seccionId);
-    const iconoId = seccionId.replace('contenido', 'icono');
-    const icono = document.getElementById(iconoId);
+// toggleSeccion movido a utils.js
 
-    if (contenido && icono) {
-        const estaVisible = contenido.style.display !== 'none';
-        contenido.style.display = estaVisible ? 'none' : 'block';
-        icono.textContent = estaVisible ? '▶' : '▼';
-    }
-};
 
 async function initSupabaseData() {
     // Obtener la fecha: buscar en múltiples elementos posibles
@@ -273,31 +235,8 @@ async function initSupabaseData() {
 
 window.initSupabaseData = initSupabaseData;
 
-// Funciones de utilidad
-function formatearMoneda(monto, moneda = 'gs') {
-    // Asegurar que monto es un número válido
-    const montoNumerico = typeof monto === 'number' ? monto : (parseFloat(monto) || 0);
-    if (isNaN(montoNumerico)) {
-        return new Intl.NumberFormat('es-PY', {
-            style: 'currency',
-            currency: moneda === 'gs' ? 'PYG' : moneda === 'usd' ? 'USD' : moneda === 'brl' ? 'BRL' : 'ARS',
-            minimumFractionDigits: 0
-        }).format(0);
-    }
-    return new Intl.NumberFormat('es-PY', {
-        style: 'currency',
-        currency: moneda === 'gs' ? 'PYG' : moneda === 'usd' ? 'USD' : moneda === 'brl' ? 'BRL' : 'ARS',
-        minimumFractionDigits: 0
-    }).format(montoNumerico);
-}
+// Funciones de formateo movidas a utils.js
 
-function parsearMoneda(valor) {
-    if (typeof valor === 'number') return valor;
-    // Elimina puntos de miles y cualquier otro caracter no numérico EXCEPTO el signo menos
-    const negativo = String(valor).includes('-');
-    const numero = parseInt(String(valor).replace(/\D/g, ''), 10) || 0;
-    return negativo ? -numero : numero;
-}
 
 function formatearFecha(fecha) {
     if (!fecha) return '';
@@ -3468,12 +3407,26 @@ window.cargarTablaIngresosEgresos = function () {
     const inversiones = obtenerInversiones(fechaDesde, fechaHasta, cajaFiltro);
 
     // Calcular saldo del día anterior
-    let saldoDiaAnterior = calcularSaldoDiaAnterior(fechaDesde, cajaFiltro);
-    // Si devuelve un objeto (con propiedad .total), extraer el valor numérico
-    if (typeof saldoDiaAnterior === 'object' && saldoDiaAnterior !== null) {
-        saldoDiaAnterior = saldoDiaAnterior.total || 0;
+    let saldoDiaAnterior = 0;
+    
+    // 1. Intentar obtener el valor guardado manualmente para esta fecha/caja
+    const claveSaldoManual = `saldoAnterior_${fechaDesde}_${cajaFiltro || 'General'}`;
+    const saldoManualGuardado = localStorage.getItem(claveSaldoManual);
+    
+    if (saldoManualGuardado !== null) {
+        // Si existe un valor manual, usarlo
+        saldoDiaAnterior = parseFloat(saldoManualGuardado);
+        console.log('[DEBUG] Usando Saldo Anterior MANUAL:', saldoDiaAnterior);
+    } else {
+        // 2. Si no, calcularlo automáticamente (lógica existente)
+        let calculoAuto = calcularSaldoDiaAnterior(fechaDesde, cajaFiltro);
+        if (typeof calculoAuto === 'object' && calculoAuto !== null) {
+            saldoDiaAnterior = calculoAuto.total || 0;
+        } else {
+            saldoDiaAnterior = calculoAuto;
+        }
+        console.log('[DEBUG] Usando Saldo Anterior AUTO:', saldoDiaAnterior);
     }
-    console.log('[DEBUG] Saldo día anterior (después de conversión):', saldoDiaAnterior, 'tipo:', typeof saldoDiaAnterior);
 
     // Obtener egresos (reutilizar lógica de cargarTablaPagosEgresos)
     const egresosCaja = (estado.egresosCaja || []).filter(e => {
@@ -3618,11 +3571,22 @@ window.cargarTablaIngresosEgresos = function () {
                 </div>
             `;
         } else if (i === ingresosPorServicio.length + 2) {
-            // Saldo día anterior
+            // Saldo día anterior - AHORA EDITABLE
+            const inputSaldoId = `inputSaldoAnterior_${fechaDesde}_${cajaFiltro || 'General'}`;
+            
             tdIngreso.innerHTML = `
-                <div style="display: flex; justify-content: space-between; padding: 2px 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 2px 8px;">
                     <span>SALDO CAJA DÍA ANT.:</span>
-                    <span style="text-align: right;">${formatearMoneda(saldoDiaAnterior, 'gs').replace('PYG', '').trim()}</span>
+                    <div style="display: flex; align-items: center;">
+                         <input type="text" 
+                                id="${inputSaldoId}" 
+                                class="input-saldo-anterior" 
+                                value="${formatearMoneda(saldoDiaAnterior, 'gs').replace('PYG', '').trim()}"
+                                style="width: 120px; text-align: right; border: 1px solid #ccc; padding: 2px 5px; border-radius: 4px; font-weight: bold; color: inherit; background: transparent;"
+                                onfocus="this.value = parseFloat(this.value.replace(/\\./g, '')) || 0; this.select();"
+                                onblur="guardarSaldoAnteriorManual(this, '${fechaDesde}', '${cajaFiltro || 'General'}')"
+                                onkeydown="if(event.key === 'Enter') this.blur();">
+                    </div>
                 </div>
             `;
         } else {
@@ -4112,10 +4076,21 @@ function calcularSaldoDiaAnterior(fechaActual, filtroCaja = '') {
     const fechaAnterior = fecha.toISOString().split('T')[0];
 
     // Obtener movimientos del día anterior
-    const ingresosAnterior = estado.movimientosTemporales.filter(m =>
+    // COMBINAR movimientosTemporales (si aún no se cerraron) Y movimientos (historial)
+    const ingresosAnteriorTemp = estado.movimientosTemporales.filter(m =>
         m.fecha.startsWith(fechaAnterior) &&
         (!filtroCaja || m.caja === filtroCaja)
     );
+    
+    // Filtrar también los ingresos que ya pasaron al historial (estado.movimientos)
+    // Buscamos aquellos que sean de tipo 'ingreso' o undefined (legacy)
+    const ingresosAnteriorHist = estado.movimientos.filter(m =>
+        m.fecha.startsWith(fechaAnterior) &&
+        (!filtroCaja || m.caja === filtroCaja) &&
+        (!m.tipo || m.tipo === 'ingreso')
+    );
+    
+    const ingresosAnterior = [...ingresosAnteriorTemp, ...ingresosAnteriorHist];
 
     const egresosAnterior = estado.egresosCaja.filter(e =>
         e.fecha.startsWith(fechaAnterior) &&
@@ -4182,6 +4157,26 @@ function calcularSaldoDiaAnterior(fechaActual, filtroCaja = '') {
         fecha: fechaAnterior
     };
 }
+
+// Función nueva para guardar el saldo manual
+window.guardarSaldoAnteriorManual = function(input, fecha, caja) {
+    const rawValue = input.value.replace(/\./g, '');
+    const numValue = parseFloat(rawValue) || 0;
+    
+    // Formatear visualmente
+    input.value = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(numValue);
+    
+    // Guardar en localStorage
+    const claveSaldoManual = `saldoAnterior_${fecha}_${caja}`;
+    localStorage.setItem(claveSaldoManual, numValue);
+    console.log('[DEBUG] Saldo Anterior MANUAL guardado:', numValue, 'Clave:', claveSaldoManual);
+    
+    // Recargar la tabla para actualizar totales
+    if (typeof window.cargarTablaIngresosEgresos === 'function') {
+        // Pequeño delay para asegurar que el evento blur termine
+        setTimeout(() => window.cargarTablaIngresosEgresos(), 100);
+    }
+};
 
 /**
  * Renderiza el detalle del saldo del día anterior por caja

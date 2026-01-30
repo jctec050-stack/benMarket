@@ -483,10 +483,10 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         const input = row.querySelector('.input-recaudacion');
 
         // Crear clave de localStorage con fecha + caja + cajero
-        // **IMPORTANTE**: Usar nombreCaja específico para la clave, no el filtro global
-        // Si el filtro global de caja está activo, nombreCaja coincidirá.
-        // Si es 'Todas las Cajas', nombreCaja será la caja específica de esa fila.
-        const claveStorage = `recaudacion_${fechaDesde}_${nombreCaja}_${nombreCajero}`;
+        // **IMPORTANTE**: Sanitizar nombres para evitar problemas en las claves
+        const cleanCaja = nombreCaja.trim().replace(/\s+/g, '_');
+        const cleanCajero = nombreCajero.trim().replace(/\s+/g, '_');
+        const claveStorage = `recaudacion_${fechaDesde}_${cleanCaja}_${cleanCajero}`;
 
         // Recuperar valor guardado en localStorage (prioridad 1)
         let storedValue = localStorage.getItem(claveStorage);
@@ -538,13 +538,18 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             localStorage.setItem(claveStorage, numValue);
         });
         input.addEventListener('blur', () => {
-            const value = parseFloat(input.value) || 0;
+            // Limpiar puntos antes de parsear para evitar errores
+            const rawValue = input.value.replace(/\./g, '');
+            const value = parseFloat(rawValue) || 0;
+            
             if (value > 0) {
                 // Formatear con separadores de miles
-                input.value = Math.floor(value).toLocaleString('es-PY');
+                input.value = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(value);
             }
-            // Guardar en localStorage
+            
+            // Guardar en localStorage usando el valor numérico
             localStorage.setItem(claveStorage, value);
+            console.log(`[PERSISTENCIA] Guardado local para ${claveStorage}:`, value);
 
             // Guardar en Supabase
             if (db && db.guardarRecaudacion && fechaDesde) {
@@ -556,6 +561,11 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
                 });
             }
         });
+        
+        // Al cargar, formatear si ya tiene valor
+        if (storedValue && parseFloat(storedValue) > 0) {
+             input.value = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(parseFloat(storedValue));
+        }
         input.addEventListener('focus', () => {
             // Remover formato cuando gana el foco para que pueda editar
             const value = parseFloat(input.value.replace(/\./g, '')) || 0;
