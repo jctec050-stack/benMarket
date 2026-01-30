@@ -2665,7 +2665,7 @@ function limpiarFormularioEgresoCaja() {
 }
 
 async function eliminarEgresoCaja(id) {
-    const confirmed = await showConfirmModal('¿Está seguro de eliminar este egreso de caja?');
+    const confirmed = await showConfirm('¿Está seguro de eliminar este egreso de caja?');
 
     if (confirmed) {
         if (window.db && window.db.eliminarEgresoCaja) {
