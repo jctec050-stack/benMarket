@@ -2506,7 +2506,7 @@ function cargarHistorialEgresosCaja() {
 
 
 
-    let egresosFiltrados = todosLosEgresos;
+    let egresosFiltrados = estado.egresosCaja || [];
 
     // Obtener filtros
     const fechaFiltro = document.getElementById('fechaFiltroEgresos').value;
