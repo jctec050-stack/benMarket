@@ -161,7 +161,7 @@ window.onclick = function (event) {
 
 
 // Nueva función para la tabla de Recaudación
-function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroCaja) {
+async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroCaja) {
     const tbody = document.getElementById('tbodyRecaudacion');
     const tfoot = document.getElementById('tfootRecaudacion');
     if (!tbody || !tfoot) return;
@@ -169,15 +169,20 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
     // Recuperar datos de Supabase si existe
     let recaudacionGuardada = {};
     if (db && db.obtenerRecaudacion && fechaDesde) {
-        db.obtenerRecaudacion(fechaDesde, null, filtroCaja || null).then(registros => {
+        try {
+            // Esperar a que la base de datos responda antes de renderizar
+            const registros = await db.obtenerRecaudacion(fechaDesde, null, filtroCaja || null);
             if (registros && registros.length > 0) {
                 registros.forEach(reg => {
+                    // Normalizar clave para coincidir con la generación posterior
                     const clave = `${reg.cajero}_${reg.caja}`;
                     recaudacionGuardada[clave] = reg.efectivo_ingresado;
                 });
-
+                console.log('[DEBUG] Recaudación recuperada de BD:', Object.keys(recaudacionGuardada).length, 'registros');
             }
-        });
+        } catch (err) {
+            console.error('Error recuperando recaudación:', err);
+        }
     }
 
     console.log('[DEBUG] Datos disponibles en estado:', {
