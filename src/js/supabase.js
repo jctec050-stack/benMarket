@@ -327,15 +327,7 @@ const db = {
                     .eq('id', id)
                     .select();
 
-                if (error) {
-                    console.error('[Supabase] Error en delete:', error);
-                    throw error;
-                }
 
-                console.log('[Supabase] Respuesta del DELETE:', { data, count });
-                console.log('[Supabase] Registros eliminados:', data?.length || 0);
-
-                // Verificar que realmente se eliminó
                 if (!data || data.length === 0) {
                     console.error('[Supabase] ❌ PROBLEMA: DELETE no eliminó ningún registro');
                     console.error('[Supabase] Esto indica un problema con políticas RLS');
@@ -748,7 +740,7 @@ window.sincronizarDatosOffline = async function () {
 
             if (pendientes.length === 0) return 0;
 
-            console.log(`Sincronizando ${pendientes.length} items de ${keyStorage}...`);
+
 
             let sincronizados = 0;
             for (const item of pendientes) {
@@ -1112,7 +1104,7 @@ async function obtenerRecaudacion(fecha, cajero = null, caja = null) {
             return [];
         }
 
-        console.log('[DB] Recaudación recuperada:', data);
+
         return data || [];
     } catch (err) {
         console.error('[DB] Error en obtenerRecaudacion:', err);

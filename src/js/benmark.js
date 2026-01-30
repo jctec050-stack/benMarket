@@ -39,7 +39,7 @@ window.addEventListener('load', async () => {
     const perfil = await window.db.obtenerPerfilActual();
     if (perfil.success) {
         usuarioPerfil = perfil.data;
-        console.log('Usuario:', perfil.data.username, 'Rol:', perfil.data.rol);
+
     } else {
         // Error obteniendo perfil, redirigir
         window.location.href = '/pages/login.html';
@@ -202,14 +202,12 @@ async function initSupabaseData() {
     if (!estado.fondoFijoPorCaja || Object.keys(estado.fondoFijoPorCaja).length === 0) {
         const fondoFijo = JSON.parse(localStorage.getItem('fondoFijoPorCaja')) || {};
         estado.fondoFijoPorCaja = fondoFijo;
-        console.log('Fondo fijo cargado desde localStorage:', fondoFijo);
+
     }
 
     actualizarArqueoFinal();
     cargarHistorialMovimientosDia();
-    console.log('[DEBUG initSupabaseData] A punto de llamar cargarHistorialEgresosCaja...');
     cargarHistorialEgresosCaja();
-    console.log('[DEBUG initSupabaseData] Después de llamar cargarHistorialEgresosCaja');
     cargarHistorialGastos();
     renderizarIngresosAgregados();
 
@@ -455,12 +453,12 @@ window.guardarFondoFijo = function () {
         fecha: new Date().toISOString()
     };
 
-    console.log('Fondo Fijo guardado:', cajaActual, total, estado.fondoFijoPorCaja);
+
 
     // Guardar en localStorage
     try {
         guardarEnLocalStorage();
-        console.log('Fondo Fijo guardado en localStorage');
+
     } catch (error) {
         console.error('Error al guardar en localStorage:', error);
     }
@@ -477,7 +475,7 @@ function cargarFondoFijoEnArqueo() {
     const cajaInput = document.getElementById('caja');
 
     if (!fondoFijoInput || !cajaInput) {
-        console.log('cargarFondoFijoEnArqueo: elementos no encontrados', { fondoFijoInput, cajaInput });
+
         return;
     }
 
@@ -491,7 +489,7 @@ function cargarFondoFijoEnArqueo() {
                 totalFondoFijo += caja.monto;
             }
         });
-        console.log('Fondo fijo total (Todas las cajas):', totalFondoFijo);
+
     } else {
         const fondoFijo = estado.fondoFijoPorCaja[cajaSeleccionada];
         if (fondoFijo && fondoFijo.monto) {
@@ -806,7 +804,7 @@ async function agregarMovimiento() {
         // Debemos restaurar el ID original.
         movimiento.id = original.id;
 
-        console.log('>> DATOS A ENVIAR (EDICIÓN):', { ...original, ...movimiento });
+
         // --- FIN DE DEPURACIÓN ---
 
         const actualizado = { ...original, ...movimiento };
@@ -1347,8 +1345,7 @@ function calcularTotalesArqueo(movimientosParaArqueo) {
             }
         }
         // Sumar/Restar efectivo por denominación
-        // **DEBUG:** Log para verificar procesamiento de billetes
-        console.log('Mov ID:', mov.id, 'Tipo:', mov.tipoMovimiento, 'Tiene efectivo:', !!mov.efectivo, 'Keys:', mov.efectivo ? Object.keys(mov.efectivo) : []);
+
 
         if (mov.efectivo && mov.tipoMovimiento === 'ingreso') {
             for (const [denominacion, cantidad] of Object.entries(mov.efectivo)) {
@@ -1714,13 +1711,7 @@ function cargarHistorialMovimientosDia() {
         cajaFiltro = sessionStorage.getItem('cajaSeleccionada');
     }
 
-    // **DEBUG:** Log para verificar qué datos tenemos
-    console.log('=== cargarHistorialMovimientosDia ===');
-    console.log('Fecha filtro:', fechaFiltro);
-    console.log('Caja filtro:', cajaFiltro);
-    console.log('Total movimientosTemporales:', estado.movimientosTemporales.length);
-    console.log('Total egresosCaja:', estado.egresosCaja.length);
-    console.log('Total movimientos (operaciones):', estado.movimientos.length);
+
 
     // Obtener movimientos
     // **CORRECCIÓN:** Manejar correctamente el filtro 'Todas las cajas'
@@ -1746,9 +1737,7 @@ function cargarHistorialMovimientosDia() {
         return coincideFecha && coincideCaja && noEstaArqueado;
     }).map(m => ({ ...m, tipoMovimiento: 'ingreso' }));
 
-    console.log('[DEBUG] mostrarTodo:', mostrarTodo, 'userRole:', userRole);
-    console.log('[DEBUG] Total egresos antes de filtrar:', estado.egresosCaja.length);
-    console.log('[DEBUG] Egresos con arqueado=true:', estado.egresosCaja.filter(e => e.arqueado).length);
+
 
     const egresosCaja = estado.egresosCaja.filter(e => {
         const coincideFecha = e.fecha.startsWith(fechaFiltro);
@@ -1775,9 +1764,7 @@ function cargarHistorialMovimientosDia() {
 
     }).map(m => ({ ...m, tipoMovimiento: 'egreso' }));
 
-    console.log('Ingresos filtrados:', ingresos.length);
-    console.log('Egresos caja filtrados:', egresosCaja.length);
-    console.log('Egresos operaciones filtrados:', egresosOperaciones.length);
+
 
     const todosLosMovimientos = [...ingresos, ...egresosCaja, ...egresosOperaciones]
         .sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
@@ -1881,9 +1868,8 @@ async function guardarArqueo() {
         // Si es edición, recuperar el objeto original para preservar datos si es necesario, 
         // pero RECALCULAR lo que dependa de los inputs actuales (efectivo y fondo fijo).
         const arqueoOriginal = estado.arqueos.find(a => a.id === idEdicion);
+
         if (arqueoOriginal) {
-            console.log("Editando arqueo, preservando ID:", idEdicion);
-            // Preservar metadatos originales que no cambian
             arqueo.cajero = arqueoOriginal.cajero;
             // arqueo.fecha ya viene del input que se pobló al iniciar edición, igual que caja y fondoFijo.
         }
@@ -1990,8 +1976,7 @@ async function guardarArqueo() {
         observaciones: null
     };
 
-    // Guardar en base de datos
-    console.log('[DEBUG GUARDAR ARQUEO] Datos a enviar a Supabase:', datosParaBD);
+
     if (window.db) {
         let resultado;
         if (esEdicion) {
@@ -2062,8 +2047,7 @@ async function guardarArqueo() {
     const egresosArqueados = estado.egresosCaja.filter(e =>
         e.caja === cajaFiltro && e.fecha.startsWith(fechaArqueo)
     );
-    console.log(`[DEBUG ARQUEO] Marcando ${egresosArqueados.length} egresos como arqueados...`);
-    console.log(`[DEBUG ARQUEO] IDs de egresos a arquear:`, egresosArqueados.map(e => ({ id: e.id, categoria: e.categoria, arqueado: e.arqueado })));
+
 
     for (const eg of egresosArqueados) {
         eg.arqueado = true;
@@ -2516,16 +2500,11 @@ function cargarHistorialEgresosCaja() {
 
     // **CORRECCIÓN:** Solo ejecutar si el contenedor existe en la página actual.
     if (!listaEgresosCaja) {
-        console.log('[DEBUG] No se encontró listaEgresosCaja, saliendo...');
+
         return;
     }
 
-    console.log('[DEBUG] cargarHistorialEgresosCaja - INICIO');
 
-    // **MODIFICADO:** Leer desde estado en lugar de localStorage
-    let todosLosEgresos = estado.egresosCaja || [];
-    console.log('[DEBUG] Total egresos en estado:', todosLosEgresos.length);
-    console.log('[DEBUG] Primeros 3 egresos:', todosLosEgresos.slice(0, 3).map(e => ({ id: e.id, arqueado: e.arqueado, categoria: e.categoria })));
 
     let egresosFiltrados = todosLosEgresos;
 
@@ -2536,7 +2515,7 @@ function cargarHistorialEgresosCaja() {
     // --- LÓGICA DE FILTRADO REVISADA ---
     const userRole = sessionStorage.getItem('userRole');
     const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
-    console.log(`[DEBUG] cargarHistorialEgresosCaja - userRole: ${userRole}, mostrarTodo: ${mostrarTodo}`);
+
 
     // 1. Filtro por Usuario (Segregación)
     if (!mostrarTodo && usuarioPerfil && usuarioPerfil.username) {
@@ -2548,8 +2527,7 @@ function cargarHistorialEgresosCaja() {
     if (!mostrarTodo) {
         const antesArqueado = egresosFiltrados.length;
         egresosFiltrados = egresosFiltrados.filter(e => !e.arqueado);
-        console.log(`[DEBUG] Egresos antes de filtrar arqueados: ${antesArqueado}, después: ${egresosFiltrados.length}`);
-        console.log(`[DEBUG] Egresos arqueados ocultos: ${antesArqueado - egresosFiltrados.length}`);
+
     }
 
     // 3. Filtro por Caja
@@ -2580,7 +2558,7 @@ function cargarHistorialEgresosCaja() {
     }
 
     // Renderizar egresos
-    console.log('[DEBUG] Renderizando historial egresos, cantidad:', egresosFiltrados.length);
+
     egresosFiltrados.forEach(egreso => {
         const div = document.createElement('div');
         div.className = 'movimiento-item';
@@ -2684,6 +2662,27 @@ function limpiarFormularioEgresoCaja() {
 
     // Establecer fecha actual
     document.getElementById('fechaEgresoCaja').value = obtenerFechaHoraLocalISO();
+}
+
+async function eliminarEgresoCaja(id) {
+    const confirmed = await showConfirmModal('¿Está seguro de eliminar este egreso de caja?');
+
+    if (confirmed) {
+        if (window.db && window.db.eliminarEgresoCaja) {
+            const resultado = await window.db.eliminarEgresoCaja(id);
+
+            if (!resultado.success) {
+                showNotification('Error al eliminar de la base de datos: ' + (resultado.error?.message || 'Error desconocido'), 'error');
+                return;
+            }
+        }
+
+        estado.egresosCaja = estado.egresosCaja.filter(e => e.id !== id);
+
+        guardarEnLocalStorage();
+        cargarHistorialEgresosCaja();
+        cargarResumenDiario();
+    }
 }
 
 
@@ -2827,109 +2826,7 @@ function numeroALetras(valor, moneda = 'gs') {
     return `${texto} ${monedaTexto[moneda] || ''}`.toUpperCase();
 }
 
-function limpiarFormularioEgresoCaja() {
-    // **CORRECCIÓN:** Guardar la caja seleccionada antes de resetear
-    const cajaSeleccionada = document.getElementById('cajaEgreso').value;
 
-    document.getElementById('formularioEgresoCaja').reset();
-
-    // **CORRECCIÓN:** Restaurar la caja seleccionada
-    if (cajaSeleccionada) {
-        document.getElementById('cajaEgreso').value = cajaSeleccionada;
-    }
-
-    document.getElementById('montoEgresoCaja').value = '0';
-    document.getElementById('fechaEgresoCaja').value = obtenerFechaHoraLocalISO();
-
-    // Limpiar tabla de desglose de egreso
-    document.querySelectorAll('#tablaDenominacionesEgresoCaja input').forEach(input => input.value = '0');
-    document.querySelectorAll('#tablaDenominacionesEgresoCaja .monto-parcial-egreso').forEach(celda => celda.textContent = '0');
-    calcularTotalEgresoCaja();
-
-    // Resetear modo edición
-    document.getElementById('idEgresoCajaEditar').value = '';
-    const botonGuardar = document.querySelector('#formularioEgresoCaja button[type="submit"]');
-    botonGuardar.textContent = 'Guardar Egreso';
-}
-
-function iniciarEdicionEgresoCaja(id) {
-    const egreso = estado.egresosCaja.find(e => e.id === id);
-    if (!egreso) return;
-
-    document.getElementById('idEgresoCajaEditar').value = egreso.id;
-    document.getElementById('fechaEgresoCaja').value = egreso.fecha;
-    document.getElementById('cajaEgreso').value = egreso.caja;
-    document.getElementById('categoriaEgresoCaja').value = egreso.categoria;
-    document.getElementById('descripcionEgresoCaja').value = egreso.descripcion;
-
-    // Cargar desglose de efectivo
-    document.querySelectorAll('#tablaDenominacionesEgresoCaja .cantidad-denominacion-egreso').forEach(input => {
-        const denominacion = input.dataset.denominacion;
-        input.value = egreso.efectivo ? (egreso.efectivo[denominacion] || 0) : 0;
-    });
-
-    // Recalcular y mostrar el total
-    calcularTotalEgresoCaja();
-    document.getElementById('referenciaEgresoCaja').value = egreso.referencia;
-
-    document.querySelector('#formularioEgresoCaja button[type="submit"]').textContent = 'Actualizar Egreso';
-    document.getElementById('egresos-caja').scrollIntoView({ behavior: 'smooth' });
-}
-
-async function eliminarEgresoCaja(id) {
-    console.log('=== ELIMINAR EGRESO DE CAJA ===');
-    console.log('ID a eliminar:', id);
-
-    // **MEJORA UX:** Añadir confirmación antes de eliminar.
-    const confirmed = await showConfirm('¿Está seguro de que desea eliminar este egreso de caja? Esta acción no se puede deshacer.', {
-        title: 'Eliminar Egreso',
-        confirmText: 'Sí, eliminar',
-        type: 'danger',
-        confirmButtonType: 'danger'
-    });
-    if (confirmed) {
-        console.log('Usuario confirmó eliminación');
-
-        // **CORRECCIÓN:** Eliminar de Supabase primero
-        if (window.db && window.db.eliminarEgresoCaja) {
-            console.log('Llamando a window.db.eliminarEgresoCaja...');
-            const resultado = await window.db.eliminarEgresoCaja(id);
-            console.log('Resultado de Supabase:', resultado);
-
-            if (!resultado.success) {
-                console.error('Error al eliminar egreso de Supabase:', resultado.error);
-                mostrarMensaje('Error al eliminar de la base de datos: ' + resultado.error, 'peligro');
-                return;
-            }
-            console.log('✅ Eliminado de Supabase exitosamente');
-        } else {
-            console.warn('⚠️ window.db.eliminarEgresoCaja no está disponible');
-        }
-
-        // Eliminar de localStorage
-        console.log('Eliminando de localStorage...');
-        const cantidadAntes = estado.egresosCaja.length;
-        // **NUEVO:** Capturar datos para actualización reactiva antes de eliminar del estado local
-        const egresoAEliminar = estado.egresosCaja.find(e => e.id === id);
-
-        estado.egresosCaja = estado.egresosCaja.filter(e => e.id !== id);
-
-        if (egresoAEliminar) {
-            await verificarYActualizarArqueo(egresoAEliminar.fecha, egresoAEliminar.caja);
-        }
-        const cantidadDespues = estado.egresosCaja.length;
-        console.log(`Egresos antes: ${cantidadAntes}, después: ${cantidadDespues}`);
-
-        guardarEnLocalStorage();
-        mostrarMensaje('Egreso de caja eliminado correctamente', 'exito');
-        cargarHistorialEgresosCaja();
-        actualizarArqueoFinal();
-        cargarResumenDiario();
-        console.log('=== FIN ELIMINAR EGRESO ===');
-    } else {
-        console.log('Usuario canceló la eliminación');
-    }
-}
 
 
 // Aplicar filtro general de caja a todos los filtros individuales
@@ -2982,19 +2879,14 @@ async function cargarResumenDiario() {
                         (!fechaHasta || fechaArqueo <= fechaHasta);
                     return dentroRango;
                 });
-                console.log(`Arqueos cargados para rango ${fechaDesde} - ${fechaHasta}:`, estado.arqueos.length);
+
             }
         } catch (error) {
             console.warn('Error cargando arqueos:', error);
         }
     }
 
-    // **DEBUG:** Log para verificar qué datos tenemos
-    console.log('=== cargarResumenDiario ===');
-    console.log('Arqueos cargados:', estado.arqueos.length);
-    console.log('Movimientos temporales (ingresos):', estado.movimientosTemporales.length);
-    console.log('Egresos caja:', estado.egresosCaja.length);
-    console.log('Movimientos operaciones:', estado.movimientos.length);
+
 
     // Filtros de Ingresos Tienda
     // Filtros de Ingresos Tienda
@@ -3472,9 +3364,7 @@ window.cargarTablaIngresosEgresos = function () {
     // 3. EFECTIVO (Ventas de tienda = Total Recaudado)
     // 4. Saldo día anterior
     totalIngresos = totalServicios + inversiones + totalRecaudaciones + saldoDiaAnterior;
-    console.log('[DEBUG Total Ingresos] Calculado: Servicios(' + totalServicios + ') + Inversiones(' + inversiones + ') + Efectivo(' + totalRecaudaciones + ') + Saldo(' + saldoDiaAnterior + ') = ' + totalIngresos);
 
-    console.log('[DEBUG Total Ingresos] Total final:', totalIngresos);
 
     // Calcular total de egresos
     todosEgresos.forEach(egreso => {
@@ -3658,17 +3548,12 @@ function calcularIngresosPorServicio(fechaDesde, fechaHasta, cajaFiltro) {
         return matchFecha && matchCaja;
     });
 
-    console.log('[DEBUG calcularIngresosPorServicio] Movimientos de ingresos encontrados:', movimientosIngresos.length);
-    if (movimientosIngresos.length > 0) {
-        console.log('[DEBUG calcularIngresosPorServicio] Primer movimiento:', movimientosIngresos[0]);
-    }
+
 
     // Procesar servicios estándar
     movimientosIngresos.forEach(mov => {
         if (mov.servicios) {
-            console.log('[DEBUG calcularIngresosPorServicio] Servicios en movimiento:', mov.servicios);
             Object.entries(mov.servicios).forEach(([key, servicio]) => {
-                console.log(`[DEBUG calcularIngresosPorServicio] Procesando servicio ${key}:`, servicio);
                 // **CORREGIDO**: Incluir montos negativos (ajustes/devoluciones)
                 if (servicio && servicio.monto !== 0) {
                     // Mapear nombres de servicios
@@ -3685,7 +3570,6 @@ function calcularIngresosPorServicio(fechaDesde, fechaHasta, cajaFiltro) {
                         serviciosMap[nombreServicio] = 0;
                     }
                     serviciosMap[nombreServicio] += servicio.monto;
-                    console.log(`[DEBUG calcularIngresosPorServicio] Agregado ${nombreServicio}: ${servicio.monto}, Total acumulado: ${serviciosMap[nombreServicio]}`);
                 }
             });
         }
@@ -3699,20 +3583,15 @@ function calcularIngresosPorServicio(fechaDesde, fechaHasta, cajaFiltro) {
                         serviciosMap[nombreServicio] = 0;
                     }
                     serviciosMap[nombreServicio] += servicio.monto;
-                    console.log(`[DEBUG calcularIngresosPorServicio] Agregado (otros) ${nombreServicio}: ${servicio.monto}`);
                 }
             });
         }
     });
 
-    console.log('[DEBUG calcularIngresosPorServicio] serviciosMap final:', serviciosMap);
-
     // Convertir a array y ordenar
     const resultado = Object.entries(serviciosMap)
         .map(([nombre, monto]) => ({ nombre, monto }))
         .sort((a, b) => a.nombre.localeCompare(b.nombre));
-
-    console.log('[DEBUG calcularIngresosPorServicio] Resultado final:', resultado);
 
     return resultado;
 }
@@ -3750,9 +3629,10 @@ function obtenerTotalRecaudaciones(fechaDesde, fechaHasta, cajaFiltro) {
     const subtotalText = cells[5].textContent;
     const subtotalValue = parsearMoneda(subtotalText);
 
-    console.log('[DEBUG obtenerTotalRecaudaciones] Subtotal/User leído del DOM:', subtotalValue);
+
     return subtotalValue;
 }
+
 
 // Función auxiliar: Obtener inversiones desde Operaciones (Depositos-Inversiones)
 function obtenerInversiones(fechaDesde, fechaHasta, cajaFiltro) {
@@ -3803,7 +3683,7 @@ function calcularIngresosNegativos(fechaDesde, fechaHasta, cajaFiltro) {
         totalNegativos += mov.monto || 0; // Los montos ya son negativos
     });
 
-    console.log('[DEBUG calcularIngresosNegativos] Total negativos:', totalNegativos);
+
     return totalNegativos;
 }
 
@@ -3845,9 +3725,7 @@ function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
         totalEgresosAnt += egr.monto || 0;
     });
 
-    const saldo = totalIngresosAnt - totalEgresosAnt;
-    console.log('[DEBUG calcularSaldoDiaAnterior] Saldo calculado:', saldo, 'tipo:', typeof saldo);
-    return saldo;
+
 }
 
 
@@ -4258,11 +4136,7 @@ async function descargarExcel() {
             estado.serviciosEfectivo = (s && s.data) || [];
         }
 
-        console.log('Datos cargados para exportación:');
-        console.log('- Movimientos (ingresos guardados):', estado.movimientos.length);
-        console.log('- Movimientos temporales (ingresos actuales):', estado.movimientosTemporales.length);
-        console.log('- Egresos:', estado.egresosCaja.length);
-        console.log('- Servicios efectivo:', (estado.serviciosEfectivo || []).length);
+
     } catch (error) {
         console.error('Error cargando datos:', error);
         mostrarMensaje('Error al cargar datos. Usando datos en caché.', 'advertencia');

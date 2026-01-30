@@ -175,7 +175,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
                     const clave = `${reg.cajero}_${reg.caja}`;
                     recaudacionGuardada[clave] = reg.efectivo_ingresado;
                 });
-                console.log('[DB] Recaudación recuperada de Supabase:', recaudacionGuardada);
+
             }
         });
     }
@@ -198,7 +198,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
 
     // --- LÓGICA HÍBRIDA: PRIORIZAR ARQUEOS CERRADOS ---
     // 1. Agrupar Arqueos existentes
-    console.log('[DEBUG] estado.arqueos =', estado.arqueos);
+
 
     if (estado.arqueos) {
         estado.arqueos.forEach(a => {
@@ -276,29 +276,23 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             let egresos = (a.total_egresos !== undefined) ? a.total_egresos : (a.totalEgresos || 0);
             let fondo = (a.fondo_fijo !== undefined) ? a.fondo_fijo : (a.fondoFijo || 0);
 
-            // Almacenar valores crudos
+            // Recalcular Ingreso Tienda usando los datos del arqueo
+            let ingresoTiendaCalculado = (efectivoFisico + egresos) - serviciosEfectivo - fondo;
+
             datosPorClave[clave].totalDeclarar = efectivoFisico; // Asumimos que esto es "Total a declarar"
             datosPorClave[clave].egresos = egresos;
             datosPorClave[clave].fondoFijo = fondo;
 
-            // FÓRMULA CORRECTA: Total Ingresos Tienda = (Efectivo físico + Egresos) - Servicios efectivo - Fondo fijo
-            let ingresoTiendaCalculado = (efectivoFisico + egresos) - serviciosEfectivo - fondo;
-
-            console.log(`[DEBUG ARQUEO - ${cajero} ${caja}] efectivoFisico=${efectivoFisico}, egresos=${egresos}, serviciosEfectivo=${serviciosEfectivo}, fondo=${fondo}, RESULTADO=${ingresoTiendaCalculado}`);
-
-            // DEBUG ADICIONAL para Cajero4 - Caja 1
-            if (cajero === 'Cajero4' && caja === 'Caja 1') {
-                console.log('[DEBUG DETALLADO Cajero4-Caja1]', {
-                    efectivoFisico,
-                    egresos,
-                    serviciosEfectivo,
-                    serviciosDetalle: a.servicios,
-                    otrosServicios: a.otrosServicios,
-                    fondo,
-                    calculo: `(${efectivoFisico} + ${egresos}) - ${serviciosEfectivo} - ${fondo} = ${ingresoTiendaCalculado}`,
-                    arqueoCompleto: a
-                });
-            }
+            console.log(`[DEBUG ARQUEO CERRADO - ${cajero} ${caja}]`, {
+                efectivoFisico,
+                egresos,
+                serviciosEfectivo,
+                serviciosDetalle: a.servicios,
+                otrosServicios: a.otrosServicios,
+                fondo,
+                calculo: `(${efectivoFisico} + ${egresos}) - ${serviciosEfectivo} - ${fondo} = ${ingresoTiendaCalculado}`,
+                arqueoCompleto: a
+            });
 
             if (ingresoTiendaCalculado < 0) ingresoTiendaCalculado = 0;
 
@@ -451,14 +445,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
         // Guardamos el "Ingreso Tienda" real calculado para comparaciones
         const ingresoTiendaReal = d.ingresoTiendaCalculado || 0;
 
-        // DEBUG: Log para verificar el valor antes de renderizar
-        console.log(`[RENDER ROW] ${nombreCajero} - ${nombreCaja}: ingresoTiendaReal = ${ingresoTiendaReal}`, {
-            totalDeclarar: d.totalDeclarar,
-            efectivo: d.efectivo,
-            egresos: d.egresos,
-            fondoFijo: d.fondoFijo,
-            ingresoTiendaCalculado: d.ingresoTiendaCalculado
-        });
+
 
         const rowHTML = `
             <td>
@@ -558,7 +545,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             
             // Guardar en localStorage usando el valor numérico
             localStorage.setItem(claveStorage, value);
-            console.log(`[PERSISTENCIA] Guardado local para ${claveStorage}:`, value);
+
 
             // Guardar en Supabase
             if (db && db.guardarRecaudacion && fechaDesde) {
@@ -595,7 +582,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
                 if (db && db.guardarRecaudacion && fechaDesde) {
                     db.guardarRecaudacion(fechaDesde, nombreCajero, nombreCaja, value).then(success => {
                         if (success) {
-                            console.log(`✓ Recaudación guardada MANUALMENTE para ${nombreCajero} (${nombreCaja})`);
+
                             // Feedback de éxito
                             btnGuardar.textContent = '✅';
                             showNotification(`Recaudación de ${nombreCajero} guardada correctamente`, 'success');
@@ -665,7 +652,7 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
 
         // **NUEVO:** Guardar el total en variable global y actualizar tabla de Ingresos/Egresos
         window.totalRecaudadoGlobal = tSub;
-        console.log('[DEBUG] Total recaudado actualizado en global:', window.totalRecaudadoGlobal);
+
 
         // Llamar a la actualización de la tabla Ingresos/Egresos si existe
         if (typeof window.cargarTablaIngresosEgresos === 'function') {
