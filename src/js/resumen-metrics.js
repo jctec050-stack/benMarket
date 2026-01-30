@@ -460,14 +460,13 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             <td style="text-align: right; padding-right: 10px;"><strong>${formatearMoneda(ingresoTiendaReal, 'gs')}</strong></td>
             <td>
                 <div style="display: flex; align-items: center; gap: 5px;">
-                    <input type="number" class="input-recaudacion" value="0" 
+                    <input type="text" inputmode="numeric" class="input-recaudacion" value="0" 
                         data-cajero="${nombreCajero}"
                         data-caja="${nombreCaja}"
                         data-system="${totalDeclararSystem}" 
                         data-egresos="${egresosSystem}" 
                         data-fondo="${fondoSystem}"
-                        data-ingreso-tienda="${ingresoTiendaReal}"
-                        style="width: 100px;">
+                        data-ingreso-tienda="${ingresoTiendaReal}">
                     <button type="button" class="btn-guardar-recaudacion" title="Guardar en base de datos" 
                         style="background: transparent; border: none; cursor: pointer; font-size: 1.2em; padding: 0 4px;">
                         💾
