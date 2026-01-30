@@ -466,13 +466,22 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
                 <div style="font-size: 0.85em; color: #666; font-weight: normal;">${nombreCaja}</div>
             </td>
             <td style="text-align: right; padding-right: 10px;"><strong>${formatearMoneda(ingresoTiendaReal, 'gs')}</strong></td>
-            <td><input type="number" class="input-recaudacion" value="0" 
-                data-cajero="${nombreCajero}"
-                data-caja="${nombreCaja}"
-                data-system="${totalDeclararSystem}" 
-                data-egresos="${egresosSystem}" 
-                data-fondo="${fondoSystem}"
-                data-ingreso-tienda="${ingresoTiendaReal}"></td>
+            <td>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <input type="number" class="input-recaudacion" value="0" 
+                        data-cajero="${nombreCajero}"
+                        data-caja="${nombreCaja}"
+                        data-system="${totalDeclararSystem}" 
+                        data-egresos="${egresosSystem}" 
+                        data-fondo="${fondoSystem}"
+                        data-ingreso-tienda="${ingresoTiendaReal}"
+                        style="width: 100px;">
+                    <button type="button" class="btn-guardar-recaudacion" title="Guardar en base de datos" 
+                        style="background: transparent; border: none; cursor: pointer; font-size: 1.2em; padding: 0 4px;">
+                        💾
+                    </button>
+                </div>
+            </td>
             <td class="col-sobrante">${formatearMoneda(0, 'gs')}</td>
             <td class="col-faltante negativo">${formatearMoneda(0, 'gs')}</td>
             <td class="col-subtotal"><strong>${formatearMoneda(0, 'gs')}</strong></td>
@@ -571,6 +580,42 @@ function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, filtroC
             const value = parseFloat(input.value.replace(/\./g, '')) || 0;
             input.value = value;
         });
+        
+        // Listener para el botón de guardar
+        const btnGuardar = row.querySelector('.btn-guardar-recaudacion');
+        if (btnGuardar) {
+            btnGuardar.addEventListener('click', () => {
+                const rawValue = input.value.replace(/\./g, '');
+                const value = parseFloat(rawValue) || 0;
+                
+                // Efecto visual de carga
+                btnGuardar.textContent = '⏳';
+                
+                // Guardar en Supabase
+                if (db && db.guardarRecaudacion && fechaDesde) {
+                    db.guardarRecaudacion(fechaDesde, nombreCajero, nombreCaja, value).then(success => {
+                        if (success) {
+                            console.log(`✓ Recaudación guardada MANUALMENTE para ${nombreCajero} (${nombreCaja})`);
+                            // Feedback de éxito
+                            btnGuardar.textContent = '✅';
+                            showNotification(`Recaudación de ${nombreCajero} guardada correctamente`, 'success');
+                            
+                            // Restaurar icono después de 2 segundos
+                            setTimeout(() => {
+                                btnGuardar.textContent = '💾';
+                            }, 2000);
+                        } else {
+                            btnGuardar.textContent = '❌';
+                            showNotification('Error al guardar en base de datos', 'error');
+                        }
+                    });
+                } else {
+                    showNotification('No se puede guardar: Falta fecha o conexión', 'warning');
+                    btnGuardar.textContent = '⚠️';
+                }
+            });
+        }
+        
         setTimeout(updateRow, 0);
 
         tbody.appendChild(row);
