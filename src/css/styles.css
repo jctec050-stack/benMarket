@@ -820,6 +820,32 @@ body {
     font-style: italic;
 }
 
+/* Hamburger Menu Base Styles */
+.nav-header {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+}
+
+.hamburger {
+    display: none;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    padding: 0.5rem;
+    z-index: 101;
+}
+
+.bar {
+    display: block;
+    width: 25px;
+    height: 3px;
+    margin: 5px auto;
+    transition: all 0.3s ease-in-out;
+    background-color: white;
+    border-radius: 2px;
+}
+
 /* === RESPONSIVE: Desktop (≥992px) === */
 @media (min-width: 992px) {
 
@@ -924,34 +950,87 @@ body {
     /* --- Navegación --- */
     .nav-container {
         padding: 1rem;
-        gap: 0.75rem;
+        gap: 0;
+    }
+
+    .nav-header {
+        justify-content: space-between;
+        align-items: center;
     }
 
     .navbar-logo {
         height: 50px;
     }
 
+    .hamburger {
+        display: block;
+    }
+
+    .hamburger.active .bar:nth-child(2) {
+        opacity: 0;
+    }
+
+    .hamburger.active .bar:nth-child(1) {
+        transform: translateY(8px) rotate(45deg);
+    }
+
+    .hamburger.active .bar:nth-child(3) {
+        transform: translateY(-8px) rotate(-45deg);
+    }
+
     .nav-menu {
-        gap: 0.25rem;
-        width: 100%;
-    }
-
-    .nav-link {
-        padding: 0.4rem 0.6rem;
-        font-size: 0.8rem;
-    }
-
-    .nav-usuario {
-        position: static;
-        width: 100%;
-        justify-content: center;
+        display: none;
+        flex-direction: column;
         gap: 0.5rem;
-        flex-wrap: wrap;
+        width: 100%;
+        background: rgba(0, 0, 0, 0.1);
+        padding: 1rem;
+        border-radius: 0.5rem;
         margin-top: 0.5rem;
     }
 
+    .nav-menu.active {
+        display: flex;
+        animation: fadeIn 0.3s;
+    }
+
+    .nav-link {
+        padding: 0.8rem;
+        font-size: 1rem;
+        text-align: center;
+        display: block;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .nav-link:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+
+    .nav-usuario {
+        display: none;
+        position: static;
+        width: 100%;
+        justify-content: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 0;
+        padding: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(0, 0, 0, 0.1);
+        border-radius: 0 0 0.5rem 0.5rem;
+    }
+
+    .nav-usuario.active {
+        display: flex;
+        animation: fadeIn 0.3s;
+    }
+
     .nav-usuario span {
-        font-size: 0.85rem;
+        font-size: 1rem;
+        width: 100%;
+        text-align: center;
+        margin-bottom: 0.5rem;
     }
 
     .nav-link-logout {

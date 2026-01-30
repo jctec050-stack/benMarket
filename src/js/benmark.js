@@ -7191,3 +7191,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     console.log(`[RBAC] Menú actualizado para rol: ${userRole}`);
 });
+
+// ============================================
+// HAMBURGER MENU TOGGLE
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+    const hamburger = document.getElementById('hamburger-btn');
+    const navMenu = document.getElementById('nav-menu');
+    const navUsuario = document.querySelector('.nav-usuario');
+
+    if (hamburger && navMenu) {
+        hamburger.addEventListener('click', () => {
+            hamburger.classList.toggle('active');
+            navMenu.classList.toggle('active');
+            if (navUsuario) {
+                navUsuario.classList.toggle('active');
+            }
+        });
+        
+        // Close menu when clicking a link
+        document.querySelectorAll('.nav-link').forEach(n => n.addEventListener('click', () => {
+            hamburger.classList.remove('active');
+            navMenu.classList.remove('active');
+            if (navUsuario) {
+                navUsuario.classList.remove('active');
+            }
+        }));
+    }
+});
