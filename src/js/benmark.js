@@ -3303,10 +3303,18 @@ window.cargarTablaIngresosEgresos = function () {
     
     // 1. Intentar obtener el valor guardado manualmente para esta fecha/caja
     const claveSaldoManual = `saldoAnterior_${fechaDesde}_${cajaFiltro || 'General'}`;
-    const saldoManualGuardado = localStorage.getItem(claveSaldoManual);
+    // **CORRECCIÓN**: Usar localStorage.getItem pero verificar si es un valor numérico válido
+    // A veces queda basura o "NaN" en localStorage
+    let saldoManualGuardado = localStorage.getItem(claveSaldoManual);
     
-    if (saldoManualGuardado !== null) {
-        // Si existe un valor manual, usarlo
+    // Validar si el valor manual es válido
+    let usarManual = false;
+    if (saldoManualGuardado !== null && saldoManualGuardado !== 'NaN' && saldoManualGuardado !== '') {
+        usarManual = true;
+    }
+
+    if (usarManual) {
+        // Si existe un valor manual válido, usarlo
         saldoDiaAnterior = parseFloat(saldoManualGuardado);
         console.log('[DEBUG] Usando Saldo Anterior MANUAL:', saldoDiaAnterior);
     } else {
