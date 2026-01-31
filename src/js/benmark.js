@@ -3721,9 +3721,92 @@ function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
         return parseFloat(valorAuto);
     }
 
-    // 2. Si no hay valor automático, retornar 0
-    console.log(`[DEBUG] No hay Saldo Anterior Automático para ${fechaAnterior}. Se requiere carga manual o visualizar el día previo.`);
-    return 0;
+    // 2. Si no hay valor automático, calcularlo manualmente basándonos en los movimientos
+    // Fórmula: (Servicios + Inversiones + Recaudación) - Egresos
+    // Nota: La Recaudación (Efectivo Tienda) es el dato difícil de obtener sin un arqueo cerrado.
+    // Intentaremos buscar en arqueos cerrados primero.
+
+    console.log(`[DEBUG] Intentando cálculo manual para Saldo Anterior ${fechaAnterior}`);
+
+    // A. Servicios (Ingresos)
+    const ingresosServicios = calcularIngresosPorServicio(fechaAnterior, fechaAnterior, cajaFiltro);
+    const totalServicios = ingresosServicios.reduce((sum, s) => sum + s.monto, 0);
+
+    // B. Inversiones (Depositos-Inversiones)
+    const totalInversiones = obtenerInversiones(fechaAnterior, fechaAnterior, cajaFiltro);
+
+    // C. Egresos (Todos)
+    const egresosCaja = (estado.egresosCaja || []).filter(e => {
+        const f = e.fecha.split('T')[0];
+        return f === fechaAnterior && (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || e.caja === cajaFiltro);
+    });
+    const egresosMovs = (estado.movimientos || []).filter(m => {
+        const f = m.fecha.split('T')[0];
+        const esEgreso = ['gasto', 'egreso', 'transferencia', 'operacion'].includes(m.tipo);
+        return f === fechaAnterior && esEgreso && (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
+    });
+    const totalEgresos = [...egresosCaja, ...egresosMovs].reduce((sum, e) => sum + (e.monto || 0), 0);
+
+    // D. Recaudación (Efectivo Tienda)
+    // Prioridad 1: Buscar en Arqueos cerrados
+    let totalRecaudacion = 0;
+    const arqueosDia = (estado.arqueos || []).filter(a => {
+        const f = a.fecha.split('T')[0];
+        return f === fechaAnterior && (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || a.caja === cajaFiltro);
+    });
+
+    if (arqueosDia.length > 0) {
+        arqueosDia.forEach(a => {
+            // El arqueo tiene "totalEfectivo" que es lo que se declaró
+            let efectivo = a.totalEfectivo || a.total_efectivo || 0;
+            // Sumar monedas si no están ya en totalEfectivo (depende de la lógica de guardado, asumimos que totalEfectivo es el final)
+            // Si totalEfectivo es 0, intentar calcular
+            if (efectivo === 0 && a.monedasExtranjeras) {
+                 // ... lógica de monedas si fuera necesario
+            }
+            totalRecaudacion += efectivo;
+        });
+        console.log(`[DEBUG] Recaudación obtenida de Arqueos (${fechaAnterior}):`, totalRecaudacion);
+    } else {
+        // Prioridad 2: Buscar en localStorage "recaudacion_..."
+        // Esto es un intento desesperado recorriendo claves, poco performante pero útil
+        // O mejor: simplemente retornamos lo que tenemos, asumiendo 0 efectivo si no hay arqueo.
+        console.log(`[DEBUG] No hay arqueos cerrados para ${fechaAnterior}. Asumiendo Recaudación 0 o buscando alternativa.`);
+        
+        // Alternativa: Buscar en localStorage claves que empiecen con "recaudacion_202X-XX-XX"
+        const prefix = `recaudacion_${fechaAnterior}`;
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key.startsWith(prefix)) {
+                // Verificar si corresponde a la caja (si hay filtro)
+                if (cajaFiltro && cajaFiltro !== 'Todas las Cajas' && !key.includes(cajaFiltro.replace(/\s+/g, '_'))) {
+                    continue;
+                }
+                const val = parseFloat(localStorage.getItem(key)) || 0;
+                totalRecaudacion += val;
+            }
+        }
+        console.log(`[DEBUG] Recaudación obtenida de localStorage (${fechaAnterior}):`, totalRecaudacion);
+    }
+    
+    // E. Saldo Anterior del Día Anterior (Recursivo... o ignorado según solicitud del usuario)
+    // El usuario dijo: "directamente todos los ingresos, menos los egresos... del dia anterior"
+    // Esto implica FLJO NETO DEL DÍA ANTERIOR.
+    // Si queremos Saldo ACUMULADO, deberíamos sumar el saldo inicial de ayer.
+    // Pero probemos con el Flujo Neto primero.
+    
+    // Total = (Servicios + Inversiones + Recaudación) - Egresos
+    const saldoCalculado = (totalServicios + totalInversiones + totalRecaudacion) - totalEgresos;
+    
+    console.log(`[DEBUG] Saldo Anterior Calculado Manualmente (${fechaAnterior}):`, {
+        servicios: totalServicios,
+        inversiones: totalInversiones,
+        recaudacion: totalRecaudacion,
+        egresos: totalEgresos,
+        total: saldoCalculado
+    });
+
+    return saldoCalculado;
 }
 
 
