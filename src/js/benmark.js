@@ -3543,6 +3543,13 @@ window.cargarTablaIngresosEgresos = function () {
         </td>
     `;
     tbody.appendChild(trTotalGral);
+
+    // **NUEVO:** Guardar Total General para usarlo como Saldo Anterior del día siguiente
+    if (fechaDesde && fechaDesde === fechaHasta) { // Solo si es un día único
+        const claveTotal = `totalGeneral_${fechaDesde}_${cajaFiltro || 'Todas las Cajas'}`;
+        localStorage.setItem(claveTotal, totalGeneral);
+        console.log(`[DEBUG] Guardado Total General para ${fechaDesde}: ${totalGeneral}`);
+    }
 };
 
 // Función auxiliar: Calcular ingresos por servicio (solo efectivo)
@@ -3696,35 +3703,19 @@ function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
     fecha.setDate(fecha.getDate() - 1);
     const fechaAnterior = fecha.toISOString().split('T')[0];
 
-    // Calcular ingresos del día anterior
-    const ingresosAnt = (estado.movimientos || []).filter(m => {
-        const fechaMov = m.fecha.split('T')[0];
-        const matchFecha = fechaMov === fechaAnterior;
-        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
-        const esIngreso = !['gasto', 'egreso', 'transferencia', 'operacion'].includes(m.tipo);
-        return matchFecha && matchCaja && esIngreso;
-    });
+    // 1. Intentar obtener el valor guardado automáticamente (Total General del día anterior)
+    // Este valor se guarda al visualizar la tabla de Ingresos/Egresos del día anterior
+    const claveAuto = `totalGeneral_${fechaAnterior}_${cajaFiltro || 'Todas las Cajas'}`;
+    const valorAuto = localStorage.getItem(claveAuto);
 
-    // Calcular egresos del día anterior
-    const egresosAnt = [...(estado.egresosCaja || []), ...(estado.movimientos || [])].filter(e => {
-        const fechaEgr = e.fecha.split('T')[0];
-        const matchFecha = fechaEgr === fechaAnterior;
-        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || e.caja === cajaFiltro);
-        const esEgreso = e.tipo ? ['gasto', 'egreso', 'transferencia', 'operacion'].includes(e.tipo) : true;
-        return matchFecha && matchCaja && esEgreso;
-    });
+    if (valorAuto !== null) {
+        console.log(`[DEBUG] Usando Saldo Anterior Automático (Total General ${fechaAnterior}):`, valorAuto);
+        return parseFloat(valorAuto);
+    }
 
-    let totalIngresosAnt = 0;
-    ingresosAnt.forEach(ing => {
-        totalIngresosAnt += ing.monto || 0;
-    });
-
-    let totalEgresosAnt = 0;
-    egresosAnt.forEach(egr => {
-        totalEgresosAnt += egr.monto || 0;
-    });
-
-
+    // 2. Si no hay valor automático, retornar 0
+    console.log(`[DEBUG] No hay Saldo Anterior Automático para ${fechaAnterior}. Se requiere carga manual o visualizar el día previo.`);
+    return 0;
 }
 
 
