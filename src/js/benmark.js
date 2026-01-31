@@ -3606,40 +3606,30 @@ function calcularIngresosPorServicio(fechaDesde, fechaHasta, cajaFiltro) {
 }
 
 // Función auxiliar: Obtener total de recaudaciones (SUBTOTALES/USER de tabla Recaudaciones)
-// Función auxiliar: Obtener total de recaudaciones (SUBTOTALES/USER de tabla Recaudaciones)
-// Lee directamente del DOM de la tabla ya renderizada
+// Si no hay fila de totales renderizada (porque no se ha cargado la tabla),
+// intenta calcularlo directamente desde los datos disponibles.
 function obtenerTotalRecaudaciones(fechaDesde, fechaHasta, cajaFiltro) {
-    // Buscar la fila de totales en la tabla de Recaudaciones
+    // 1. Intentar leer directamente del DOM de la tabla de Recaudaciones
     const rowTotal = document.getElementById('rowTotalRecaudacion');
-
-    if (!rowTotal) {
-        console.log('[DEBUG obtenerTotalRecaudaciones] No se encontró rowTotalRecaudacion en el DOM');
-        return 0;
+    if (rowTotal) {
+        const cells = rowTotal.querySelectorAll('td');
+        if (cells.length >= 6) {
+            const subtotalText = cells[5].textContent;
+            const subtotalValue = parsearMoneda(subtotalText);
+            // console.log('[DEBUG obtenerTotalRecaudaciones] Leído del DOM:', subtotalValue);
+            return subtotalValue;
+        }
     }
 
-    // La columna SUBTOTALES/USER es la última columna (índice 5)
-    // Pero ojo: el HTML puede tener 6 celdas
-    const cells = rowTotal.querySelectorAll('td');
-    // El formato es: 
-    // 0: TOTAL RECAUDADO:
-    // 1: Total Ingreso Tienda (dataset only?) No, muestra valor
-    // 2: Efectivo
-    // 3: Sobrante
-    // 4: Faltante
-    // 5: Subtotales
-
-    if (cells.length < 6) {
-        console.log('[DEBUG obtenerTotalRecaudaciones] No se encontraron suficientes columnas:', cells.length);
-        return 0;
+    // 2. Fallback: Si no está en el DOM, usar el valor global calculado
+    if (typeof window.totalRecaudadoGlobal !== 'undefined') {
+        // console.log('[DEBUG obtenerTotalRecaudaciones] Usando variable global:', window.totalRecaudadoGlobal);
+        return window.totalRecaudadoGlobal;
     }
 
-    // Obtener el texto de la última celda (Subtotales)
-    // El índice 5 es la última columna visible (Subtotal)
-    const subtotalText = cells[5].textContent;
-    const subtotalValue = parsearMoneda(subtotalText);
-
-
-    return subtotalValue;
+    // 3. Fallback final: Si nada funciona, retornar 0
+    // console.log('[DEBUG obtenerTotalRecaudaciones] No se pudo obtener el total de recaudaciones (DOM ni variable)');
+    return 0;
 }
 
 

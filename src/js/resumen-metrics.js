@@ -6,6 +6,9 @@ window.actualizarMetricasResumen = function () {
     // Verificar que estamos en la página de resumen
     if (!document.getElementById('metricTotalTarjeta')) return;
 
+    // **NUEVO:** Resetear el total global al iniciar la actualización para evitar datos obsoletos
+    window.totalRecaudadoGlobal = 0;
+
     // Obtener fechas del filtro
     const fechaDesde = document.getElementById('fechaResumenDesde')?.value || '';
     const fechaHasta = document.getElementById('fechaResumenHasta')?.value || '';
