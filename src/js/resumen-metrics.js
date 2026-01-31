@@ -169,6 +169,11 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
     const tfoot = document.getElementById('tfootRecaudacion');
     if (!tbody || !tfoot) return;
 
+    // **CORRECCIÓN**: Limpiar la tabla INMEDIATAMENTE para evitar que se lean datos viejos
+    // mientras esperamos la respuesta de la base de datos (await).
+    tbody.innerHTML = '';
+    tfoot.innerHTML = '';
+
     // Recuperar datos de Supabase si existe
     let recaudacionGuardada = {};
     if (db && db.obtenerRecaudacion && fechaDesde) {
@@ -620,6 +625,11 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
     rowTotal.className = 'total-row';
     rowTotal.id = 'rowTotalRecaudacion';
     tfoot.appendChild(rowTotal);
+
+    // **CORRECCIÓN**: Llamar a actualizarTotalesFooter AL MENOS UNA VEZ al final
+    // para asegurar que window.totalRecaudadoGlobal se actualice (incluso a 0)
+    // y se dispare la recarga de Ingresos/Egresos.
+    actualizarTotalesFooter();
 
     function actualizarTotalesFooter() {
         let tIngresoTienda = 0, tEfectivo = 0, tSobrante = 0, tFaltante = 0, tSub = 0;
