@@ -3379,6 +3379,15 @@ window.cargarTablaIngresosEgresos = function () {
         const cat = (egreso.categoria || egreso.tipo || '').toLowerCase();
         const desc = (egreso.descripcion || '').toLowerCase();
 
+        // **CORRECCIÓN**: Excluir operaciones bancarias (depósitos/retiros) porque se muestran por separado
+        const esOperacionBancaria = (egreso.tipo === 'operacion' || egreso.tipo === 'transferencia') && (
+            desc.includes('deposito') ||
+            desc.includes('retiro') ||
+            desc.includes('banco')
+        );
+
+        if (esOperacionBancaria) return; // Saltar, se agrega aparte en su propia fila
+
         if (cat.includes('gasto') || cat.includes('administ') || desc.includes('gasto')) {
             totalGastosAdmin += (egreso.monto || 0);
         } else {
