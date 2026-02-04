@@ -196,10 +196,11 @@ window.exportarResumenAPDF = function () {
 
     // Usar html2canvas
     html2canvas(element, {
-        scale: 2, // Mejor calidad
-        useCORS: true, // Permitir imágenes externas si las hay
+        scale: 3, // Mayor calidad/resolución
+        useCORS: true, // Permitir imágenes externas
         logging: false,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff', // Fondo blanco explícito
+        imageTimeout: 0
     }).then(canvas => {
         // Restaurar botones
         if(btnExcel) btnExcel.style.display = '';
@@ -208,7 +209,8 @@ window.exportarResumenAPDF = function () {
             btnPDF.textContent = btnOriginalText;
         }
 
-        const imgData = canvas.toDataURL('image/png');
+        // Usar JPEG en lugar de PNG para evitar problemas de transparencia/alfa y mejorar contraste
+        const imgData = canvas.toDataURL('image/jpeg', 1.0);
         
         // Crear PDF
         const { jsPDF } = window.jspdf;
@@ -222,14 +224,14 @@ window.exportarResumenAPDF = function () {
         let position = 0;
 
         // Agregar primera página
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
 
         // Agregar páginas extra si es muy largo
         while (heightLeft >= 0) {
             position = heightLeft - imgHeight;
             pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
             heightLeft -= pageHeight;
         }
 
