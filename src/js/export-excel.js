@@ -357,9 +357,15 @@ window.exportarResumenAPDF = function () {
     // Total Egresos
     const tfootEgresos = document.getElementById('tfootPagosEgresos');
     if (tfootEgresos) {
-        const cells = tfootEgresos.querySelector('tr')?.querySelectorAll('td');
-        if (cells && cells.length >= 4) {
-            dataEgresos.push(['', '', 'TOTAL:', cells[3].textContent.trim()]);
+        const totalRow = tfootEgresos.querySelector('tr');
+        if (totalRow) {
+            const cells = totalRow.querySelectorAll('td');
+            // Manejar caso con colspan (3 columnas unificadas + 1 valor) --> Total 2 celdas
+            if (cells.length >= 2) {
+                // El valor siempre es la última celda
+                const totalValue = cells[cells.length - 1].textContent.trim();
+                dataEgresos.push(['', '', 'TOTAL:', totalValue]);
+            }
         }
     }
 
