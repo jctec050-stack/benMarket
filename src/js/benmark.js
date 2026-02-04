@@ -6700,6 +6700,69 @@ function renderizarResumenServicios() {
 
     const datosServicios = agruparMovimientosPorServicio(todosLosMovimientos);
 
+    // **NUEVO:** Renderizar Cuadro de Control Montos a Depositar
+    const controlContainer = document.getElementById('controlMontosDepositar');
+    const listaMontos = document.getElementById('listaMontosServicios');
+
+    if (controlContainer && listaMontos) {
+        if (Object.keys(datosServicios).length === 0) {
+            controlContainer.style.display = 'none';
+        } else {
+            controlContainer.style.display = 'block';
+            listaMontos.innerHTML = '';
+
+            Object.keys(datosServicios).sort().forEach(servicio => {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+                row.style.padding = '5px 0';
+                row.style.borderBottom = '1px dashed #eee';
+
+                // Clave para localStorage
+                const fechaKey = fechaDesde ? fechaDesde.split('T')[0] : new Date().toISOString().split('T')[0];
+                const storageKey = `monto_depositar_${fechaKey}_${servicio.replace(/\s+/g, '_')}`;
+                const savedValue = localStorage.getItem(storageKey) || '';
+
+                row.innerHTML = `
+                    <label style="font-weight: 600; color: #444; font-size: 0.95rem;">${servicio}</label>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="color: #888; font-size: 0.85em;">Gs.</span>
+                        <input type="text" class="input-monto-depositar" 
+                            data-key="${storageKey}"
+                            style="padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: 140px; text-align: right; font-size: 1rem;"
+                            placeholder="0">
+                    </div>
+                `;
+
+                const input = row.querySelector('input');
+
+                // Formatear valor inicial
+                if (savedValue) {
+                    input.value = new Intl.NumberFormat('es-PY').format(parseInt(savedValue));
+                }
+
+                // Evento input
+                input.addEventListener('input', (e) => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val) {
+                        e.target.value = new Intl.NumberFormat('es-PY').format(parseInt(val));
+                        localStorage.setItem(storageKey, val);
+                    } else {
+                        localStorage.removeItem(storageKey);
+                    }
+                });
+
+                // Focus para seleccionar todo
+                input.addEventListener('focus', function() {
+                    this.select();
+                });
+
+                listaMontos.appendChild(row);
+            });
+        }
+    }
+
     // **NUEVO:** Calcular depósitos por servicio desde Operaciones (Deposito/Retiro bancario)
     const depositosPorServicio = {};
     const operacionesDeposito = (estado.movimientos || []).filter(m => {
