@@ -186,10 +186,13 @@
                 </div>
             </div>
 
-            <!-- Botón de Exportar a Excel -->
-            <div style="text-align: center; margin-top: 2rem;">
+            <!-- Botones de Exportación -->
+            <div style="text-align: center; margin-top: 2rem; display: flex; justify-content: center; gap: 1rem;">
                 <button id="btnExportarExcel" class="btn-exportar" onclick="exportarResumenAExcel()">
                     📊 Exportar a Excel
+                </button>
+                <button id="btnExportarPDF" class="btn-exportar" style="background-color: #dc3545;" onclick="exportarResumenAPDF()">
+                    📄 Descargar PDF
                 </button>
             </div>
 
@@ -229,6 +232,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <!-- **CORRECCIÓN:** Cargar app.js PRIMERO, antes de llamar a las funciones -->
     <script src="../js/benmark.js"></script>
     <script src="../js/export-excel.js"></script>

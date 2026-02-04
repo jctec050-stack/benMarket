@@ -171,3 +171,83 @@ window.exportarResumenAExcel = function () {
         mostrarNotificacion('Error al exportar a Excel: ' + error.message, 'error');
     }
 };
+
+// **NUEVO:** Función para exportar Resumen a PDF (Captura de Pantalla)
+window.exportarResumenAPDF = function () {
+    // Verificar que jspdf y html2canvas estén cargados
+    if (!window.jspdf || !window.html2canvas) {
+        mostrarNotificacion('Librerías de PDF no cargadas. Recarga la página.', 'error');
+        return;
+    }
+
+    const element = document.querySelector('section#resumen'); // Capturamos toda la sección resumen
+    if (!element) return;
+
+    const btnExcel = document.getElementById('btnExportarExcel');
+    const btnPDF = document.getElementById('btnExportarPDF');
+    
+    // Ocultar botones temporalmente
+    if(btnExcel) btnExcel.style.display = 'none';
+    if(btnPDF) btnPDF.style.display = 'none';
+
+    // Mostrar notificación de carga
+    const btnOriginalText = btnPDF ? btnPDF.textContent : '';
+    if(btnPDF) btnPDF.textContent = 'Generando...';
+
+    // Usar html2canvas
+    html2canvas(element, {
+        scale: 2, // Mejor calidad
+        useCORS: true, // Permitir imágenes externas si las hay
+        logging: false,
+        backgroundColor: '#ffffff'
+    }).then(canvas => {
+        // Restaurar botones
+        if(btnExcel) btnExcel.style.display = '';
+        if(btnPDF) {
+            btnPDF.style.display = '';
+            btnPDF.textContent = btnOriginalText;
+        }
+
+        const imgData = canvas.toDataURL('image/png');
+        
+        // Crear PDF
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        
+        const imgWidth = 210; // A4 width in mm
+        const pageHeight = 297; // A4 height in mm
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+        
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        // Agregar primera página
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        // Agregar páginas extra si es muy largo
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+
+        // Descargar
+        const fecha = new Date().toISOString().split('T')[0];
+        pdf.save(`Resumen_Tesoreria_${fecha}.pdf`);
+        
+        mostrarNotificacion('PDF generado correctamente', 'success');
+
+    }).catch(err => {
+        console.error('Error generando PDF:', err);
+        mostrarNotificacion('Error al generar PDF', 'error');
+        
+        // Restaurar botones en caso de error
+        if(btnExcel) btnExcel.style.display = '';
+        if(btnPDF) {
+            btnPDF.style.display = '';
+            btnPDF.textContent = btnOriginalText;
+        }
+    });
+};
