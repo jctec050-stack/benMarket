@@ -194,33 +194,32 @@ window.exportarResumenAPDF = function () {
     const btnOriginalText = btnPDF ? btnPDF.textContent : '';
     if(btnPDF) btnPDF.textContent = 'Generando...';
 
-    // Usar html2canvas con configuración optimizada para contraste
+    // Usar html2canvas con configuración optimizada
     html2canvas(element, {
-        scale: 2, // Reducimos a 2 para evitar problemas de memoria/rendering
+        scale: 2,
         useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff', // Fondo blanco sólido
+        backgroundColor: null, // Fondo transparente/original (sacar fondo blanco forzado)
         imageTimeout: 0,
         onclone: (clonedDoc) => {
             // Ajustes en el clon para mejorar la legibilidad en PDF
             const clonedEl = clonedDoc.querySelector('section#resumen');
             if (clonedEl) {
-                // Asegurar fondo blanco y texto oscuro
-                clonedEl.style.backgroundColor = '#ffffff';
+                // Asegurar texto oscuro para contraste
                 clonedEl.style.color = '#000000';
                 
-                // Eliminar sombras que pueden verse borrosas o claras
+                // Eliminar sombras que pueden verse borrosas
                 const elementsWithShadow = clonedEl.querySelectorAll('*');
                 elementsWithShadow.forEach(el => {
                     el.style.boxShadow = 'none';
                     el.style.textShadow = 'none';
                     
-                    // Si el elemento tiene texto gris claro, oscurecerlo
+                    // Si el elemento tiene texto gris claro, oscurecerlo para que se lea mejor
                     const computedStyle = window.getComputedStyle(el);
-                    if (computedStyle.color === 'rgb(100, 116, 139)') { // #64748b (slate-500)
+                    if (computedStyle.color === 'rgb(100, 116, 139)') { // #64748b
                         el.style.color = '#333333';
                     }
-                    if (computedStyle.color === 'rgb(148, 163, 184)') { // #94a3b8 (slate-400)
+                    if (computedStyle.color === 'rgb(148, 163, 184)') { // #94a3b8
                         el.style.color = '#555555';
                     }
                 });
