@@ -194,13 +194,38 @@ window.exportarResumenAPDF = function () {
     const btnOriginalText = btnPDF ? btnPDF.textContent : '';
     if(btnPDF) btnPDF.textContent = 'Generando...';
 
-    // Usar html2canvas
+    // Usar html2canvas con configuración optimizada para contraste
     html2canvas(element, {
-        scale: 3, // Mayor calidad/resolución
-        useCORS: true, // Permitir imágenes externas
+        scale: 2, // Reducimos a 2 para evitar problemas de memoria/rendering
+        useCORS: true,
         logging: false,
-        backgroundColor: '#ffffff', // Fondo blanco explícito
-        imageTimeout: 0
+        backgroundColor: '#ffffff', // Fondo blanco sólido
+        imageTimeout: 0,
+        onclone: (clonedDoc) => {
+            // Ajustes en el clon para mejorar la legibilidad en PDF
+            const clonedEl = clonedDoc.querySelector('section#resumen');
+            if (clonedEl) {
+                // Asegurar fondo blanco y texto oscuro
+                clonedEl.style.backgroundColor = '#ffffff';
+                clonedEl.style.color = '#000000';
+                
+                // Eliminar sombras que pueden verse borrosas o claras
+                const elementsWithShadow = clonedEl.querySelectorAll('*');
+                elementsWithShadow.forEach(el => {
+                    el.style.boxShadow = 'none';
+                    el.style.textShadow = 'none';
+                    
+                    // Si el elemento tiene texto gris claro, oscurecerlo
+                    const computedStyle = window.getComputedStyle(el);
+                    if (computedStyle.color === 'rgb(100, 116, 139)') { // #64748b (slate-500)
+                        el.style.color = '#333333';
+                    }
+                    if (computedStyle.color === 'rgb(148, 163, 184)') { // #94a3b8 (slate-400)
+                        el.style.color = '#555555';
+                    }
+                });
+            }
+        }
     }).then(canvas => {
         // Restaurar botones
         if(btnExcel) btnExcel.style.display = '';
@@ -209,8 +234,8 @@ window.exportarResumenAPDF = function () {
             btnPDF.textContent = btnOriginalText;
         }
 
-        // Usar JPEG en lugar de PNG para evitar problemas de transparencia/alfa y mejorar contraste
-        const imgData = canvas.toDataURL('image/jpeg', 1.0);
+        // Volver a PNG que tiene mejor calidad para texto/líneas que JPEG
+        const imgData = canvas.toDataURL('image/png');
         
         // Crear PDF
         const { jsPDF } = window.jspdf;
@@ -224,14 +249,14 @@ window.exportarResumenAPDF = function () {
         let position = 0;
 
         // Agregar primera página
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
 
         // Agregar páginas extra si es muy largo
         while (heightLeft >= 0) {
             position = heightLeft - imgHeight;
             pdf.addPage();
-            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
             heightLeft -= pageHeight;
         }
 
