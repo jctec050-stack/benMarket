@@ -6660,10 +6660,15 @@ async function inicializarResumenServicios() {
     // Establecer fechas iniciales si están vacías
     const fechaDesde = document.getElementById('fechaServiciosDesde');
     const fechaHasta = document.getElementById('fechaServiciosHasta');
-    const hoy = new Date().toISOString().slice(0, 10);
+    
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hoy = `${year}-${month}-${day}`;
 
-    if (fechaDesde && !fechaDesde.value) fechaDesde.value = hoy;
-    if (fechaHasta && !fechaHasta.value) fechaHasta.value = hoy;
+    if (fechaDesde && !fechaDesde.value) fechaDesde.value = `${hoy}T00:00`;
+    if (fechaHasta && !fechaHasta.value) fechaHasta.value = `${hoy}T23:59`;
 
     renderizarResumenServicios();
 }
@@ -6684,10 +6689,10 @@ function renderizarResumenServicios() {
 
     // Aplicar filtros
     if (fechaDesde) {
-        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha.split('T')[0] >= fechaDesde);
+        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha >= fechaDesde);
     }
     if (fechaHasta) {
-        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha.split('T')[0] <= fechaHasta);
+        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha <= fechaHasta);
     }
     if (cajaFiltro && cajaFiltro !== 'Todas las Cajas') {
         todosLosMovimientos = todosLosMovimientos.filter(m => m.caja === cajaFiltro);
@@ -6698,8 +6703,8 @@ function renderizarResumenServicios() {
     // **NUEVO:** Calcular depósitos por servicio desde Operaciones (Deposito/Retiro bancario)
     const depositosPorServicio = {};
     const operacionesDeposito = (estado.movimientos || []).filter(m => {
-        const fecha = m.fecha.split('T')[0];
-        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        // const fecha = m.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || m.fecha >= fechaDesde) && (!fechaHasta || m.fecha <= fechaHasta);
         const matchCaja = !cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro;
         // Filtrar solo Deposito/Retiro bancario
         const esDepositoBancario = m.tipo === 'operacion' && m.descripcion &&
