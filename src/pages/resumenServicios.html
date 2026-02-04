@@ -69,18 +69,26 @@
                 </div>
             </div>
 
-            <!-- Cuadro de Control: Montos a Depositar -->
-            <div id="controlMontosDepositar" style="margin-top: 1.5rem; max-width: 500px; background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: none;">
-                <h3 style="margin-top: 0; margin-bottom: 1rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 0.5rem; color: #333;">MONTOS A DEPOSITAR</h3>
-                <div id="listaMontosServicios" style="display: flex; flex-direction: column; gap: 1rem;">
-                    <!-- Lista generada dinámicamente -->
+            <!-- Contenedor Principal con Layout de 2 Columnas -->
+            <div class="layout-resumen" style="display: flex; gap: 2rem; margin-top: 2rem; align-items: flex-start;">
+                
+                <!-- Columna Izquierda: Detalle de Servicios -->
+                <div class="col-servicios" style="flex: 1; min-width: 0;">
+                     <div id="gridServicios">
+                        <!-- Las tarjetas se generan dinámicamente -->
+                    </div>
                 </div>
-            </div>
 
-            <!-- Grid de Tarjetas de Servicios -->
-            <div id="gridServicios"
-                style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; margin-top: 2rem;">
-                <!-- Las tarjetas se generan dinámicamente -->
+                <!-- Columna Derecha: Panel de Control -->
+                <div class="col-control" style="width: 380px; flex-shrink: 0;">
+                     <div id="controlMontosDepositar" style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: none; position: sticky; top: 20px;">
+                        <h3 style="margin-top: 0; margin-bottom: 1rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 0.5rem; color: #333; font-size: 1.1rem;">MONTOS A DEPOSITAR</h3>
+                        <div id="listaMontosServicios" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <!-- Lista generada dinámicamente -->
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </section>
     </main>
