@@ -173,107 +173,281 @@ window.exportarResumenAExcel = function () {
 };
 
 // **NUEVO:** Función para exportar Resumen a PDF (Captura de Pantalla)
+// **NUEVO:** Función para exportar Resumen a PDF (Nativo con jsPDF + AutoTable)
 window.exportarResumenAPDF = function () {
-    // Verificar que jspdf y html2canvas estén cargados
-    if (!window.jspdf || !window.html2canvas) {
+    // Verificar que jspdf y autotable estén cargados
+    if (!window.jspdf || !window.jspdf.jsPDF) {
         mostrarNotificacion('Librerías de PDF no cargadas. Recarga la página.', 'error');
         return;
     }
 
-    const element = document.querySelector('section#resumen'); // Capturamos toda la sección resumen
-    if (!element) return;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
 
-    const btnExcel = document.getElementById('btnExportarExcel');
-    const btnPDF = document.getElementById('btnExportarPDF');
-    
-    // Ocultar botones temporalmente
-    if(btnExcel) btnExcel.style.display = 'none';
-    if(btnPDF) btnPDF.style.display = 'none';
+    // Configuración de márgenes
+    const marginX = 14;
+    let finalY = 20;
 
-    // Mostrar notificación de carga
-    const btnOriginalText = btnPDF ? btnPDF.textContent : '';
-    if(btnPDF) btnPDF.textContent = 'Generando...';
+    // --- ENCABEZADO ---
+    // Título Principal
+    doc.setFontSize(18);
+    doc.text('RESUMEN DE TESORERÍA', pageWidth / 2, finalY, { align: 'center' });
+    finalY += 10;
 
-    // Usar html2canvas con configuración optimizada
-    html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: null, // Fondo transparente/original (sacar fondo blanco forzado)
-        imageTimeout: 0,
-        onclone: (clonedDoc) => {
-            // Ajustes en el clon para mejorar la legibilidad en PDF
-            const clonedEl = clonedDoc.querySelector('section#resumen');
-            if (clonedEl) {
-                // Asegurar texto oscuro para contraste
-                clonedEl.style.color = '#000000';
-                
-                // Eliminar sombras que pueden verse borrosas
-                const elementsWithShadow = clonedEl.querySelectorAll('*');
-                elementsWithShadow.forEach(el => {
-                    el.style.boxShadow = 'none';
-                    el.style.textShadow = 'none';
-                    
-                    // Si el elemento tiene texto gris claro, oscurecerlo para que se lea mejor
-                    const computedStyle = window.getComputedStyle(el);
-                    if (computedStyle.color === 'rgb(100, 116, 139)') { // #64748b
-                        el.style.color = '#333333';
-                    }
-                    if (computedStyle.color === 'rgb(148, 163, 184)') { // #94a3b8
-                        el.style.color = '#555555';
-                    }
-                });
+    // Información del Reporte
+    doc.setFontSize(10);
+    const fechaDesde = document.getElementById('fechaResumenDesde')?.value || 'Todas';
+    const fechaHasta = document.getElementById('fechaResumenHasta')?.value || 'Todas';
+    const cajaFiltro = document.getElementById('filtroCajaGeneral')?.value || 'Todas las Cajas';
+    const usuario = sessionStorage.getItem('usuarioActual') || 'Usuario';
+    const fechaGeneracion = new Date().toLocaleString('es-PY');
+
+    doc.text(`Período: ${fechaDesde} al ${fechaHasta}`, marginX, finalY);
+    doc.text(`Generado por: ${usuario}`, pageWidth - marginX, finalY, { align: 'right' });
+    finalY += 6;
+    doc.text(`Caja: ${cajaFiltro}`, marginX, finalY);
+    doc.text(`Fecha: ${fechaGeneracion}`, pageWidth - marginX, finalY, { align: 'right' });
+    finalY += 10;
+
+    // Línea separadora
+    doc.setLineWidth(0.5);
+    doc.line(marginX, finalY, pageWidth - marginX, finalY);
+    finalY += 10;
+
+    // --- SECCIÓN 1: DASHBOARD DE MÉTRICAS (Resumen Rápido) ---
+    doc.setFontSize(14);
+    doc.text('Métricas Principales', marginX, finalY);
+    finalY += 8;
+
+    const totalTarjeta = document.getElementById('metricTotalTarjeta')?.textContent || '0';
+    const totalPedidosYa = document.getElementById('metricTotalPedidosYa')?.textContent || '0';
+    const totalCredito = document.getElementById('metricTotalCredito')?.textContent || '0';
+
+    // Dibujar cajitas simples para las métricas
+    const boxWidth = (pageWidth - (marginX * 2) - 10) / 3;
+    const boxHeight = 20;
+
+    // Función helper para dibujar caja de métrica
+    const drawMetricBox = (x, title, value) => {
+        doc.setFillColor(245, 247, 250); // Color de fondo suave
+        doc.setDrawColor(200, 200, 200); // Borde gris
+        doc.rect(x, finalY, boxWidth, boxHeight, 'FD');
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.text(title, x + (boxWidth / 2), finalY + 7, { align: 'center' });
+        doc.setFontSize(11);
+        doc.setTextColor(0);
+        doc.font = "helvetica";
+        doc.setFont(undefined, 'bold');
+        doc.text(value, x + (boxWidth / 2), finalY + 15, { align: 'center' });
+        doc.setFont(undefined, 'normal');
+    };
+
+    drawMetricBox(marginX, 'TOTAL TARJETA', totalTarjeta);
+    drawMetricBox(marginX + boxWidth + 5, 'PEDIDOS YA', totalPedidosYa);
+    drawMetricBox(marginX + (boxWidth + 5) * 2, 'VENTAS CRÉDITO', totalCredito);
+
+    finalY += boxHeight + 15;
+
+    // --- CONFIGURACIÓN COMÚN DE TABLAS ---
+    const tableStyles = {
+        headStyles: { fillColor: [41, 128, 185], textColor: 255, fontStyle: 'bold' }, // Azul corporativo
+        bodyStyles: { textColor: 50 },
+        alternateRowStyles: { fillColor: [245, 245, 245] },
+        theme: 'grid'
+    };
+
+    // --- SECCIÓN 2: RECAUDACIÓN ---
+    doc.setFontSize(14);
+    doc.text('Recaudación', marginX, finalY);
+    finalY += 6;
+
+    // Preparar datos de Recaudación
+    const dataRecaudacion = [];
+    const tbodyRecaudacion = document.getElementById('tbodyRecaudacion');
+    if (tbodyRecaudacion) {
+        tbodyRecaudacion.querySelectorAll('tr').forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 6) {
+                dataRecaudacion.push([
+                    cells[0].textContent.trim().replace(/\n/g, ' - '), // Cajero y Caja en una línea
+                    cells[1].textContent.trim(),
+                    cells[2].querySelector('input')?.value || cells[2].textContent.trim(), // Valor del input
+                    cells[3].textContent.trim(),
+                    cells[4].textContent.trim(),
+                    cells[5].textContent.trim()
+                ]);
             }
+        });
+    }
+
+    // Agregar fila de totales
+    const rowTotalRec = document.getElementById('rowTotalRecaudacion');
+    if (rowTotalRec) {
+        const cells = rowTotalRec.querySelectorAll('td');
+        if (cells.length >= 6) {
+            dataRecaudacion.push([
+                'TOTALES',
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim()
+            ]);
         }
-    }).then(canvas => {
-        // Restaurar botones
-        if(btnExcel) btnExcel.style.display = '';
-        if(btnPDF) {
-            btnPDF.style.display = '';
-            btnPDF.textContent = btnOriginalText;
+    }
+
+    if (dataRecaudacion.length > 0) {
+        doc.autoTable({
+            startY: finalY,
+            head: [['CAJERO/CAJA', 'ING. TIENDA', 'EFECTIVO', 'SOBRANTE', 'FALTANTE', 'SUBTOTAL']],
+            body: dataRecaudacion,
+            ...tableStyles,
+            columnStyles: {
+                0: { cellWidth: 45 },
+                1: { halign: 'right' },
+                2: { halign: 'right', fontStyle: 'bold' },
+                3: { halign: 'right' },
+                4: { halign: 'right', textColor: [200, 0, 0] }, // Rojo para faltante
+                5: { halign: 'right', fontStyle: 'bold' }
+            },
+            didParseCell: function (data) {
+                // Estilo para la fila de totales
+                if (data.row.index === dataRecaudacion.length - 1) {
+                    data.cell.styles.fontStyle = 'bold';
+                    data.cell.styles.fillColor = [230, 230, 230];
+                }
+            }
+        });
+        finalY = doc.lastAutoTable.finalY + 15;
+    } else {
+        doc.setFontSize(10);
+        doc.setTextColor(150);
+        doc.text('(No hay registros de recaudación)', marginX, finalY + 5);
+        finalY += 15;
+        doc.setTextColor(0);
+    }
+
+    // --- SECCIÓN 3: PAGOS / EGRESOS ---
+    // Verificar espacio en página
+    if (finalY > pageHeight - 40) { doc.addPage(); finalY = 20; }
+
+    doc.setFontSize(14);
+    doc.text('Pagos / Egresos', marginX, finalY);
+    finalY += 6;
+
+    const dataEgresos = [];
+    const tbodyEgresos = document.getElementById('tbodyPagosEgresos');
+    if (tbodyEgresos) {
+        tbodyEgresos.querySelectorAll('tr').forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 4) {
+                dataEgresos.push([
+                    cells[0].textContent.trim(),
+                    cells[1].textContent.trim(),
+                    cells[2].textContent.trim(),
+                    cells[3].textContent.trim()
+                ]);
+            }
+        });
+    }
+
+    // Total Egresos
+    const tfootEgresos = document.getElementById('tfootPagosEgresos');
+    if (tfootEgresos) {
+        const cells = tfootEgresos.querySelector('tr')?.querySelectorAll('td');
+        if (cells && cells.length >= 4) {
+            dataEgresos.push(['', '', 'TOTAL:', cells[3].textContent.trim()]);
         }
+    }
 
-        // Volver a PNG que tiene mejor calidad para texto/líneas que JPEG
-        const imgData = canvas.toDataURL('image/png');
-        
-        // Crear PDF
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        
-        const imgWidth = 210; // A4 width in mm
-        const pageHeight = 297; // A4 height in mm
-        const imgHeight = canvas.height * imgWidth / canvas.width;
-        
-        let heightLeft = imgHeight;
-        let position = 0;
+    if (dataEgresos.length > 0) {
+        doc.autoTable({
+            startY: finalY,
+            head: [['CAJERO', 'CATEGORÍA', 'DESCRIPCIÓN', 'MONTO']],
+            body: dataEgresos,
+            ...tableStyles,
+            columnStyles: {
+                3: { halign: 'right' }
+            },
+            didParseCell: function (data) {
+                if (data.row.index === dataEgresos.length - 1) {
+                    data.cell.styles.fontStyle = 'bold';
+                }
+            }
+        });
+        finalY = doc.lastAutoTable.finalY + 15;
+    } else {
+        doc.setFontSize(10);
+        doc.setTextColor(150);
+        doc.text('(No hay registros de egresos)', marginX, finalY + 5);
+        finalY += 15;
+        doc.setTextColor(0);
+    }
 
-        // Agregar primera página
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+    // --- SECCIÓN 4: INGRESOS / EGRESOS (RESUMEN FINAL) ---
+    // Verificar espacio
+    if (finalY > pageHeight - 40) { doc.addPage(); finalY = 20; }
 
-        // Agregar páginas extra si es muy largo
-        while (heightLeft >= 0) {
-            position = heightLeft - imgHeight;
-            pdf.addPage();
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
-        }
+    doc.setFontSize(14);
+    doc.text('Balance Final', marginX, finalY);
+    finalY += 6;
 
-        // Descargar
-        const fecha = new Date().toISOString().split('T')[0];
-        pdf.save(`Resumen_Tesoreria_${fecha}.pdf`);
-        
-        mostrarNotificacion('PDF generado correctamente', 'success');
+    const dataBalance = [];
+    const tbodyIngresosEgresos = document.getElementById('tbodyIngresosEgresos');
+    if (tbodyIngresosEgresos) {
+        tbodyIngresosEgresos.querySelectorAll('tr').forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 2) {
+                // Parsear estructura compleja de celdas (div > spans)
+                const getCellData = (cell) => {
+                    const div = cell.querySelector('div');
+                    if (div) {
+                        const spans = div.querySelectorAll('span');
+                        if (spans.length >= 2) {
+                            return { label: spans[0].textContent.trim(), amount: spans[1].textContent.trim() };
+                        }
+                    }
+                    return { label: '', amount: '' };
+                };
 
-    }).catch(err => {
-        console.error('Error generando PDF:', err);
-        mostrarNotificacion('Error al generar PDF', 'error');
-        
-        // Restaurar botones en caso de error
-        if(btnExcel) btnExcel.style.display = '';
-        if(btnPDF) {
-            btnPDF.style.display = '';
-            btnPDF.textContent = btnOriginalText;
-        }
-    });
+                const ing = getCellData(cells[0]);
+                const egr = getCellData(cells[1]);
+
+                dataBalance.push([ing.label, ing.amount, egr.label, egr.amount]);
+            }
+        });
+    }
+
+    if (dataBalance.length > 0) {
+        doc.autoTable({
+            startY: finalY,
+            head: [['CONCEPTOS INGRESOS', 'MONTO', 'CONCEPTOS EGRESOS', 'MONTO']],
+            body: dataBalance,
+            ...tableStyles,
+            headStyles: { fillColor: [44, 62, 80], textColor: 255, fontStyle: 'bold' }, // Gris oscuro para diferenciar
+            columnStyles: {
+                1: { halign: 'right', textColor: [0, 100, 0] }, // Verde para ingresos
+                3: { halign: 'right', textColor: [200, 0, 0] }  // Rojo para egresos
+            }
+        });
+        finalY = doc.lastAutoTable.finalY + 10;
+    }
+
+    // --- PIE DE PÁGINA (Números de página) ---
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+    }
+
+    // Guardar PDF
+    const fechaArchivo = new Date().toISOString().split('T')[0];
+    doc.save(`Resumen_Tesoreria_${fechaArchivo}.pdf`);
+
+    mostrarNotificacion('PDF generado correctamente', 'success');
 };
