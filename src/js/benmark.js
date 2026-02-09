@@ -7126,7 +7126,7 @@ function calcularResumenDepositosActual() {
 
     const datosServicios = agruparMovimientosPorServicio(todosLosMovimientos);
 
-    // Procesar datos de servicios
+    // Procesar datos de servicios del sistema
     Object.entries(datosServicios).forEach(([servicio, datos]) => {
         let montoTarjeta = 0;
         let montoEfectivo = 0;
@@ -7145,12 +7145,43 @@ function calcularResumenDepositosActual() {
             monto_efectivo: montoEfectivo,
             total: montoTarjeta + montoEfectivo,
             lotes: [...new Set(lotes)], // Eliminar duplicados
-            cantidad_comprobantes: datos.items.length
+            cantidad_comprobantes: datos.items.length,
+            es_manual: false
         };
 
         totalTarjeta += montoTarjeta;
         totalEfectivo += montoEfectivo;
     });
+
+    // NUEVO: Agregar servicios manuales al resumen
+    if (window.serviciosManuales && window.serviciosManuales.length > 0) {
+        window.serviciosManuales.forEach(servicioManual => {
+            const nombreServicio = servicioManual.nombre;
+
+            // Si ya existe el servicio, sumar al existente
+            if (servicios[nombreServicio]) {
+                servicios[nombreServicio].monto_tarjeta += servicioManual.monto;
+                servicios[nombreServicio].total += servicioManual.monto;
+                if (servicioManual.lote) {
+                    servicios[nombreServicio].lotes.push(servicioManual.lote);
+                }
+                servicios[nombreServicio].cantidad_comprobantes += 1;
+                servicios[nombreServicio].es_manual = true;
+            } else {
+                // Crear nuevo servicio
+                servicios[nombreServicio] = {
+                    monto_tarjeta: servicioManual.monto,
+                    monto_efectivo: 0,
+                    total: servicioManual.monto,
+                    lotes: servicioManual.lote ? [servicioManual.lote] : [],
+                    cantidad_comprobantes: 1,
+                    es_manual: true
+                };
+            }
+
+            totalTarjeta += servicioManual.monto;
+        });
+    }
 
     return {
         servicios,
