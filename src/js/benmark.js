@@ -3300,13 +3300,13 @@ window.cargarTablaIngresosEgresos = function () {
 
     // Calcular saldo del día anterior
     let saldoDiaAnterior = 0;
-    
+
     // 1. Intentar obtener el valor guardado manualmente para esta fecha/caja
     const claveSaldoManual = `saldoAnterior_${fechaDesde}_${cajaFiltro || 'General'}`;
     // **CORRECCIÓN**: Usar localStorage.getItem pero verificar si es un valor numérico válido
     // A veces queda basura o "NaN" en localStorage
     let saldoManualGuardado = localStorage.getItem(claveSaldoManual);
-    
+
     // Validar si el valor manual es válido
     let usarManual = false;
     if (saldoManualGuardado !== null && saldoManualGuardado !== 'NaN' && saldoManualGuardado !== '') {
@@ -3480,7 +3480,7 @@ window.cargarTablaIngresosEgresos = function () {
         } else if (i === ingresosPorServicio.length + 2) {
             // Saldo día anterior - AHORA EDITABLE
             const inputSaldoId = `inputSaldoAnterior_${fechaDesde}_${cajaFiltro || 'General'}`;
-            
+
             tdIngreso.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 2px 8px;">
                     <span>SALDO CAJA DÍA ANT.:</span>
@@ -3762,7 +3762,7 @@ function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
             // Sumar monedas si no están ya en totalEfectivo (depende de la lógica de guardado, asumimos que totalEfectivo es el final)
             // Si totalEfectivo es 0, intentar calcular
             if (efectivo === 0 && a.monedasExtranjeras) {
-                 // ... lógica de monedas si fuera necesario
+                // ... lógica de monedas si fuera necesario
             }
             totalRecaudacion += efectivo;
         });
@@ -3772,7 +3772,7 @@ function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
         // Esto es un intento desesperado recorriendo claves, poco performante pero útil
         // O mejor: simplemente retornamos lo que tenemos, asumiendo 0 efectivo si no hay arqueo.
         console.log(`[DEBUG] No hay arqueos cerrados para ${fechaAnterior}. Asumiendo Recaudación 0 o buscando alternativa.`);
-        
+
         // Alternativa: Buscar en localStorage claves que empiecen con "recaudacion_202X-XX-XX"
         const prefix = `recaudacion_${fechaAnterior}`;
         for (let i = 0; i < localStorage.length; i++) {
@@ -3788,16 +3788,16 @@ function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
         }
         console.log(`[DEBUG] Recaudación obtenida de localStorage (${fechaAnterior}):`, totalRecaudacion);
     }
-    
+
     // E. Saldo Anterior del Día Anterior (Recursivo... o ignorado según solicitud del usuario)
     // El usuario dijo: "directamente todos los ingresos, menos los egresos... del dia anterior"
     // Esto implica FLJO NETO DEL DÍA ANTERIOR.
     // Si queremos Saldo ACUMULADO, deberíamos sumar el saldo inicial de ayer.
     // Pero probemos con el Flujo Neto primero.
-    
+
     // Total = (Servicios + Inversiones + Recaudación) - Egresos
     const saldoCalculado = (totalServicios + totalInversiones + totalRecaudacion) - totalEgresos;
-    
+
     console.log(`[DEBUG] Saldo Anterior Calculado Manualmente (${fechaAnterior}):`, {
         servicios: totalServicios,
         inversiones: totalInversiones,
@@ -4040,7 +4040,7 @@ function calcularSaldoDiaAnterior(fechaActual, filtroCaja = '') {
         m.fecha.startsWith(fechaAnterior) &&
         (!filtroCaja || m.caja === filtroCaja)
     );
-    
+
     // Filtrar también los ingresos que ya pasaron al historial (estado.movimientos)
     // Buscamos aquellos que sean de tipo 'ingreso' o undefined (legacy)
     const ingresosAnteriorHist = estado.movimientos.filter(m =>
@@ -4048,7 +4048,7 @@ function calcularSaldoDiaAnterior(fechaActual, filtroCaja = '') {
         (!filtroCaja || m.caja === filtroCaja) &&
         (!m.tipo || m.tipo === 'ingreso')
     );
-    
+
     const ingresosAnterior = [...ingresosAnteriorTemp, ...ingresosAnteriorHist];
 
     const egresosAnterior = estado.egresosCaja.filter(e =>
@@ -4118,18 +4118,18 @@ function calcularSaldoDiaAnterior(fechaActual, filtroCaja = '') {
 }
 
 // Función nueva para guardar el saldo manual
-window.guardarSaldoAnteriorManual = function(input, fecha, caja) {
+window.guardarSaldoAnteriorManual = function (input, fecha, caja) {
     const rawValue = input.value.replace(/\./g, '');
     const numValue = parseFloat(rawValue) || 0;
-    
+
     // Formatear visualmente
     input.value = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(numValue);
-    
+
     // Guardar en localStorage
     const claveSaldoManual = `saldoAnterior_${fecha}_${caja}`;
     localStorage.setItem(claveSaldoManual, numValue);
     console.log('[DEBUG] Saldo Anterior MANUAL guardado:', numValue, 'Clave:', claveSaldoManual);
-    
+
     // Recargar la tabla para actualizar totales
     if (typeof window.cargarTablaIngresosEgresos === 'function') {
         // Pequeño delay para asegurar que el evento blur termine
@@ -6660,7 +6660,7 @@ async function inicializarResumenServicios() {
     // Establecer fechas iniciales si están vacías
     const fechaDesde = document.getElementById('fechaServiciosDesde');
     const fechaHasta = document.getElementById('fechaServiciosHasta');
-    
+
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
@@ -6754,7 +6754,7 @@ function renderizarResumenServicios() {
                 });
 
                 // Focus para seleccionar todo
-                input.addEventListener('focus', function() {
+                input.addEventListener('focus', function () {
                     this.select();
                 });
 
@@ -7022,6 +7022,401 @@ function cerrarModalDetalleServicio() {
     if (modal) {
         modal.style.display = 'none';
     }
+}
+
+// ============================================
+// FUNCIONES PARA DEPÓSITOS DE SERVICIOS
+// ============================================
+
+/**
+ * Guardar el resumen actual de depósitos
+ */
+async function guardarResumenDepositos() {
+    try {
+        // Calcular resumen actual desde el DOM
+        const resumen = calcularResumenDepositosActual();
+
+        if (resumen.total_general === 0) {
+            showNotification('No hay montos para depositar en el resumen actual', 'warning');
+            return;
+        }
+
+        // Obtener usuario actual
+        const usuarioActual = sessionStorage.getItem('usuarioActual') || 'desconocido';
+
+        // Obtener filtros aplicados
+        const fechaDesde = document.getElementById('fechaServiciosDesde')?.value || null;
+        const fechaHasta = document.getElementById('fechaServiciosHasta')?.value || null;
+        const cajaFiltro = document.getElementById('filtroCajaServicios')?.value || null;
+
+        // Preparar objeto para guardar
+        const deposito = {
+            id: generarIdUnico(), // Generar ID único
+            fecha: new Date().toISOString().split('T')[0],
+            fecha_desde: fechaDesde,
+            fecha_hasta: fechaHasta,
+            caja: (cajaFiltro && cajaFiltro !== 'Todas las Cajas') ? cajaFiltro : null,
+            servicios: resumen.servicios,
+            total_tarjeta: resumen.total_tarjeta,
+            total_efectivo: resumen.total_efectivo || 0,
+            total_general: resumen.total_general,
+            depositado: false,
+            usuario_creacion: usuarioActual
+        };
+
+        // Guardar en Supabase
+        const resultado = await db.guardarDepositoServicios(deposito);
+
+        if (resultado.success) {
+            showNotification('✅ Resumen de depósitos guardado correctamente', 'success');
+            if (typeof logger !== 'undefined') {
+                logger.info('Resumen de depósitos guardado:', deposito.id);
+            }
+        } else {
+            showNotification('❌ Error al guardar: ' + (resultado.error?.message || 'Error desconocido'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error en guardarResumenDepositos:', error);
+        showNotification('❌ Error al guardar resumen', 'danger');
+    }
+}
+
+/**
+ * Calcular resumen actual desde el DOM
+ * @returns {Object} Resumen con servicios y totales
+ */
+function calcularResumenDepositosActual() {
+    const servicios = {};
+    let totalTarjeta = 0;
+    let totalEfectivo = 0;
+
+    // Leer del panel actual
+    const items = document.querySelectorAll('#listaMontosServicios > div');
+
+    if (items.length === 0) {
+        return {
+            servicios: {},
+            total_tarjeta: 0,
+            total_efectivo: 0,
+            total_general: 0
+        };
+    }
+
+    // Obtener datos actuales del resumen renderizado
+    // Usamos los datos de la función agruparMovimientosPorServicio que ya se ejecutó
+    const fechaDesde = document.getElementById('fechaServiciosDesde')?.value;
+    const fechaHasta = document.getElementById('fechaServiciosHasta')?.value;
+    const cajaFiltro = document.getElementById('filtroCajaServicios')?.value;
+
+    // Combinar movimientos y filtrar
+    let todosLosMovimientos = [
+        ...(estado.movimientos || []),
+        ...(estado.movimientosTemporales || [])
+    ];
+
+    if (fechaDesde) {
+        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha >= fechaDesde);
+    }
+    if (fechaHasta) {
+        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha <= fechaHasta);
+    }
+    if (cajaFiltro && cajaFiltro !== 'Todas las Cajas') {
+        todosLosMovimientos = todosLosMovimientos.filter(m => m.caja === cajaFiltro);
+    }
+
+    const datosServicios = agruparMovimientosPorServicio(todosLosMovimientos);
+
+    // Procesar datos de servicios
+    Object.entries(datosServicios).forEach(([servicio, datos]) => {
+        let montoTarjeta = 0;
+        let montoEfectivo = 0;
+        const lotes = [];
+
+        datos.items.forEach(item => {
+            montoTarjeta += item.tarjeta || 0;
+            montoEfectivo += item.efectivo || 0;
+            if (item.lote && item.lote !== '-') {
+                lotes.push(item.lote);
+            }
+        });
+
+        servicios[servicio] = {
+            monto_tarjeta: montoTarjeta,
+            monto_efectivo: montoEfectivo,
+            total: montoTarjeta + montoEfectivo,
+            lotes: [...new Set(lotes)], // Eliminar duplicados
+            cantidad_comprobantes: datos.items.length
+        };
+
+        totalTarjeta += montoTarjeta;
+        totalEfectivo += montoEfectivo;
+    });
+
+    return {
+        servicios,
+        total_tarjeta: totalTarjeta,
+        total_efectivo: totalEfectivo,
+        total_general: totalTarjeta + totalEfectivo
+    };
+}
+
+/**
+ * Abrir modal de histórico de depósitos
+ */
+async function verHistorialDepositos() {
+    const modal = document.getElementById('modalHistorialDepositos');
+    if (!modal) return;
+
+    // Establecer fechas por defecto (último mes)
+    const hoy = new Date();
+    const haceUnMes = new Date();
+    haceUnMes.setMonth(haceUnMes.getMonth() - 1);
+
+    document.getElementById('filtroHistorialDesde').value = haceUnMes.toISOString().split('T')[0];
+    document.getElementById('filtroHistorialHasta').value = hoy.toISOString().split('T')[0];
+
+    modal.style.display = 'block';
+
+    // Cargar datos
+    await cargarHistorialDepositos();
+}
+
+/**
+ * Cargar histórico de depósitos
+ */
+async function cargarHistorialDepositos() {
+    try {
+        const fechaDesde = document.getElementById('filtroHistorialDesde').value;
+        const fechaHasta = document.getElementById('filtroHistorialHasta').value;
+
+        if (!fechaDesde || !fechaHasta) {
+            showNotification('Por favor seleccione un rango de fechas', 'warning');
+            return;
+        }
+
+        // Obtener datos de Supabase
+        const resultado = await db.obtenerDepositosServicios(fechaDesde, fechaHasta);
+
+        const tbody = document.getElementById('tablaHistorialDepositosBody');
+        const mensajeVacio = document.getElementById('mensajeHistorialVacio');
+
+        if (!resultado.success || !resultado.data || resultado.data.length === 0) {
+            tbody.innerHTML = '';
+            mensajeVacio.style.display = 'block';
+            return;
+        }
+
+        mensajeVacio.style.display = 'none';
+        tbody.innerHTML = '';
+
+        resultado.data.forEach(deposito => {
+            const fila = document.createElement('tr');
+            fila.innerHTML = `
+                <td>${formatearFecha(deposito.fecha)}</td>
+                <td>${deposito.caja || 'Todas'}</td>
+                <td style="text-align: right;">${formatearMoneda(deposito.total_tarjeta, 'gs')}</td>
+                <td style="text-align: right;">${formatearMoneda(deposito.total_efectivo, 'gs')}</td>
+                <td style="text-align: right; font-weight: bold;">${formatearMoneda(deposito.total_general, 'gs')}</td>
+                <td style="text-align: center;">
+                    ${deposito.depositado
+                    ? '<span style="color: green; font-weight: bold;">✓ Sí</span>'
+                    : '<span style="color: orange; font-weight: bold;">⏳ Pendiente</span>'}
+                </td>
+                <td>${deposito.usuario_creacion}</td>
+                <td style="text-align: center;">
+                    <button onclick="verDetalleDeposito('${deposito.id}')" class="btn btn-secundario" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;">
+                        👁️ Ver
+                    </button>
+                    ${!deposito.depositado ? `
+                        <button onclick="marcarComoDepositado('${deposito.id}')" class="btn btn-primario" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; margin-left: 0.3rem;">
+                            ✓ Marcar
+                        </button>
+                    ` : ''}
+                </td>
+            `;
+            tbody.appendChild(fila);
+        });
+
+        showNotification(`${resultado.data.length} depósito(s) encontrado(s)`, 'info');
+
+    } catch (error) {
+        console.error('Error cargando histórico:', error);
+        showNotification('Error al cargar histórico de depósitos', 'danger');
+    }
+}
+
+/**
+ * Ver detalle de un depósito específico
+ */
+async function verDetalleDeposito(depositoId) {
+    try {
+        // Buscar el depósito en los datos cargados
+        const fechaDesde = document.getElementById('filtroHistorialDesde').value;
+        const fechaHasta = document.getElementById('filtroHistorialHasta').value;
+
+        const resultado = await db.obtenerDepositosServicios(fechaDesde, fechaHasta);
+
+        if (!resultado.success) {
+            showNotification('Error al obtener detalles del depósito', 'danger');
+            return;
+        }
+
+        const deposito = resultado.data.find(d => d.id === depositoId);
+
+        if (!deposito) {
+            showNotification('Depósito no encontrado', 'danger');
+            return;
+        }
+
+        const modal = document.getElementById('modalDetalleDeposito');
+        const titulo = document.getElementById('tituloDetalleDeposito');
+        const contenido = document.getElementById('contenidoDetalleDeposito');
+
+        titulo.textContent = `Detalles del Depósito - ${formatearFecha(deposito.fecha)}`;
+
+        let html = `
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div>
+                    <strong>Fecha:</strong> ${formatearFecha(deposito.fecha)}
+                </div>
+                <div>
+                    <strong>Caja:</strong> ${deposito.caja || 'Todas'}
+                </div>
+                <div>
+                    <strong>Usuario:</strong> ${deposito.usuario_creacion}
+                </div>
+                <div>
+                    <strong>Estado:</strong> ${deposito.depositado ? '✅ Depositado' : '⏳ Pendiente'}
+                </div>
+            </div>
+        `;
+
+        if (deposito.depositado) {
+            html += `
+                <div style="background: #e8f5e9; padding: 1rem; border-radius: 4px; margin-bottom: 1.5rem;">
+                    <div><strong>Depositado por:</strong> ${deposito.usuario_deposito || '-'}</div>
+                    <div><strong>Fecha depósito:</strong> ${deposito.fecha_deposito ? formatearFecha(deposito.fecha_deposito) : '-'}</div>
+                    <div><strong>Comprobante:</strong> ${deposito.comprobante_deposito || '-'}</div>
+                    ${deposito.notas ? `<div><strong>Notas:</strong> ${deposito.notas}</div>` : ''}
+                </div>
+            `;
+        }
+
+        html += `
+            <h4 style="margin-top: 1.5rem; margin-bottom: 1rem;">Desglose por Servicio</h4>
+            <table class="tabla-datos" style="margin-bottom: 1rem;">
+                <thead>
+                    <tr>
+                        <th>Servicio</th>
+                        <th style="text-align: right;">Tarjeta</th>
+                        <th style="text-align: right;">Efectivo</th>
+                        <th style="text-align: right;">Total</th>
+                        <th style="text-align: center;">Comprobantes</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        Object.entries(deposito.servicios).forEach(([servicio, datos]) => {
+            html += `
+                <tr>
+                    <td><strong>${servicio}</strong></td>
+                    <td style="text-align: right;">${formatearMoneda(datos.monto_tarjeta || 0, 'gs')}</td>
+                    <td style="text-align: right;">${formatearMoneda(datos.monto_efectivo || 0, 'gs')}</td>
+                    <td style="text-align: right; font-weight: bold;">${formatearMoneda(datos.total || 0, 'gs')}</td>
+                    <td style="text-align: center;">${datos.cantidad_comprobantes || 0}</td>
+                </tr>
+                ${datos.lotes && datos.lotes.length > 0 ? `
+                    <tr style="background: #f5f5f5;">
+                        <td colspan="5" style="padding-left: 2rem; font-size: 0.9em; color: #666;">
+                            Lotes: ${datos.lotes.join(', ')}
+                        </td>
+                    </tr>
+                ` : ''}
+            `;
+        });
+
+        html += `
+                </tbody>
+                <tfoot>
+                    <tr style="font-weight: bold; background: #f0f0f0;">
+                        <td>TOTALES</td>
+                        <td style="text-align: right;">${formatearMoneda(deposito.total_tarjeta, 'gs')}</td>
+                        <td style="text-align: right;">${formatearMoneda(deposito.total_efectivo, 'gs')}</td>
+                        <td style="text-align: right;">${formatearMoneda(deposito.total_general, 'gs')}</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        `;
+
+        contenido.innerHTML = html;
+        modal.style.display = 'block';
+
+    } catch (error) {
+        console.error('Error al ver detalle:', error);
+        showNotification('Error al cargar detalles del depósito', 'danger');
+    }
+}
+
+/**
+ * Marcar un depósito como realizado
+ */
+async function marcarComoDepositado(depositoId) {
+    const comprobante = prompt('Ingrese el número de comprobante bancario:');
+
+    if (!comprobante || comprobante.trim() === '') {
+        showNotification('Debe ingresar un número de comprobante', 'warning');
+        return;
+    }
+
+    const notas = prompt('Notas adicionales (opcional):') || '';
+
+    try {
+        const resultado = await db.marcarDepositoRealizado(depositoId, comprobante.trim(), notas.trim());
+
+        if (resultado.success) {
+            showNotification('✅ Depósito marcado como realizado', 'success');
+            // Recargar histórico
+            await cargarHistorialDepositos();
+        } else {
+            showNotification('❌ Error al marcar depósito: ' + (resultado.error?.message || 'Error desconocido'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error marcando depósito:', error);
+        showNotification('❌ Error al marcar depósito', 'danger');
+    }
+}
+
+/**
+ * Cerrar modal de histórico
+ */
+function cerrarModalHistorialDepositos() {
+    const modal = document.getElementById('modalHistorialDepositos');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Cerrar modal de detalle de depósito
+ */
+function cerrarModalDetalleDeposito() {
+    const modal = document.getElementById('modalDetalleDeposito');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+/**
+ * Generar ID único (UUID v4 simplificado)
+ */
+function generarIdUnico() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
 }
 
 // ============================================
@@ -7357,7 +7752,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 navUsuario.classList.toggle('active');
             }
         });
-        
+
         // Close menu when clicking a link
         document.querySelectorAll('.nav-link').forEach(n => n.addEventListener('click', () => {
             hamburger.classList.remove('active');

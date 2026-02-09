@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BenMark - Resumen de Servicios</title>
     <link rel="stylesheet" href="../css/styles.css">
+    <!-- Logger debe cargarse PRIMERO -->
+    <script src="../js/logger.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="../js/supabase.js"></script>
@@ -71,20 +73,35 @@
 
             <!-- Contenedor Principal con Layout de 2 Columnas -->
             <div class="layout-resumen" style="display: flex; gap: 2rem; margin-top: 2rem; align-items: flex-start;">
-                
+
                 <!-- Columna Izquierda: Detalle de Servicios -->
                 <div class="col-servicios" style="flex: 1; min-width: 0;">
-                     <div id="gridServicios">
+                    <div id="gridServicios">
                         <!-- Las tarjetas se generan dinámicamente -->
                     </div>
                 </div>
 
                 <!-- Columna Derecha: Panel de Control -->
                 <div class="col-control" style="width: 380px; flex-shrink: 0;">
-                     <div id="controlMontosDepositar" style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: none; position: sticky; top: 20px;">
-                        <h3 style="margin-top: 0; margin-bottom: 1rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 0.5rem; color: #333; font-size: 1.1rem;">MONTOS A DEPOSITAR</h3>
+                    <div id="controlMontosDepositar"
+                        style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: none; position: sticky; top: 20px;">
+                        <h3
+                            style="margin-top: 0; margin-bottom: 1rem; border-bottom: 2px solid #f0f0f0; padding-bottom: 0.5rem; color: #333; font-size: 1.1rem;">
+                            MONTOS A DEPOSITAR</h3>
                         <div id="listaMontosServicios" style="display: flex; flex-direction: column; gap: 1rem;">
                             <!-- Lista generada dinámicamente -->
+                        </div>
+
+                        <!-- NUEVOS: Botones de acción -->
+                        <div style="margin-top: 1.5rem; border-top: 1px solid #e0e0e0; padding-top: 1rem;">
+                            <button onclick="guardarResumenDepositos()" class="btn btn-primario"
+                                style="width: 100%; margin-bottom: 0.5rem; padding: 0.75rem; font-size: 0.95rem;">
+                                💾 Guardar Resumen de Depósitos
+                            </button>
+                            <button onclick="verHistorialDepositos()" class="btn btn-secundario"
+                                style="width: 100%; padding: 0.75rem; font-size: 0.95rem;">
+                                📋 Ver Histórico de Depósitos
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -119,6 +136,67 @@
                         </tr>
                     </tfoot>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- NUEVO: Modal de Histórico de Depósitos -->
+    <div id="modalHistorialDepositos" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 1000px;">
+            <span class="cerrar-modal" onclick="cerrarModalHistorialDepositos()">&times;</span>
+            <h3 style="margin-top: 0;">📋 Histórico de Depósitos de Servicios</h3>
+
+            <!-- Filtros del histórico -->
+            <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                <div class="form-grupo" style="flex: 1;">
+                    <label for="filtroHistorialDesde">Desde:</label>
+                    <input type="date" id="filtroHistorialDesde">
+                </div>
+                <div class="form-grupo" style="flex: 1;">
+                    <label for="filtroHistorialHasta">Hasta:</label>
+                    <input type="date" id="filtroHistorialHasta">
+                </div>
+                <div class="form-grupo" style="flex: 1;">
+                    <button onclick="cargarHistorialDepositos()" class="btn btn-primario" style="margin-top: 1.6rem;">🔍
+                        Buscar</button>
+                </div>
+            </div>
+
+            <!-- Tabla de histórico -->
+            <div style="overflow-x: auto; margin-top: 1rem;">
+                <table class="tabla-datos">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Caja</th>
+                            <th>Total Tarjeta</th>
+                            <th>Total Efectivo</th>
+                            <th>Total General</th>
+                            <th>Depositado</th>
+                            <th>Usuario</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaHistorialDepositosBody">
+                        <!-- Filas generadas dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="mensajeHistorialVacio" style="text-align: center; padding: 2rem; color: #888; display: none;">
+                No hay depósitos registrados para el rango seleccionado.
+            </div>
+        </div>
+    </div>
+
+    <!-- NUEVO: Modal de Detalles del Depósito -->
+    <div id="modalDetalleDeposito" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px;">
+            <span class="cerrar-modal" onclick="cerrarModalDetalleDeposito()">&times;</span>
+            <h3 id="tituloDetalleDeposito" style="margin-top: 0;">Detalles del Depósito</h3>
+
+            <div id="contenidoDetalleDeposito" style="margin-top: 1rem;">
+                <!-- Contenido generado dinámicamente -->
             </div>
         </div>
     </div>

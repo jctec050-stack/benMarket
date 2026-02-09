@@ -1,6 +1,28 @@
+/**
+ * Configuración de Supabase con soporte para variables de entorno
+ * 
+ * IMPORTANTE: En producción, las credenciales deben venir de variables de entorno.
+ * Los valores por defecto solo se usan en desarrollo local.
+ */
+
+// Función auxiliar para obtener variables de entorno de forma segura
+function getEnvVar(key, defaultValue = '') {
+    // Intentar obtener desde diferentes fuentes
+    // 1. window.ENV (si se inyectan desde el build)
+    if (typeof window !== 'undefined' && window.ENV && window.ENV[key]) {
+        return window.ENV[key];
+    }
+    // 2. Variables de entorno de Node (si aplica)
+    if (typeof process !== 'undefined' && process.env && process.env[key]) {
+        return process.env[key];
+    }
+    // 3. Fallback al valor por defecto
+    return defaultValue;
+}
+
 const SUPABASE_CONFIG = {
-    URL: 'https://grfyzwfinmowqqxfegsx.supabase.co',
-    ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyZnl6d2Zpbm1vd3FxeGZlZ3N4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MTY3ODMsImV4cCI6MjA3ODM5Mjc4M30.PSr-D8iyMv0ccLUhlFy5Vi6QO12VVWQVDFubmsrotT8'
+    URL: getEnvVar('SUPABASE_URL', 'https://grfyzwfinmowqqxfegsx.supabase.co'),
+    ANON_KEY: getEnvVar('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyZnl6d2Zpbm1vd3FxeGZlZ3N4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MTY3ODMsImV4cCI6MjA3ODM5Mjc4M30.PSr-D8iyMv0ccLUhlFy5Vi6QO12VVWQVDFubmsrotT8')
 };
 
 // Cliente de Supabase (se inicializará cuando esté disponible)
@@ -9,7 +31,9 @@ let usuarioActual = null;
 let supabaseInicializado = false;
 
 // Función para inicializar Supabase cuando esté disponible
-console.log("CARGANDO SUPABASE JS VERSION 5 (FIX CAMPOS FALTANTES)");
+if (typeof logger !== 'undefined') {
+    logger.info("Inicializando módulo Supabase");
+}
 function inicializarSupabase() {
     // Si ya se inicializó, no hacer nada
     if (supabaseInicializado) {
@@ -1138,6 +1162,202 @@ async function obtenerRecaudacionPorRango(fechaDesde, fechaHasta) {
         return [];
     }
 }
+
+// ===== DEPÓSITOS DE SERVICIOS =====
+
+/**
+ * Guardar un resumen de depósitos de servicios
+ * @param {Object} deposito - Objeto con los datos del depósito
+ * @returns {Promise<{success: boolean, data?: any, error?: any}>}
+ */
+db.guardarDepositoServicios = async function (deposito) {
+    if (supabaseClient) {
+        try {
+            const { data, error } = await supabaseClient
+                .from('depositos_servicios')
+                .insert([deposito])
+                .select();
+
+            if (error) throw error;
+
+            if (typeof logger !== 'undefined') {
+                logger.info('Depósito de servicios guardado:', data);
+            }
+
+            return { success: true, data };
+        } catch (error) {
+            if (typeof logger !== 'undefined') {
+                logger.error('Error guardando depósito servicios:', error);
+            }
+            // Fallback a localStorage en caso de error
+            return this.guardarEnLocalStorage('depositosServicios', deposito);
+        }
+    } else {
+        return this.guardarEnLocalStorage('depositosServicios', deposito);
+    }
+};
+
+/**
+ * Obtener depósitos de servicios por rango de fechas
+ * @param {string} fechaDesde - Fecha desde (formato YYYY-MM-DD)
+ * @param {string} fechaHasta - Fecha hasta (formato YYYY-MM-DD)
+ * @param {string} caja - Filtro opcional por caja
+ * @returns {Promise<{success: boolean, data?: array, error?: any}>}
+ */
+db.obtenerDepositosServicios = async function (fechaDesde, fechaHasta, caja = null) {
+    if (supabaseClient) {
+        try {
+            let query = supabaseClient
+                .from('depositos_servicios')
+                .select('*')
+                .gte('fecha', fechaDesde)
+                .lte('fecha', fechaHasta)
+                .order('fecha', { ascending: false })
+                .order('fecha_creacion', { ascending: false });
+
+            if (caja) {
+                query = query.eq('caja', caja);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            return { success: true, data };
+        } catch (error) {
+            if (typeof logger !== 'undefined') {
+                logger.error('Error obteniendo depósitos servicios:', error);
+            }
+            return { success: false, error };
+        }
+    } else {
+        const items = this.obtenerDeLocalStorage('depositosServicios', fechaDesde);
+        return { success: true, data: items };
+    }
+};
+
+/**
+ * Obtener depósitos pendientes (no depositados)
+ * @returns {Promise<{success: boolean, data?: array, error?: any}>}
+ */
+db.obtenerDepositosPendientes = async function () {
+    if (supabaseClient) {
+        try {
+            const { data, error } = await supabaseClient
+                .from('depositos_servicios')
+                .select('*')
+                .eq('depositado', false)
+                .order('fecha', { ascending: false });
+
+            if (error) throw error;
+
+            return { success: true, data };
+        } catch (error) {
+            if (typeof logger !== 'undefined') {
+                logger.error('Error obteniendo depósitos pendientes:', error);
+            }
+            return { success: false, error };
+        }
+    } else {
+        const items = JSON.parse(localStorage.getItem('depositosServicios')) || [];
+        const pendientes = items.filter(d => !d.depositado);
+        return { success: true, data: pendientes };
+    }
+};
+
+/**
+ * Marcar un depósito como realizado
+ * @param {string} id - ID del depósito
+ * @param {string} comprobante - Número de comprobante bancario
+ * @param {string} notas - Notas adicionales
+ * @returns {Promise<{success: boolean, data?: any, error?: any}>}
+ */
+db.marcarDepositoRealizado = async function (id, comprobante, notas = '') {
+    if (supabaseClient) {
+        try {
+            // Obtener perfil actual para registrar usuario
+            const perfil = await this.obtenerPerfilActual();
+            const usuario = perfil.data?.username || 'desconocido';
+
+            const { data, error } = await supabaseClient
+                .from('depositos_servicios')
+                .update({
+                    depositado: true,
+                    fecha_deposito: new Date().toISOString(),
+                    usuario_deposito: usuario,
+                    comprobante_deposito: comprobante,
+                    notas: notas,
+                    actualizado_en: new Date().toISOString()
+                })
+                .eq('id', id)
+                .select();
+
+            if (error) throw error;
+
+            if (typeof logger !== 'undefined') {
+                logger.info('Depósito marcado como realizado:', id);
+            }
+
+            return { success: true, data };
+        } catch (error) {
+            if (typeof logger !== 'undefined') {
+                logger.error('Error marcando depósito:', error);
+            }
+            return { success: false, error };
+        }
+    } else {
+        // Actualizar en localStorage
+        const items = JSON.parse(localStorage.getItem('depositosServicios')) || [];
+        const index = items.findIndex(d => d.id === id);
+        if (index !== -1) {
+            items[index] = {
+                ...items[index],
+                depositado: true,
+                fecha_deposito: new Date().toISOString(),
+                comprobante_deposito: comprobante,
+                notas: notas
+            };
+            localStorage.setItem('depositosServicios', JSON.stringify(items));
+            return { success: true, data: items[index] };
+        }
+        return { success: false, error: { message: 'Depósito no encontrado' } };
+    }
+};
+
+/**
+ * Eliminar un depósito de servicios (solo admin/tesorería)
+ * @param {string} id - ID del depósito a eliminar
+ * @returns {Promise<{success: boolean, error?: any}>}
+ */
+db.eliminarDepositoServicios = async function (id) {
+    if (supabaseClient) {
+        try {
+            const { error } = await supabaseClient
+                .from('depositos_servicios')
+                .delete()
+                .eq('id', id);
+
+            if (error) throw error;
+
+            if (typeof logger !== 'undefined') {
+                logger.info('Depósito eliminado:', id);
+            }
+
+            return { success: true };
+        } catch (error) {
+            if (typeof logger !== 'undefined') {
+                logger.error('Error eliminando depósito:', error);
+            }
+            return { success: false, error };
+        }
+    } else {
+        const items = JSON.parse(localStorage.getItem('depositosServicios')) || [];
+        const filtrados = items.filter(d => d.id !== id);
+        localStorage.setItem('depositosServicios', JSON.stringify(filtrados));
+        return { success: true };
+    }
+};
+
 
 // Exportar funciones de recaudación
 db.guardarRecaudacion = guardarRecaudacion;
