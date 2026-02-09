@@ -442,6 +442,96 @@ window.exportarResumenAPDF = function () {
         finalY = doc.lastAutoTable.finalY + 10;
     }
 
+    // --- SECCIÓN 5: SALDO CAJA DIA ANTERIOR Y TOTAL GENERAL ---
+    // Buscar en la tabla de balance las filas especiales
+    let saldoAnterior = '';
+    let totalGeneral = '';
+
+    if (tbodyIngresosEgresos) {
+        tbodyIngresosEgresos.querySelectorAll('tr').forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 2) {
+                const getCellData = (cell) => {
+                    const div = cell.querySelector('div');
+                    if (div) {
+                        const spans = div.querySelectorAll('span');
+                        if (spans.length >= 2) {
+                            const label = spans[0].textContent.trim();
+                            const amount = spans[1].textContent.trim();
+                            return { label, amount };
+                        }
+                    }
+                    return null;
+                };
+
+                const ing = getCellData(cells[0]);
+                const egr = getCellData(cells[1]);
+
+                // Buscar "SALDO CAJA DIA ANTERIOR"
+                if (ing && ing.label && ing.label.toUpperCase().includes('SALDO') && ing.label.toUpperCase().includes('ANTERIOR')) {
+                    saldoAnterior = ing.amount;
+                }
+                if (egr && egr.label && egr.label.toUpperCase().includes('SALDO') && egr.label.toUpperCase().includes('ANTERIOR')) {
+                    saldoAnterior = egr.amount;
+                }
+
+                // Buscar "Total Gral" o "TOTAL GENERAL"
+                if (ing && ing.label && (ing.label.toUpperCase().includes('TOTAL') && (ing.label.toUpperCase().includes('GRAL') || ing.label.toUpperCase().includes('GENERAL')))) {
+                    totalGeneral = ing.amount;
+                }
+                if (egr && egr.label && (egr.label.toUpperCase().includes('TOTAL') && (egr.label.toUpperCase().includes('GRAL') || egr.label.toUpperCase().includes('GENERAL')))) {
+                    totalGeneral = egr.amount;
+                }
+            }
+        });
+    }
+
+    // Si encontramos los valores, mostrarlos en una sección destacada
+    if (saldoAnterior || totalGeneral) {
+        // Verificar espacio
+        if (finalY > pageHeight - 50) { doc.addPage(); finalY = 20; }
+
+        finalY += 5;
+
+        // Dibujar caja de resumen final
+        const summaryBoxHeight = 30;
+        const summaryBoxY = finalY;
+
+        // Fondo de la caja
+        doc.setFillColor(240, 248, 255); // Azul muy claro
+        doc.setDrawColor(41, 128, 185); // Azul corporativo
+        doc.setLineWidth(1);
+        doc.rect(marginX, summaryBoxY, pageWidth - (marginX * 2), summaryBoxHeight, 'FD');
+
+        finalY += 8;
+
+        // Saldo Anterior
+        if (saldoAnterior) {
+            doc.setFontSize(11);
+            doc.setTextColor(0);
+            doc.text('SALDO CAJA DÍA ANTERIOR:', marginX + 5, finalY);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(0, 100, 0); // Verde
+            doc.text(saldoAnterior, pageWidth - marginX - 5, finalY, { align: 'right' });
+            doc.setFont(undefined, 'normal');
+            finalY += 8;
+        }
+
+        // Total General
+        if (totalGeneral) {
+            doc.setFontSize(13);
+            doc.setTextColor(0);
+            doc.setFont(undefined, 'bold');
+            doc.text('TOTAL GENERAL:', marginX + 5, finalY);
+            doc.setTextColor(0, 0, 139); // Azul oscuro
+            doc.text(totalGeneral, pageWidth - marginX - 5, finalY, { align: 'right' });
+            doc.setFont(undefined, 'normal');
+            finalY += 8;
+        }
+
+        finalY += 5;
+    }
+
     // --- PIE DE PÁGINA (Números de página) ---
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
