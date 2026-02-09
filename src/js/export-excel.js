@@ -443,47 +443,70 @@ window.exportarResumenAPDF = function () {
     }
 
     // --- SECCIÓN 5: SALDO CAJA DIA ANTERIOR Y TOTAL GENERAL ---
-    // Buscar en la tabla de balance las filas especiales
     let saldoAnterior = '';
     let totalGeneral = '';
 
     if (tbodyIngresosEgresos) {
+        // 1. Buscar SALDO CAJA DÍA ANTERIOR - está en un INPUT dentro de una fila normal
         tbodyIngresosEgresos.querySelectorAll('tr').forEach(row => {
-            const cells = row.querySelectorAll('td');
-            if (cells.length >= 2) {
-                const getCellData = (cell) => {
-                    const div = cell.querySelector('div');
-                    if (div) {
-                        const spans = div.querySelectorAll('span');
+            // Buscar en la primera celda (ingresos)
+            const firstCell = row.querySelector('td:first-child');
+            if (firstCell) {
+                const textContent = firstCell.textContent.trim();
+
+                // Verificar si contiene "SALDO CAJA DÍA ANT" o similar
+                if (textContent.toUpperCase().includes('SALDO') && textContent.toUpperCase().includes('ANT')) {
+                    // Buscar el input con el valor
+                    const input = firstCell.querySelector('input.input-saldo-anterior');
+                    if (input) {
+                        saldoAnterior = input.value.trim();
+                    } else {
+                        // Si no hay input, buscar en spans
+                        const spans = firstCell.querySelectorAll('span');
                         if (spans.length >= 2) {
-                            const label = spans[0].textContent.trim();
-                            const amount = spans[1].textContent.trim();
-                            return { label, amount };
+                            saldoAnterior = spans[1].textContent.trim();
                         }
                     }
-                    return null;
-                };
-
-                const ing = getCellData(cells[0]);
-                const egr = getCellData(cells[1]);
-
-                // Buscar "SALDO CAJA DIA ANTERIOR"
-                if (ing && ing.label && ing.label.toUpperCase().includes('SALDO') && ing.label.toUpperCase().includes('ANTERIOR')) {
-                    saldoAnterior = ing.amount;
-                }
-                if (egr && egr.label && egr.label.toUpperCase().includes('SALDO') && egr.label.toUpperCase().includes('ANTERIOR')) {
-                    saldoAnterior = egr.amount;
-                }
-
-                // Buscar "Total Gral" o "TOTAL GENERAL"
-                if (ing && ing.label && (ing.label.toUpperCase().includes('TOTAL') && (ing.label.toUpperCase().includes('GRAL') || ing.label.toUpperCase().includes('GENERAL')))) {
-                    totalGeneral = ing.amount;
-                }
-                if (egr && egr.label && (egr.label.toUpperCase().includes('TOTAL') && (egr.label.toUpperCase().includes('GRAL') || egr.label.toUpperCase().includes('GENERAL')))) {
-                    totalGeneral = egr.amount;
                 }
             }
         });
+
+        // 2. Buscar TOTAL GRAL - está en una fila con colspan="2" y clase 'total-general-row'
+        const filasTotalGeneral = tbodyIngresosEgresos.querySelectorAll('tr.total-general-row');
+        if (filasTotalGeneral.length > 0) {
+            const fila = filasTotalGeneral[0];
+            const celda = fila.querySelector('td[colspan="2"]');
+            if (celda) {
+                const div = celda.querySelector('div');
+                if (div) {
+                    const spans = div.querySelectorAll('span');
+                    if (spans.length >= 2) {
+                        // El segundo span tiene el valor
+                        totalGeneral = spans[1].textContent.trim();
+                    }
+                }
+            }
+        }
+
+        // Fallback: buscar por texto si no se encontró con clase
+        if (!totalGeneral) {
+            tbodyIngresosEgresos.querySelectorAll('tr').forEach(row => {
+                const celdasColspan = row.querySelectorAll('td[colspan]');
+                celdasColspan.forEach(celda => {
+                    const textContent = celda.textContent.trim();
+                    if (textContent.toUpperCase().includes('TOTAL') &&
+                        (textContent.toUpperCase().includes('GRAL') || textContent.toUpperCase().includes('GENERAL'))) {
+                        const div = celda.querySelector('div');
+                        if (div) {
+                            const spans = div.querySelectorAll('span');
+                            if (spans.length >= 2) {
+                                totalGeneral = spans[1].textContent.trim();
+                            }
+                        }
+                    }
+                });
+            });
+        }
     }
 
     // Si encontramos los valores, mostrarlos en una sección destacada
