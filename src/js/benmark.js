@@ -4060,17 +4060,32 @@ function calcularSaldoDiaAnterior(fechaActual, filtroCaja = '') {
 }
 
 // Función nueva para guardar el saldo manual
-window.guardarSaldoAnteriorManual = function (input, fecha, caja) {
+window.guardarSaldoAnteriorManual = async function (input, fecha, caja) {
     const rawValue = input.value.replace(/\./g, '');
     const numValue = parseFloat(rawValue) || 0;
 
     // Formatear visualmente
     input.value = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(numValue);
 
-    // Guardar en localStorage
+    // Guardar en localStorage (fallback)
     const claveSaldoManual = `saldoAnterior_${fecha}_${caja}`;
     localStorage.setItem(claveSaldoManual, numValue);
     console.log('[DEBUG] Saldo Anterior MANUAL guardado:', numValue, 'Clave:', claveSaldoManual);
+
+    // **NUEVO:** También guardar en Supabase como Total General del día anterior
+    // El saldo manual de HOY corresponde al Total General de AYER
+    const partesFecha = fecha.split('-');
+    const fechaObj = new Date(partesFecha[0], partesFecha[1] - 1, partesFecha[2]);
+    fechaObj.setDate(fechaObj.getDate() - 1);
+    const anio = fechaObj.getFullYear();
+    const mes = String(fechaObj.getMonth() + 1).padStart(2, '0');
+    const dia = String(fechaObj.getDate()).padStart(2, '0');
+    const fechaAnterior = `${anio}-${mes}-${dia}`;
+
+    if (typeof db !== 'undefined' && db.guardarTotalGeneral) {
+        await db.guardarTotalGeneral(fechaAnterior, caja || 'Todas las Cajas', numValue);
+        console.log(`[DEBUG] Saldo Manual también guardado en BD como Total General de ${fechaAnterior}: ${numValue}`);
+    }
 
     // Recargar la tabla para actualizar totales
     if (typeof window.cargarTablaIngresosEgresos === 'function') {
