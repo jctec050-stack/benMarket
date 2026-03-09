@@ -3717,8 +3717,16 @@ function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
     const dia = String(fecha.getDate()).padStart(2, '0');
     const fechaAnterior = `${anio}-${mes}-${dia}`;
 
-    // 1. Intentar obtener el valor guardado automáticamente (Total General del día anterior)
-    // Este valor se guarda al visualizar la tabla de Ingresos/Egresos del día anterior
+    // 1. Intentar validar si se ingresó manualmente un "Saldo Inicial" para este día
+    // Esto permite que el usuario inicie su flujo de caja cuando arranca a usar el sistema.
+    const claveInicialManual = `saldoAnterior_${fechaDesde}_${cajaFiltro || 'General'}`;
+    const valorManualLocal = localStorage.getItem(claveInicialManual);
+    if (valorManualLocal !== null && valorManualLocal !== 'NaN' && valorManualLocal !== '') {
+        console.log(`[DEBUG] Usando Saldo Inicial Manual (${fechaDesde}):`, valorManualLocal);
+        return parseFloat(valorManualLocal);
+    }
+
+    // 2. Si no hay valor manual, leer el Total General con el que cerró el día anterior
     const claveAuto = `totalGeneral_${fechaAnterior}_${cajaFiltro || 'Todas las Cajas'}`;
     const valorAuto = localStorage.getItem(claveAuto);
 
@@ -3727,8 +3735,8 @@ function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
         return parseFloat(valorAuto);
     }
 
-    // 2. Si no hay valor automático, se anula el cálculo manual según lo solicitado.
-    console.log(`[DEBUG] No hay Saldo Anterior Automático para ${fechaAnterior}. Se retorna 0 al estar deshabilitado el cálculo manual.`);
+    // 3. Fallback: Si es el primer día y no hay manual ni de ayer, asume 0.
+    console.log(`[DEBUG] No hay Saldo Anterior Manual ni Total General de ayer para ${fechaAnterior}. Se retorna 0.`);
     return 0;
 }
 
