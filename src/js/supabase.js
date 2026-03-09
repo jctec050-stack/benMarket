@@ -1363,3 +1363,77 @@ db.eliminarDepositoServicios = async function (id) {
 db.guardarRecaudacion = guardarRecaudacion;
 db.obtenerRecaudacion = obtenerRecaudacion;
 db.obtenerRecaudacionPorRango = obtenerRecaudacionPorRango;
+
+/**
+ * Guardar el Total General en la base de datos (Upsert)
+ * @param {string} fecha - Fecha en formato YYYY-MM-DD
+ * @param {string} caja - Nombre de la caja o "Todas las Cajas"
+ * @param {number} total - El Total General calculado
+ */
+db.guardarTotalGeneral = async function (fecha, caja, total) {
+    if (supabaseClient) {
+        try {
+            const dataToUpsert = {
+                fecha: fecha,
+                caja: caja || 'Todas las Cajas',
+                total: parseFloat(total)
+            };
+
+            const { data, error } = await supabaseClient
+                .from('total_general')
+                .upsert(dataToUpsert, { onConflict: 'fecha,caja' });
+
+            if (error) throw error;
+            console.log(`[Supabase DB] Total Gral guardado para ${fecha} (${caja}): ${total}`);
+            return { success: true, data };
+        } catch (error) {
+            console.error('[Supabase DB] Error guardando Total General:', error);
+            // Fallback a localStorage
+            const clave = `totalGeneral_${fecha}_${caja || 'Todas las Cajas'}`;
+            localStorage.setItem(clave, total);
+            return { success: false, error };
+        }
+    } else {
+        const clave = `totalGeneral_${fecha}_${caja || 'Todas las Cajas'}`;
+        localStorage.setItem(clave, total);
+        return { success: true };
+    }
+};
+
+/**
+ * Obtener el Total General de la base de datos para una fecha específica
+ * @param {string} fecha - Fecha en formato YYYY-MM-DD
+ * @param {string} caja - Nombre de la caja o "Todas las Cajas"
+ */
+db.obtenerTotalGeneral = async function (fecha, caja) {
+    if (supabaseClient) {
+        try {
+            const { data, error } = await supabaseClient
+                .from('total_general')
+                .select('total')
+                .eq('fecha', fecha)
+                .eq('caja', caja || 'Todas las Cajas')
+                .maybeSingle();
+
+            if (error) throw error;
+            if (data) {
+                console.log(`[Supabase DB] Total Gral obtenido para ${fecha} (${caja}): ${data.total}`);
+                return { success: true, total: parseFloat(data.total) };
+            }
+            return { success: true, total: null };
+        } catch (error) {
+            console.error('[Supabase DB] Error obteniendo Total General:', error);
+            // Fallback a localStorage
+            const clave = `totalGeneral_${fecha}_${caja || 'Todas las Cajas'}`;
+            const valor = localStorage.getItem(clave);
+            return { success: false, total: valor !== null ? parseFloat(valor) : null };
+        }
+    } else {
+        const clave = `totalGeneral_${fecha}_${caja || 'Todas las Cajas'}`;
+        const valor = localStorage.getItem(clave);
+        return { success: true, total: valor !== null && valor !== 'NaN' && valor !== '' ? parseFloat(valor) : null };
+    }
+};
+
+// Exponer en el objeto window para accesibilidad global
+window.db = db;

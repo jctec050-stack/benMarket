@@ -3281,7 +3281,7 @@ window.cargarTablaPagosEgresos = function () {
 };
 
 // **NUEVO:** Función para cargar la tabla de Ingresos/Egresos detallada
-window.cargarTablaIngresosEgresos = function () {
+window.cargarTablaIngresosEgresos = async function () {
     const tbody = document.getElementById('tbodyIngresosEgresos');
     if (!tbody) return;
 
@@ -3318,8 +3318,8 @@ window.cargarTablaIngresosEgresos = function () {
         saldoDiaAnterior = parseFloat(saldoManualGuardado);
         console.log('[DEBUG] Usando Saldo Anterior MANUAL:', saldoDiaAnterior);
     } else {
-        // 2. Si no, calcularlo automáticamente (lógica existente)
-        let calculoAuto = calcularSaldoDiaAnterior(fechaDesde, cajaFiltro);
+        // 2. Si no, calcularlo automáticamente (lógica existente o de BD)
+        let calculoAuto = await calcularSaldoDiaAnterior(fechaDesde, cajaFiltro);
         if (typeof calculoAuto === 'object' && calculoAuto !== null) {
             saldoDiaAnterior = calculoAuto.total || 0;
         } else {
@@ -3552,11 +3552,15 @@ window.cargarTablaIngresosEgresos = function () {
     `;
     tbody.appendChild(trTotalGral);
 
-    // **NUEVO:** Guardar Total General para usarlo como Saldo Anterior del día siguiente
+    // **NUEVO:** Guardar Total General en Supabase para usarlo como Saldo Anterior del día siguiente
     if (fechaDesde && fechaDesde === fechaHasta) { // Solo si es un día único
-        const claveTotal = `totalGeneral_${fechaDesde}_${cajaFiltro || 'Todas las Cajas'}`;
-        localStorage.setItem(claveTotal, totalGeneral);
-        console.log(`[DEBUG] Guardado Total General para ${fechaDesde}: ${totalGeneral}`);
+        if (typeof db !== 'undefined' && db.guardarTotalGeneral) {
+            await db.guardarTotalGeneral(fechaDesde, cajaFiltro || 'Todas las Cajas', totalGeneral);
+        } else {
+            const claveTotal = `totalGeneral_${fechaDesde}_${cajaFiltro || 'Todas las Cajas'}`;
+            localStorage.setItem(claveTotal, totalGeneral);
+            console.log(`[DEBUG] Guardado Total General (Local) para ${fechaDesde}: ${totalGeneral}`);
+        }
     }
 };
 
@@ -3703,7 +3707,7 @@ function calcularIngresosNegativos(fechaDesde, fechaHasta, cajaFiltro) {
 
 
 // Función auxiliar: Calcular saldo del día anterior (Ingresos - Egresos)
-function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
+async function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
     if (!fechaDesde) return 0;
 
     // Calcular fecha del día anterior de forma segura (sin problemas de zona horaria)
@@ -3727,12 +3731,19 @@ function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
     }
 
     // 2. Si no hay valor manual, leer el Total General con el que cerró el día anterior
-    const claveAuto = `totalGeneral_${fechaAnterior}_${cajaFiltro || 'Todas las Cajas'}`;
-    const valorAuto = localStorage.getItem(claveAuto);
+    if (typeof db !== 'undefined' && db.obtenerTotalGeneral) {
+        const respuesta = await db.obtenerTotalGeneral(fechaAnterior, cajaFiltro || 'Todas las Cajas');
+        if (respuesta && respuesta.success && respuesta.total !== null) {
+            return respuesta.total;
+        }
+    } else {
+        const claveAuto = `totalGeneral_${fechaAnterior}_${cajaFiltro || 'Todas las Cajas'}`;
+        const valorAuto = localStorage.getItem(claveAuto);
 
-    if (valorAuto !== null && valorAuto !== 'NaN' && valorAuto !== '') {
-        console.log(`[DEBUG] Usando Saldo Anterior Automático (Total General ${fechaAnterior}):`, valorAuto);
-        return parseFloat(valorAuto);
+        if (valorAuto !== null && valorAuto !== 'NaN' && valorAuto !== '') {
+            console.log(`[DEBUG] Usando Saldo Anterior Automático Local (Total General ${fechaAnterior}):`, valorAuto);
+            return parseFloat(valorAuto);
+        }
     }
 
     // 3. Fallback: Si es el primer día y no hay manual ni de ayer, asume 0.
