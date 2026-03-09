@@ -3706,10 +3706,16 @@ function calcularIngresosNegativos(fechaDesde, fechaHasta, cajaFiltro) {
 function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
     if (!fechaDesde) return 0;
 
-    // Calcular fecha del día anterior
-    const fecha = new Date(fechaDesde + 'T00:00:00');
+    // Calcular fecha del día anterior de forma segura (sin problemas de zona horaria)
+    const partesFecha = fechaDesde.split('-');
+    const fecha = new Date(partesFecha[0], partesFecha[1] - 1, partesFecha[2]);
     fecha.setDate(fecha.getDate() - 1);
-    const fechaAnterior = fecha.toISOString().split('T')[0];
+
+    // Formatear a YYYY-MM-DD
+    const anio = fecha.getFullYear();
+    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+    const dia = String(fecha.getDate()).padStart(2, '0');
+    const fechaAnterior = `${anio}-${mes}-${dia}`;
 
     // 1. Intentar obtener el valor guardado automáticamente (Total General del día anterior)
     // Este valor se guarda al visualizar la tabla de Ingresos/Egresos del día anterior
