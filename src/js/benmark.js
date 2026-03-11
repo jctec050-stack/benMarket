@@ -1592,7 +1592,7 @@ function renderizarVistaArqueoFinal(totales, todosLosEgresos = []) {
 
         <!-- Resumen Final del Arqueo -->
         <div class="resumen-totales" style="margin-top: 2rem; border-top: 1px solid var(--color-borde); padding-top: 1rem;">
-            <div class="total-item" style="color: var(--color-advertencia); font-weight: bold;"><span>Total a declarar en Sistema:</span><span>${formatearMoneda(totalADeclarar, 'gs')}</span></div>
+            <div class="total-item" style="color: var(--color-advertencia); font-weight: bold;"><span>Total a declarar en Sistema:</span><span id="totalDeclararSistemaArqueo">${formatearMoneda(totalADeclarar, 'gs')}</span></div>
             <div class="total-item positivo"><span>Total Ingresos Tienda:</span><span>${formatearMoneda(totalIngresosTiendaCalculado, 'gs')}</span></div>
         </div>
     `;
@@ -1924,18 +1924,25 @@ async function guardarArqueo() {
     arqueo.ventasTransferencia = totales.ventasTransferencia;
     arqueo.servicios = totales.servicios;
 
-    // Calcular totales para el objeto guardado (esto es para la data cruda)
+    // Calcular el efectivo bruto sumando todas las denominaciones y monedas extranjeras
     const totalEfectivoBruto = Object.entries(arqueo.efectivo).reduce((sum, [denom, cant]) => sum + (parseInt(denom) * cant), 0) + totales.monedasExtranjeras.usd.montoGs + totales.monedasExtranjeras.brl.montoGs + totales.monedasExtranjeras.ars.montoGs;
     arqueo.totalEfectivo = totalEfectivoBruto;
 
-    const totalServicios = Object.values(totales.servicios).flat().reduce((sum, s) => sum + (s.monto || 0) + (s.tarjeta || 0), 0);
-    arqueo.totalServicios = totalServicios;
-
-    // El total de ingresos es la suma de todo lo que entró
-    arqueo.totalIngresos = totalEfectivoBruto + totales.pagosTarjeta + totales.ventasCredito + totales.pedidosYa + totales.ventasTransferencia + totalServicios;
+    // **REFACTORIZADO:** Usar los totales ya calculados para la vista en pantalla (OBLIGATORIO SEGÚN REQUERIMIENTO USER)
+    const totalDeclararUI = document.getElementById('totalDeclararSistemaArqueo');
+    let totalIngresosParaGuardar = 0;
+    
+    if (totalDeclararUI) {
+        totalIngresosParaGuardar = parsearMoneda(totalDeclararUI.textContent);
+        console.log(`[Arqueo] Usando valor estrictamente de pantalla: ${totalIngresosParaGuardar}`);
+    } else {
+        // Fallback si por alguna razón no está el elemento (no debería pasar)
+        const totalServicios = Object.values(totales.servicios).flat().reduce((sum, s) => sum + (s.monto || 0) + (s.tarjeta || 0), 0);
+        totalIngresosParaGuardar = totalEfectivoBruto + totales.pagosTarjeta + totales.ventasCredito + totales.pedidosYa + totales.ventasTransferencia + totalServicios;
+    }
 
     // **NUEVA VALIDACIÓN:** No guardar si el total de ingresos es cero.
-    if (arqueo.totalIngresos <= 0) {
+    if (totalIngresosParaGuardar <= 0) {
         mostrarMensaje('No se puede guardar un arqueo con ingresos totales de cero o menos.', 'peligro');
         return; // Detener la ejecución de la función
     }
@@ -1964,14 +1971,14 @@ async function guardarArqueo() {
         servicios: arqueo.servicios,
         total_servicios: arqueo.totalServicios,
 
-        // Totales calculados
-        total_efectivo: arqueo.totalEfectivo,
-        total_ingresos: arqueo.totalIngresos,
+        // Totales calculados (tomados de la UI)
+        total_efectivo: arqueo.totalEfectivo || totalEfectivoBruto,
+        total_ingresos: totalIngresosParaGuardar,
         total_egresos: todosLosEgresos.reduce((sum, e) => sum + (e.monto || 0), 0),
 
         // Metadatos
         total_movimientos: movimientosParaArqueo.length,
-        saldo_caja: arqueo.totalIngresos,
+        saldo_caja: totalIngresosParaGuardar,
         diferencia: 0,
         observaciones: null
     };
@@ -3546,20 +3553,23 @@ window.cargarTablaIngresosEgresos = async function () {
         <td colspan="2" style="background-color: #e0e7ff; font-weight: bold; border-top: 2px solid #000;">
             <div style="display: flex; justify-content: space-between; padding: 4px 8px;">
                 <span>TOTAL GRAL.</span>
-                <span style="text-align: right; color: ${totalGeneral >= 0 ? 'var(--color-exito)' : 'var(--color-peligro)'};">${formatearMoneda(totalGeneral, 'gs').replace('PYG', '').trim()}</span>
+                <span id="valorTotalGeneralResumen" style="text-align: right; color: ${totalGeneral >= 0 ? 'var(--color-exito)' : 'var(--color-peligro)'};">${formatearMoneda(totalGeneral, 'gs').replace('PYG', '').trim()}</span>
             </div>
         </td>
     `;
     tbody.appendChild(trTotalGral);
 
-    // **NUEVO:** Guardar Total General en Supabase para usarlo como Saldo Anterior del día siguiente
+    // **MODIFICADO:** Guardar Total General de la UI para evitar discrepancias por cálculos extra
     if (fechaDesde && fechaDesde === fechaHasta) { // Solo si es un día único
+        const spanTotalGral = document.getElementById('valorTotalGeneralResumen');
+        const valorParaGuardar = spanTotalGral ? parsearMoneda(spanTotalGral.textContent) : totalGeneral;
+        
         if (typeof db !== 'undefined' && db.guardarTotalGeneral) {
-            await db.guardarTotalGeneral(fechaDesde, cajaFiltro || 'Todas las Cajas', totalGeneral);
+            await db.guardarTotalGeneral(fechaDesde, cajaFiltro || 'Todas las Cajas', valorParaGuardar);
         } else {
             const claveTotal = `totalGeneral_${fechaDesde}_${cajaFiltro || 'Todas las Cajas'}`;
-            localStorage.setItem(claveTotal, totalGeneral);
-            console.log(`[DEBUG] Guardado Total General (Local) para ${fechaDesde}: ${totalGeneral}`);
+            localStorage.setItem(claveTotal, valorParaGuardar);
+            console.log(`[DEBUG] Guardado Total General (Local-UI) para ${fechaDesde}: ${valorParaGuardar}`);
         }
     }
 };
