@@ -1384,7 +1384,6 @@ db.guardarTotalGeneral = async function (fecha, caja, total) {
                 .upsert(dataToUpsert, { onConflict: 'fecha,caja' });
 
             if (error) throw error;
-            console.log(`[Supabase DB] Total Gral guardado para ${fecha} (${caja}): ${total}`);
             return { success: true, data };
         } catch (error) {
             console.error('[Supabase DB] Error guardando Total General:', error);
@@ -1417,7 +1416,6 @@ db.obtenerTotalGeneral = async function (fecha, caja) {
 
             if (error) throw error;
             if (data) {
-                console.log(`[Supabase DB] Total Gral obtenido para ${fecha} (${caja}): ${data.total}`);
                 return { success: true, total: parseFloat(data.total) };
             }
             return { success: true, total: null };
