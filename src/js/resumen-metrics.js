@@ -65,6 +65,11 @@ window.actualizarMetricasResumen = function () {
     if (elPedidosYa) elPedidosYa.textContent = formatearMoneda(totalPedidosYa, 'gs');
     if (elCredito) elCredito.textContent = formatearMoneda(totalCredito, 'gs');
 
+    // Guardar para cálculo de Gran Total
+    window.subtotalTarjetaGlobal = totalTarjeta;
+    window.subtotalPedidosYaGlobal = totalPedidosYa;
+    window.subtotalCreditoGlobal = totalCredito;
+
     // **NUEVO:** Hacer las tarjetas clicables
     const addClickListener = (id, tipo) => {
         const card = document.querySelector(`.${id}`);
@@ -673,6 +678,16 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         // **NUEVO:** Guardar el total en variable global y actualizar tabla de Ingresos/Egresos
         window.totalRecaudadoGlobal = tSub;
 
+        // **NUEVO:** Calcular Gran Total Ventas Tienda (Tarjeta + PedidosYa + Credito + Ingresos Tienda)
+        const granTotalVentas = (window.subtotalTarjetaGlobal || 0) + 
+                               (window.subtotalPedidosYaGlobal || 0) + 
+                               (window.subtotalCreditoGlobal || 0) + 
+                               tIngresoTienda;
+        
+        const elGranTotal = document.getElementById('metricTotalVentasTienda');
+        if (elGranTotal) {
+            elGranTotal.textContent = formatearMoneda(granTotalVentas, 'gs');
+        }
 
         // Llamar a la actualización de la tabla Ingresos/Egresos si existe
         if (typeof window.cargarTablaIngresosEgresos === 'function') {
