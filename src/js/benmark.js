@@ -1,3 +1,4 @@
+console.log('%c [SISTEMA] benmark.js cargado - Ver: 1.2.LogsHabilitados', 'background: #222; color: #bada55; font-size: 14px;');
 // Configuración movida a config.js
 
 
@@ -3123,16 +3124,16 @@ async function cargarResumenDiario() {
     // **MODIFICADO:** Calcular total de egresos (suma de ambos tipos)
     const totalEgresos = totalEgresosCaja + totalEgresosTesoreria;
 
-    // **NUEVO:** Calcular saldo del día anterior
-    const saldoDiaAnterior = calcularSaldoDiaAnterior(fechaDesde, filtroCajaSaldoAnterior);
+    // **NUEVO:** Calcular saldo del día anterior (Correcto y Asíncrono)
+    const saldoDiaAnteriorVal = await calcularSaldoDiaAnterior(fechaDesde, filtroCajaSaldoAnterior);
     const totalSaldoDiaAnteriorEl = document.getElementById('totalSaldoDiaAnterior');
     if (totalSaldoDiaAnteriorEl) {
-        totalSaldoDiaAnteriorEl.innerHTML = `<strong>${formatearMoneda(saldoDiaAnterior.total, 'gs')}</strong>`;
+        totalSaldoDiaAnteriorEl.innerHTML = `<strong>${formatearMoneda(saldoDiaAnteriorVal, 'gs')}</strong>`;
     }
-    renderizarDetalleSaldoAnterior(saldoDiaAnterior.detallePorCaja, saldoDiaAnterior.fecha);
+    // renderizarDetalleSaldoAnterior ya no es compatible con el formato simple de retorno
 
     // **NUEVO:** Calcular y mostrar totales generales (incluyendo saldo día anterior)
-    const granTotalIngresos = saldoDiaAnterior.total + totalTienda + totalServiciosEfectivo + totalServiciosTarjeta + totalNoEfectivo + totalDepositosInversiones;
+    const granTotalIngresos = saldoDiaAnteriorVal + totalTienda + totalServiciosEfectivo + totalServiciosTarjeta + totalNoEfectivo + totalDepositosInversiones;
     const granTotalEgresos = totalEgresos;
     const diferenciaNeta = granTotalIngresos - granTotalEgresos;
 
@@ -3940,139 +3941,6 @@ function renderizarLista(contenedor, items, tipo) {
     return granTotal; // **MODIFICADO:** Devolver el total calculado.
 }
 
-/**
- * Calcula el saldo de EFECTIVO del día anterior (ingresos efectivo - egresos)
- * @param {string} fechaActual - Fecha del día actual (formato YYYY-MM-DD)
- * @param {string} filtroCaja - Caja específica o "" para todas
- * @returns {object} { total: number, detallePorCaja: array, fecha: string }
- */
-function calcularSaldoDiaAnterior(fechaActual, filtroCaja = '') {
-    if (!fechaActual) {
-        return { total: 0, detallePorCaja: [], fecha: '' };
-    }
-
-    // Calcular fecha del día anterior
-    const fecha = new Date(fechaActual + 'T00:00:00');
-    fecha.setDate(fecha.getDate() - 1);
-    const fechaAnterior = fecha.toISOString().split('T')[0];
-
-    // Obtener movimientos del día anterior
-    // COMBINAR movimientosTemporales (si aún no se cerraron) Y movimientos (historial)
-    const ingresosAnteriorTemp = estado.movimientosTemporales.filter(m =>
-        m.fecha.startsWith(fechaAnterior) &&
-        (!filtroCaja || m.caja === filtroCaja)
-    );
-
-    // Filtrar también los ingresos que ya pasaron al historial (estado.movimientos)
-    // Buscamos aquellos que sean de tipo 'ingreso' o undefined (legacy)
-    const ingresosAnteriorHist = estado.movimientos.filter(m =>
-        m.fecha.startsWith(fechaAnterior) &&
-        (!filtroCaja || m.caja === filtroCaja) &&
-        (!m.tipo || m.tipo === 'ingreso')
-    );
-
-    const ingresosAnterior = [...ingresosAnteriorTemp, ...ingresosAnteriorHist];
-
-    const egresosAnterior = estado.egresosCaja.filter(e =>
-        e.fecha.startsWith(fechaAnterior) &&
-        (!filtroCaja || e.caja === filtroCaja)
-    );
-
-    const movimientosAnterior = estado.movimientos.filter(m =>
-        m.fecha.startsWith(fechaAnterior) &&
-        (!filtroCaja || m.caja === filtroCaja)
-    );
-
-    // Calcular totales por caja
-    const cajas = filtroCaja ? [filtroCaja] : ['Caja 1', 'Caja 2', 'Caja 3'];
-    const detallePorCaja = [];
-    let totalGeneral = 0;
-
-    cajas.forEach(caja => {
-        // Calcular SOLO ingresos en EFECTIVO de la caja
-        let totalIngresosCaja = 0;
-
-        ingresosAnterior.filter(m => m.caja === caja).forEach(m => {
-            // Ingresos de tienda - SOLO EFECTIVO
-            const efectivo = m.valorVenta ||
-                Object.entries(m.efectivo || {}).reduce((s, [d, c]) => s + (parseInt(d) * c), 0);
-
-            // Servicios - SOLO EFECTIVO (no tarjeta)
-            let serviciosEfectivo = 0;
-            Object.values(m.servicios || {}).forEach(s => {
-                serviciosEfectivo += (s.monto || 0); // Solo monto, no tarjeta
-            });
-            (m.otrosServicios || []).forEach(s => {
-                serviciosEfectivo += (s.monto || 0); // Solo monto, no tarjeta
-            });
-
-            totalIngresosCaja += efectivo + serviciosEfectivo;
-        });
-
-        // NO agregar depósitos-inversiones (no es efectivo de caja)
-
-        // Calcular TODOS los egresos de la caja
-        const totalEgresosCaja = egresosAnterior
-            .filter(e => e.caja === caja)
-            .reduce((sum, e) => sum + (e.monto || 0), 0) +
-            movimientosAnterior
-                .filter(m => m.caja === caja && (m.tipo === 'gasto' || m.tipo === 'egreso'))
-                .reduce((sum, m) => sum + (m.monto || 0), 0);
-
-        const saldoCaja = totalIngresosCaja - totalEgresosCaja;
-
-        if (saldoCaja !== 0 || totalIngresosCaja !== 0 || totalEgresosCaja !== 0) {
-            detallePorCaja.push({
-                caja,
-                ingresos: totalIngresosCaja,
-                egresos: totalEgresosCaja,
-                saldo: saldoCaja
-            });
-            totalGeneral += saldoCaja;
-        }
-    });
-
-    return {
-        total: totalGeneral,
-        detallePorCaja,
-        fecha: fechaAnterior
-    };
-}
-
-// Función nueva para guardar el saldo manual
-window.guardarSaldoAnteriorManual = async function (input, fecha, caja) {
-    const rawValue = input.value.replace(/\./g, '');
-    const numValue = parseFloat(rawValue) || 0;
-
-    // Formatear visualmente
-    input.value = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(numValue);
-
-    // Guardar en localStorage (fallback)
-    const claveSaldoManual = `saldoAnterior_${fecha}_${caja}`;
-    localStorage.setItem(claveSaldoManual, numValue);
-    console.log('[DEBUG] Saldo Anterior MANUAL guardado:', numValue, 'Clave:', claveSaldoManual);
-
-    // **NUEVO:** También guardar en Supabase como Total General del día anterior
-    // El saldo manual de HOY corresponde al Total General de AYER
-    const partesFecha = fecha.split('-');
-    const fechaObj = new Date(partesFecha[0], partesFecha[1] - 1, partesFecha[2]);
-    fechaObj.setDate(fechaObj.getDate() - 1);
-    const anio = fechaObj.getFullYear();
-    const mes = String(fechaObj.getMonth() + 1).padStart(2, '0');
-    const dia = String(fechaObj.getDate()).padStart(2, '0');
-    const fechaAnterior = `${anio}-${mes}-${dia}`;
-
-    if (typeof db !== 'undefined' && db.guardarTotalGeneral) {
-        await db.guardarTotalGeneral(fechaAnterior, caja || 'Todas las Cajas', numValue);
-        console.log(`[DEBUG] Saldo Manual también guardado en BD como Total General de ${fechaAnterior}: ${numValue}`);
-    }
-
-    // Recargar la tabla para actualizar totales
-    if (typeof window.cargarTablaIngresosEgresos === 'function') {
-        // Pequeño delay para asegurar que el evento blur termine
-        setTimeout(() => window.cargarTablaIngresosEgresos(), 100);
-    }
-};
 
 /**
  * Renderiza el detalle del saldo del día anterior por caja
