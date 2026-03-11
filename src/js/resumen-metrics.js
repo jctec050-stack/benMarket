@@ -186,11 +186,22 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
                     const clave = `${reg.cajero}_${reg.caja}`;
                     recaudacionGuardada[clave] = reg.efectivo_ingresado;
                 });
+                console.log('[DEBUG] Recaudación recuperada de BD:', Object.keys(recaudacionGuardada).length, 'registros');
             }
         } catch (err) {
             console.error('Error recuperando recaudación:', err);
         }
     }
+
+    console.log('[DEBUG] Datos disponibles en estado:', {
+        tieneArqueos: !!estado.arqueos && estado.arqueos.length > 0,
+        tieneEgresosCaja: !!estado.egresosCaja && estado.egresosCaja.length > 0,
+        cantidadEgresosCaja: estado.egresosCaja ? estado.egresosCaja.length : 0,
+        egresosCaja: estado.egresosCaja,
+        totalEgresos: estado.egresosCaja ? estado.egresosCaja.reduce((sum, e) => sum + (e.monto || 0), 0) : 0,
+        tieneMovimientos: !!movimientos && movimientos.length > 0,
+        cantidadMovimientos: movimientos ? movimientos.length : 0
+    });
 
 
     tbody.innerHTML = '';
@@ -285,6 +296,17 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             datosPorClave[clave].totalDeclarar = efectivoFisico; // Asumimos que esto es "Total a declarar"
             datosPorClave[clave].egresos = egresos;
             datosPorClave[clave].fondoFijo = fondo;
+
+            console.log(`[DEBUG ARQUEO CERRADO - ${cajero} ${caja}]`, {
+                efectivoFisico,
+                egresos,
+                serviciosEfectivo,
+                serviciosDetalle: a.servicios,
+                otrosServicios: a.otrosServicios,
+                fondo,
+                calculo: `(${efectivoFisico} + ${egresos}) - ${serviciosEfectivo} - ${fondo} = ${ingresoTiendaCalculado}`,
+                arqueoCompleto: a
+            });
 
 
             if (ingresoTiendaCalculado < 0) ingresoTiendaCalculado = 0;
@@ -403,6 +425,16 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         // FÓRMULA CORRECTA: Total Ingresos Tienda = (Efectivo Bruto + Egresos) - Servicios - Fondo Fijo
         const totalADeclarar = temp.efectivoBruto + egresosDelCajero;
         const ingresoTiendaCalculado = totalADeclarar - temp.servicios - fondoFijo;
+
+        console.log(`[DEBUG CONSOLIDADO - ${nombreCajero} ${nombreCaja}]`, {
+            efectivoBruto: temp.efectivoBruto,
+            egresos: egresosDelCajero,
+            servicios: temp.servicios,
+            serviciosDetalle: temp.serviciosDetalle, // **NUEVO:** Ver detalle de servicios
+            fondoFijo: fondoFijo,
+            totalADeclarar: totalADeclarar,
+            ingresoTiendaCalculado: Math.max(0, ingresoTiendaCalculado)
+        });
 
 
         datosPorClave[clave].totalDeclarar = totalADeclarar;

@@ -1746,9 +1746,14 @@ function cargarHistorialMovimientosDia() {
         // **NUEVO:** Ocultar egresos arqueados para cajeros
         const noEstaArqueado = mostrarTodo || !e.arqueado;
 
+        if (!noEstaArqueado) {
+            console.log('[DEBUG] Egreso filtrado por arqueado:', e.id, e.categoria, 'arqueado:', e.arqueado);
+        }
 
         return coincideFecha && coincideCaja && noEstaArqueado;
     }).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
+
+    console.log('[DEBUG] Egresos después de filtrar:', egresosCaja.length);
 
 
     const egresosOperaciones = estado.movimientos.filter(m => {
@@ -3093,6 +3098,10 @@ async function cargarResumenDiario() {
     ];
 
     // Debug: Ver qué movimientos tienen la propiedad 'tipo'
+    console.log('Total movimientos para buscar operaciones:', todosLosMovimientosOperaciones.length);
+    const movimientosConTipo = todosLosMovimientosOperaciones.filter(m => m.tipo);
+    console.log('Movimientos con tipo:', movimientosConTipo.map(m => ({ tipo: m.tipo, descripcion: m.descripcion, caja: m.caja })));
+    console.log('Tipos únicos encontrados:', [...new Set(movimientosConTipo.map(m => m.tipo))]);
 
     let egresosTesoreriaFiltrados = todosLosMovimientosOperaciones.filter(m => {
         // **CORRECCIÓN:** Incluir todos los tipos de operaciones EXCEPTO deposito-inversiones (que tiene su propia sección)
@@ -3107,6 +3116,8 @@ async function cargarResumenDiario() {
 
         return true;
     }).map(m => ({ ...m, tipoMovimiento: m.tipo.toUpperCase() }));
+
+    console.log('Egresos Tesorería encontrados:', egresosTesoreriaFiltrados.length);
 
 
     const totalEgresosTesoreria = renderizarLista(listaEgresosTesoreria, egresosTesoreriaFiltrados, 'EgresosTesoreria');
@@ -3303,6 +3314,7 @@ window.cargarTablaIngresosEgresos = async function () {
     } else {
         saldoDiaAnterior = calculoAuto;
     }
+    console.log('[DEBUG] Usando Saldo Anterior AUTO:', saldoDiaAnterior);
 
     // Obtener egresos (reutilizar lógica de cargarTablaPagosEgresos)
     const egresosCaja = (estado.egresosCaja || []).filter(e => {
@@ -3338,6 +3350,9 @@ window.cargarTablaIngresosEgresos = async function () {
     ingresosPorServicio.forEach((servicio, index) => {
         totalServicios += servicio.monto;
     });
+    console.log('[DEBUG Total Ingresos] Total servicios:', totalServicios);
+    console.log('[DEBUG Total Ingresos] Total recaudaciones:', totalRecaudaciones);
+    console.log('[DEBUG Total Ingresos] Saldo día anterior:', saldoDiaAnterior);
 
     // **CORREGIDO**: El total de ingresos es la suma de:
     // 1. Servicios (Apostala, Wepa, etc.)
@@ -3523,6 +3538,7 @@ window.cargarTablaIngresosEgresos = async function () {
         // Validación de seguridad: No guardar si el valor es inválido o si parece un error de inicialización
         // Un Total General de 0 es válido, pero NaN o undefined no.
         if (isNaN(valorParaGuardar) || valorParaGuardar === null || typeof valorParaGuardar === 'undefined') {
+            console.warn('[DEBUG] Abortando guardado de Total General: Valor inconsistente detectado.');
             return;
         }
 
@@ -3531,6 +3547,7 @@ window.cargarTablaIngresosEgresos = async function () {
         } else {
             const claveTotal = `totalGeneral_${fechaDesde}_${cajaFiltro || 'Todas las Cajas'}`;
             localStorage.setItem(claveTotal, valorParaGuardar);
+            console.log(`[DEBUG] Guardado Total General (Local-UI) para ${fechaDesde}: ${valorParaGuardar}`);
         }
     }
 };
@@ -3624,6 +3641,30 @@ function obtenerTotalRecaudaciones(fechaDesde, fechaHasta, cajaFiltro) {
 
 // Función auxiliar: Obtener inversiones desde Operaciones (Depositos-Inversiones)
 function obtenerInversiones(fechaDesde, fechaHasta, cajaFiltro) {
+    console.log('[DEBUG obtenerInversiones] estado.movimientos completo:', estado.movimientos);
+
+    const operaciones = (estado.movimientos || []).filter(m => {
+        const fecha = m.fecha.split('T')[0];
+        const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
+        const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
+
+        // Filtrar por tipo "deposito-inversiones" (con guion)
+        const esInversion = m.tipo === 'deposito-inversiones';
+
+        return matchFecha && matchCaja && esInversion;
+    });
+
+    let totalInversiones = 0;
+    operaciones.forEach(op => {
+        totalInversiones += op.monto || 0;
+    });
+
+    console.log('[DEBUG obtenerInversiones] Total movimientos:', estado.movimientos?.length || 0);
+    console.log('[DEBUG obtenerInversiones] Operaciones filtradas:', operaciones.length);
+    console.log('[DEBUG obtenerInversiones] Total inversiones:', totalInversiones);
+    if (operaciones.length > 0) {
+        console.log('[DEBUG obtenerInversiones] Primera operación:', operaciones[0]);
+    }
 
     return totalInversiones;
 }
@@ -6572,6 +6613,12 @@ function renderizarResumenServicios() {
         });
     });
 
+    console.log('[DEBUG Resumen Servicios] Operaciones de depósito encontradas:', operacionesDeposito.length);
+    console.log('[DEBUG Resumen Servicios] Descripciones de depósitos:');
+    operacionesDeposito.forEach(op => {
+        console.log('  -', op.descripcion, '| Monto:', op.monto);
+    });
+    console.log('[DEBUG Resumen Servicios] Depósitos por servicio:', depositosPorServicio);
 
     grid.innerHTML = '';
     grid.style.display = 'block'; // Cambiar de grid a block
