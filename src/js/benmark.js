@@ -3708,16 +3708,20 @@ async function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
 
     // 1. Leer el Total General con el que cerró el día anterior (Lógica Automática)
     if (typeof db !== 'undefined' && db.obtenerTotalGeneral) {
+        console.log(`[DEBUG] Consultando Supabase para Total General de ${fechaAnterior} (${cajaFiltro || 'Todas las Cajas'})...`);
         const respuesta = await db.obtenerTotalGeneral(fechaAnterior, cajaFiltro || 'Todas las Cajas');
+        console.log(`[DEBUG] Respuesta Supabase para ${fechaAnterior}:`, respuesta);
         if (respuesta && respuesta.success && respuesta.total !== null) {
+            console.log(`[DEBUG] -> Usando valor de Supabase: ${respuesta.total}`);
             return respuesta.total;
         }
     } else {
         const claveAuto = `totalGeneral_${fechaAnterior}_${cajaFiltro || 'Todas las Cajas'}`;
         const valorAuto = localStorage.getItem(claveAuto);
+        console.log(`[DEBUG] Consultando LocalStorage (${claveAuto}): ${valorAuto}`);
 
         if (valorAuto !== null && valorAuto !== 'NaN' && valorAuto !== '') {
-            console.log(`[DEBUG] Usando Saldo Anterior Automático Local (Total General ${fechaAnterior}):`, valorAuto);
+            console.log(`[DEBUG] -> Usando valor de LocalStorage: ${valorAuto}`);
             return parseFloat(valorAuto);
         }
     }
