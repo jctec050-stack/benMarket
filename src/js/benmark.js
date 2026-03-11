@@ -3560,10 +3560,18 @@ window.cargarTablaIngresosEgresos = async function () {
     tbody.appendChild(trTotalGral);
 
     // **MODIFICADO:** Guardar Total General de la UI para evitar discrepancias por cálculos extra
-    if (fechaDesde && fechaDesde === fechaHasta) { // Solo si es un día único
+    // Solo guardar si tenemos valores consistentes (no NaN y fecha válida)
+    if (fechaDesde && fechaDesde === fechaHasta) {
         const spanTotalGral = document.getElementById('valorTotalGeneralResumen');
-        const valorParaGuardar = spanTotalGral ? parsearMoneda(spanTotalGral.textContent) : totalGeneral;
+        let valorParaGuardar = spanTotalGral ? parsearMoneda(spanTotalGral.textContent) : totalGeneral;
         
+        // Validación de seguridad: No guardar si el valor es inválido o si parece un error de inicialización
+        // Un Total General de 0 es válido, pero NaN o undefined no.
+        if (isNaN(valorParaGuardar) || valorParaGuardar === null || typeof valorParaGuardar === 'undefined') {
+            console.warn('[DEBUG] Abortando guardado de Total General: Valor inconsistente detectado.');
+            return;
+        }
+
         if (typeof db !== 'undefined' && db.guardarTotalGeneral) {
             await db.guardarTotalGeneral(fechaDesde, cajaFiltro || 'Todas las Cajas', valorParaGuardar);
         } else {
@@ -3651,13 +3659,12 @@ function obtenerTotalRecaudaciones(fechaDesde, fechaHasta, cajaFiltro) {
     }
 
     // 2. Fallback: Si no está en el DOM, usar el valor global calculado
-    if (typeof window.totalRecaudadoGlobal !== 'undefined') {
-        // console.log('[DEBUG obtenerTotalRecaudaciones] Usando variable global:', window.totalRecaudadoGlobal);
-        return window.totalRecaudadoGlobal;
+    if (typeof window.totalRecaudadoGlobal !== 'undefined' && window.totalRecaudadoGlobal !== null) {
+        const valGlobal = parseFloat(window.totalRecaudadoGlobal);
+        return isNaN(valGlobal) ? 0 : valGlobal;
     }
 
-    // 3. Fallback final: Si nada funciona, retornar 0
-    // console.log('[DEBUG obtenerTotalRecaudaciones] No se pudo obtener el total de recaudaciones (DOM ni variable)');
+    // 3. Fallback final: Si nada funciona, retornar estrictamente 0
     return 0;
 }
 
