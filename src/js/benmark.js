@@ -3305,35 +3305,14 @@ window.cargarTablaIngresosEgresos = async function () {
     // Obtener inversiones desde Operaciones
     const inversiones = obtenerInversiones(fechaDesde, fechaHasta, cajaFiltro);
 
-    // Calcular saldo del día anterior
-    let saldoDiaAnterior = 0;
-
-    // 1. Intentar obtener el valor guardado manualmente para esta fecha/caja
-    const claveSaldoManual = `saldoAnterior_${fechaDesde}_${cajaFiltro || 'General'}`;
-    // **CORRECCIÓN**: Usar localStorage.getItem pero verificar si es un valor numérico válido
-    // A veces queda basura o "NaN" en localStorage
-    let saldoManualGuardado = localStorage.getItem(claveSaldoManual);
-
-    // Validar si el valor manual es válido
-    let usarManual = false;
-    if (saldoManualGuardado !== null && saldoManualGuardado !== 'NaN' && saldoManualGuardado !== '') {
-        usarManual = true;
-    }
-
-    if (usarManual) {
-        // Si existe un valor manual válido, usarlo
-        saldoDiaAnterior = parseFloat(saldoManualGuardado);
-        console.log('[DEBUG] Usando Saldo Anterior MANUAL:', saldoDiaAnterior);
+    // Calcular saldo del día anterior (Lógica automática exclusiva)
+    let calculoAuto = await calcularSaldoDiaAnterior(fechaDesde, cajaFiltro);
+    if (typeof calculoAuto === 'object' && calculoAuto !== null) {
+        saldoDiaAnterior = calculoAuto.total || 0;
     } else {
-        // 2. Si no, calcularlo automáticamente (lógica existente o de BD)
-        let calculoAuto = await calcularSaldoDiaAnterior(fechaDesde, cajaFiltro);
-        if (typeof calculoAuto === 'object' && calculoAuto !== null) {
-            saldoDiaAnterior = calculoAuto.total || 0;
-        } else {
-            saldoDiaAnterior = calculoAuto;
-        }
-        console.log('[DEBUG] Usando Saldo Anterior AUTO:', saldoDiaAnterior);
+        saldoDiaAnterior = calculoAuto;
     }
+    console.log('[DEBUG] Usando Saldo Anterior AUTO:', saldoDiaAnterior);
 
     // Obtener egresos (reutilizar lógica de cargarTablaPagosEgresos)
     const egresosCaja = (estado.egresosCaja || []).filter(e => {
@@ -3485,22 +3464,11 @@ window.cargarTablaIngresosEgresos = async function () {
                 </div>
             `;
         } else if (i === ingresosPorServicio.length + 2) {
-            // Saldo día anterior - AHORA EDITABLE
-            const inputSaldoId = `inputSaldoAnterior_${fechaDesde}_${cajaFiltro || 'General'}`;
-
+            // Saldo día anterior - AHORA ES ESTÁTICO
             tdIngreso.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; padding: 2px 8px;">
                     <span>SALDO CAJA DÍA ANT.:</span>
-                    <div style="display: flex; align-items: center;">
-                         <input type="text" 
-                                id="${inputSaldoId}" 
-                                class="input-saldo-anterior" 
-                                value="${formatearMoneda(saldoDiaAnterior, 'gs').replace('PYG', '').trim()}"
-                                style="width: 120px; text-align: right; border: 1px solid #ccc; padding: 2px 5px; border-radius: 4px; font-weight: bold; color: inherit; background: transparent;"
-                                onfocus="this.value = parseFloat(this.value.replace(/\\./g, '')) || 0; this.select();"
-                                onblur="guardarSaldoAnteriorManual(this, '${fechaDesde}', '${cajaFiltro || 'General'}')"
-                                onkeydown="if(event.key === 'Enter') this.blur();">
-                    </div>
+                    <span style="font-weight: bold; text-align: right;">${formatearMoneda(saldoDiaAnterior, 'gs').replace('PYG', '').trim()}</span>
                 </div>
             `;
         } else {
@@ -3738,16 +3706,7 @@ async function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
     const dia = String(fecha.getDate()).padStart(2, '0');
     const fechaAnterior = `${anio}-${mes}-${dia}`;
 
-    // 1. Intentar validar si se ingresó manualmente un "Saldo Inicial" para este día
-    // Esto permite que el usuario inicie su flujo de caja cuando arranca a usar el sistema.
-    const claveInicialManual = `saldoAnterior_${fechaDesde}_${cajaFiltro || 'General'}`;
-    const valorManualLocal = localStorage.getItem(claveInicialManual);
-    if (valorManualLocal !== null && valorManualLocal !== 'NaN' && valorManualLocal !== '') {
-        console.log(`[DEBUG] Usando Saldo Inicial Manual (${fechaDesde}):`, valorManualLocal);
-        return parseFloat(valorManualLocal);
-    }
-
-    // 2. Si no hay valor manual, leer el Total General con el que cerró el día anterior
+    // 1. Leer el Total General con el que cerró el día anterior (Lógica Automática)
     if (typeof db !== 'undefined' && db.obtenerTotalGeneral) {
         const respuesta = await db.obtenerTotalGeneral(fechaAnterior, cajaFiltro || 'Todas las Cajas');
         if (respuesta && respuesta.success && respuesta.total !== null) {
@@ -3763,8 +3722,8 @@ async function calcularSaldoDiaAnterior(fechaDesde, cajaFiltro) {
         }
     }
 
-    // 3. Fallback: Si es el primer día y no hay manual ni de ayer, asume 0.
-    console.log(`[DEBUG] No hay Saldo Anterior Manual ni Total General de ayer para ${fechaAnterior}. Se retorna 0.`);
+    // 2. Fallback: Si no hay de ayer, asume 0.
+    console.log(`[DEBUG] No hay Total General de ayer para ${fechaAnterior}. Se retorna 0.`);
     return 0;
 }
 
