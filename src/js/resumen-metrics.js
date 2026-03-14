@@ -209,16 +209,26 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
     });
 
 
-    tbody.innerHTML = '';
-    tfoot.innerHTML = '';
-
     // Agrupar por cajero Y caja
     const datosPorClave = {}; // Clave: "Cajero_Caja"
 
+    // **NUEVO:** Obtener roles de usuarios para filtrar (SOLO MOSTRAR CAJEROS)
+    let mapaRoles = {};
+    if (db && db.obtenerTodosUsuarios) {
+        try {
+            const resUser = await db.obtenerTodosUsuarios();
+            if (resUser.success && resUser.data) {
+                resUser.data.forEach(u => {
+                    mapaRoles[u.username] = u.rol;
+                });
+            }
+        } catch (err) {
+            console.error('Error obteniendo roles de usuarios:', err);
+        }
+    }
+
     // --- LÓGICA HÍBRIDA: PRIORIZAR ARQUEOS CERRADOS ---
     // 1. Agrupar Arqueos existentes
-
-
     if (estado.arqueos) {
         estado.arqueos.forEach(a => {
             const fechaArqueo = a.fecha.split('T')[0];
@@ -227,6 +237,14 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             if (filtroCaja && filtroCaja !== 'Todas las Cajas' && a.caja !== filtroCaja) return;
 
             const cajero = a.cajero || 'Desconocido';
+
+            // **FILTRO DE ROL:** Solo incluir si el rol es 'cajero'
+            const rolCajero = mapaRoles[cajero] || 'cajero'; // Default a cajero si no existe
+            if (rolCajero !== 'cajero') {
+                console.log(`[Recaudación] Excluyendo arqueo de ${cajero} por rol: ${rolCajero}`);
+                return;
+            }
+
             const caja = a.caja || 'Desconocida';
             const clave = `${cajero}_${caja}`;
 
@@ -328,6 +346,10 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         if (!esIngreso) return;
 
         const cajero = m.cajero || 'Desconocido';
+
+        // **FILTRO DE ROL:** Solo incluir si el rol es 'cajero'
+        const rolCajero = mapaRoles[cajero] || 'cajero';
+        if (rolCajero !== 'cajero') return;
         const caja = m.caja || 'Desconocida';
         const clave = `${cajero}_${caja}`;
 
