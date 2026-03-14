@@ -3347,16 +3347,12 @@ window.cargarTablaIngresosEgresos = async function () {
 
     const todosEgresos = [...egresosCaja, ...egresosOperaciones];
 
-    // Construir filas de la tabla
-    tbody.innerHTML = '';
-
-    const maxFilas = Math.max(
-        ingresosPorServicio.length + 3, // +3 para Inversiones, Efectivo y Saldo Anterior
-        todosEgresos.length
-    );
-
+    // Calcular ingresos y egresos
     let totalIngresos = 0;
     let totalEgresos = 0;
+
+    // Limpiar tabla antes de renderizar
+    tbody.innerHTML = '';
 
     // Agregar filas de servicios
     let totalServicios = 0;
@@ -3380,9 +3376,11 @@ window.cargarTablaIngresosEgresos = async function () {
         totalEgresos += egreso.monto || 0;
     });
 
-    // **NUEVO**: Agrupar Egresos en 2 categorías
+    // **NUEVO**: Agrupar Egresos en categorías específicas
     let totalPagoProveedores = 0;
     let totalGastosAdmin = 0;
+    let totalRetiroFondos = 0;
+    let totalCobros = 0;
 
     todosEgresos.forEach(egreso => {
         const cat = (egreso.categoria || egreso.tipo || '').toLowerCase();
@@ -3395,9 +3393,13 @@ window.cargarTablaIngresosEgresos = async function () {
             desc.includes('banco')
         );
 
-        if (esOperacionBancaria) return; // Saltar, se agrega aparte en su propia fila
+        if (esOperacionBancaria) return;
 
-        if (cat.includes('gasto') || cat.includes('administ') || desc.includes('gasto')) {
+        if (cat.includes('retiro de fondos')) {
+            totalRetiroFondos += (egreso.monto || 0);
+        } else if (cat.includes('cobros')) {
+            totalCobros += (egreso.monto || 0);
+        } else if (cat.includes('gasto') || cat.includes('administ') || desc.includes('gasto')) {
             totalGastosAdmin += (egreso.monto || 0);
         } else {
             totalPagoProveedores += (egreso.monto || 0);
@@ -3408,6 +3410,13 @@ window.cargarTablaIngresosEgresos = async function () {
         { nombre: 'PAGO A PROVEEDORES', monto: totalPagoProveedores },
         { nombre: 'GASTOS ADMINISTRATIVOS', monto: totalGastosAdmin }
     ];
+
+    if (totalRetiroFondos > 0) {
+        itemsEgresos.push({ nombre: 'RETIRO DE FONDOS', monto: totalRetiroFondos });
+    }
+    if (totalCobros > 0) {
+        itemsEgresos.push({ nombre: 'COBROS (Tarjetas/Transf)', monto: totalCobros });
+    }
 
     // **NUEVO**: Agregar operaciones bancarias individualmente
     const operacionesBancarias = (estado.movimientos || []).filter(m => {
@@ -3426,13 +3435,19 @@ window.cargarTablaIngresosEgresos = async function () {
         return matchFecha && matchCaja && esOperacionBancaria && esDeposito;
     });
 
-    // Agregar cada operación bancaria como línea individual
+    // Obtener cada operación bancaria como línea individual
     operacionesBancarias.forEach(op => {
         itemsEgresos.push({
             nombre: op.descripcion || 'DEPOSITO/RETIRO BANCARIO',
             monto: op.monto || 0
         });
     });
+
+    // **MOVIDO Y AJUSTADO**: Calcular maxFilas después de preparar todos los items de egreso
+    const maxFilas = Math.max(
+        ingresosPorServicio.length + 3, // +3 para Inversiones, Efectivo y Saldo Anterior
+        itemsEgresos.length
+    );
 
     // Renderizar filas (solo las que tienen datos)
     for (let i = 0; i < maxFilas; i++) {
