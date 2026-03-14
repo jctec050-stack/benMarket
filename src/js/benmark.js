@@ -2427,16 +2427,20 @@ async function guardarEgresoCaja(event) {
     const referencia = document.getElementById('referenciaEgresoCaja').value;
     const cajero = sessionStorage.getItem('usuarioActual');
 
-    // **NUEVO:** Validación de Proveedor
-    if (categoria === 'Pago a Proveedor') {
+    // **NUEVO:** Validación de Proveedor/Receptor
+    let receptor = null;
+    if (categoria === 'Pago a Proveedor' || categoria === 'Retiro de Fondos') {
         const proveedorElement = document.getElementById('proveedorEgresoCaja');
         if (proveedorElement) {
-            const proveedor = proveedorElement.value.trim();
-            if (!proveedor) {
-                mostrarMensaje('Por favor, ingrese el nombre del proveedor.', 'advertencia');
+            const valorInput = proveedorElement.value.trim();
+            if (!valorInput) {
+                mostrarMensaje(`Por favor, ingrese el nombre del ${categoria === 'Pago a Proveedor' ? 'proveedor' : 'receptor'}.`, 'advertencia');
                 return;
             }
-            descripcion = `${proveedor} - ${descripcion}`;
+            if (categoria === 'Pago a Proveedor') {
+                descripcion = `${valorInput} - ${descripcion}`;
+            }
+            receptor = valorInput;
         }
     }
 
@@ -2455,6 +2459,12 @@ async function guardarEgresoCaja(event) {
     const efectivo = null;
 
     // Crear objeto de egreso
+    let numeroRecibo = null;
+    if (categoria === 'Retiro de Fondos' && !esEdicion) {
+        estado.ultimoNumeroRecibo = (estado.ultimoNumeroRecibo || 0) + 1;
+        numeroRecibo = estado.ultimoNumeroRecibo;
+    }
+
     const egreso = {
         id: esEdicion ? idEditar : generarId(),
         fecha: new Date(fecha).toISOString(), // Asegurar formato ISO
@@ -2463,6 +2473,9 @@ async function guardarEgresoCaja(event) {
         categoria: categoria,
         descripcion: descripcion,
         monto: monto,
+        moneda: 'gs',
+        receptor: receptor,
+        numeroRecibo: numeroRecibo,
         referencia: referencia,
         efectivo: null, // Sin desglose
         arqueado: false
@@ -2472,6 +2485,14 @@ async function guardarEgresoCaja(event) {
         // Actualizar egreso existente
         const index = estado.egresosCaja.findIndex(e => e.id === idEditar);
         if (index !== -1) {
+            if (categoria === 'Retiro de Fondos') {
+                if (estado.egresosCaja[index].numeroRecibo) {
+                    egreso.numeroRecibo = estado.egresosCaja[index].numeroRecibo;
+                } else {
+                    estado.ultimoNumeroRecibo = (estado.ultimoNumeroRecibo || 0) + 1;
+                    egreso.numeroRecibo = estado.ultimoNumeroRecibo;
+                }
+            }
             estado.egresosCaja[index] = egreso;
             mostrarMensaje('Egreso actualizado con éxito.', 'exito');
         }
@@ -2479,6 +2500,10 @@ async function guardarEgresoCaja(event) {
         // Agregar nuevo egreso
         estado.egresosCaja.push(egreso);
         mostrarMensaje('Egreso guardado con éxito.', 'exito');
+    }
+
+    if (categoria === 'Retiro de Fondos') {
+        imprimirReciboGasto(egreso);
     }
 
     // **NUEVO:** Trigger reactive update
@@ -2589,7 +2614,9 @@ function cargarHistorialEgresosCaja() {
                         <small><strong>Descripción:</strong> ${egreso.descripcion}</small>
                     </div>
                     ${egreso.referencia ? `<div class="movimiento-referencia"><small><strong>Referencia:</strong> ${egreso.referencia}</small></div>` : ''}
+                    ${egreso.numeroRecibo ? `<div class="movimiento-recibo"><small><strong>Recibo:</strong> ${String(egreso.numeroRecibo).padStart(6, '0')}</small></div>` : ''}
                     <div class="movimiento-acciones" style="display: flex; gap: 5px;">
+                        ${egreso.numeroRecibo ? `<button class="btn-accion reimprimir" onclick="imprimirReciboGastoDesdeEgresos('${egreso.id}')">Reimprimir</button>` : ''}
                         <button class="btn-accion editar" onclick="iniciarEdicionEgresoCaja('${egreso.id}')">Editar</button>
                         <button class="btn-accion eliminar" onclick="eliminarEgresoCaja('${egreso.id}')">Eliminar</button>
                     </div>
@@ -2599,6 +2626,15 @@ function cargarHistorialEgresosCaja() {
 
         listaEgresosCaja.appendChild(div);
     });
+}
+
+function imprimirReciboGastoDesdeEgresos(id) {
+    const egreso = estado.egresosCaja.find(e => e.id === id);
+    if (egreso) {
+        imprimirReciboGasto(egreso);
+    } else {
+        mostrarMensaje('No se encontró el egreso.', 'peligro');
+    }
 }
 
 /**
@@ -2616,14 +2652,18 @@ function iniciarEdicionEgresoCaja(id) {
     document.getElementById('descripcionEgresoCaja').value = egreso.descripcion;
     document.getElementById('referenciaEgresoCaja').value = egreso.referencia || '';
 
-    // Cargar desglose de billetes
-    document.querySelectorAll('#tablaDenominacionesEgresoCaja .cantidad-denominacion-egreso').forEach(input => {
-        const denominacion = input.dataset.denominacion;
-        input.value = egreso.efectivo[denominacion] || 0;
-    });
+    // Simulate change so UI shows receptor fields if needed
+    const evt = new Event('change');
+    document.getElementById('categoriaEgresoCaja').dispatchEvent(evt);
 
-    // Recalcular total
-    calcularTotalEgresoCaja();
+    if (egreso.receptor) {
+        document.getElementById('proveedorEgresoCaja').value = egreso.receptor;
+    } else if (egreso.categoria === 'Pago a Proveedor' || egreso.categoria === 'Retiro de Fondos') {
+        document.getElementById('proveedorEgresoCaja').value = '';
+    }
+
+    // Set the amount (monto)
+    document.getElementById('montoEgresoCaja').value = formatearMoneda(egreso.monto, 'gs');
 
     // Cambiar texto del botón
     document.querySelector('#formularioEgresoCaja button[type="submit"]').textContent = 'Actualizar Egreso';
@@ -6358,19 +6398,28 @@ document.addEventListener('DOMContentLoaded', () => {
         cajaInput.value = cajaSeleccionada;
     }
 
-    // **NUEVO:** Lógica para mostrar/ocultar Proveedor
+    // **NUEVO:** Lógica para mostrar/ocultar Proveedor/Receptor
     const categoriaSelect = document.getElementById('categoriaEgresoCaja');
     const grupoProveedor = document.getElementById('grupoProveedorEgreso');
 
     if (categoriaSelect && grupoProveedor) {
         categoriaSelect.addEventListener('change', () => {
-            if (categoriaSelect.value === 'Pago a Proveedor') {
+            const isProveedor = categoriaSelect.value === 'Pago a Proveedor';
+            const isRetiro = categoriaSelect.value === 'Retiro de Fondos';
+            const labelProv = document.getElementById('labelProveedorEgreso');
+            const inputProv = document.getElementById('proveedorEgresoCaja');
+            
+            if (isProveedor || isRetiro) {
                 grupoProveedor.style.display = 'block';
-                document.getElementById('proveedorEgresoCaja').required = true;
+                inputProv.required = true;
+                if (labelProv) {
+                    labelProv.textContent = isProveedor ? 'Proveedor:' : 'Receptor:';
+                }
+                inputProv.placeholder = isProveedor ? 'Nombre del proveedor' : 'Nombre de quien recibe';
             } else {
                 grupoProveedor.style.display = 'none';
-                document.getElementById('proveedorEgresoCaja').value = '';
-                document.getElementById('proveedorEgresoCaja').required = false;
+                inputProv.value = '';
+                inputProv.required = false;
             }
         });
     }
