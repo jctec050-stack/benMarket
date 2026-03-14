@@ -314,9 +314,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             });
 
 
-            if (ingresoTiendaCalculado < 0) ingresoTiendaCalculado = 0;
-
-            // Almacenar el Total Ingresos Tienda calculado
+            // Almacenar el Total Ingresos Tienda calculado (permitiendo negativos)
             datosPorClave[clave].ingresoTiendaCalculado = ingresoTiendaCalculado;
         });
     }
@@ -445,7 +443,8 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         datosPorClave[clave].totalDeclarar = totalADeclarar;
         datosPorClave[clave].egresos = egresosDelCajero;
         datosPorClave[clave].fondoFijo = fondoFijo;
-        datosPorClave[clave].ingresoTiendaCalculado = Math.max(0, ingresoTiendaCalculado);
+        // Permitir ingresos tienda negativos para identificar diferencias
+        datosPorClave[clave].ingresoTiendaCalculado = ingresoTiendaCalculado;
         datosPorClave[clave].efectivo = temp.efectivoBruto;
     });
 
@@ -464,7 +463,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         const egresosSystem = d.egresos || 0;
         const fondoSystem = d.fondoFijo || 0;
         // Guardamos el "Ingreso Tienda" real calculado para comparaciones
-        const ingresoTiendaReal = d.ingresoTiendaCalculado || 0;
+        const ingresoTiendaReal = d.ingresoTiendaCalculado;
 
 
 
