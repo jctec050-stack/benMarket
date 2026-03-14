@@ -248,7 +248,8 @@ const db = {
     async guardarEgresoCaja(egreso) {
         if (supabaseClient) {
             try {
-                const { user_id, ...egresoLimpio } = egreso;
+                // Strip fields that are not in the Supabase schema to avoid PGRST204 errors
+                const { user_id, moneda, receptor, numeroRecibo, ...egresoLimpio } = egreso;
                 const { data, error } = await supabaseClient
                     .from('egresos_caja')
                     .upsert([egresoLimpio]);
