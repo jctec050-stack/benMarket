@@ -472,33 +472,10 @@ window.guardarFondoFijo = function () {
  */
 function cargarFondoFijoEnArqueo() {
     const fondoFijoInput = document.getElementById('fondoFijo');
-    const cajaInput = document.getElementById('caja');
+    if (!fondoFijoInput) return;
 
-    if (!fondoFijoInput || !cajaInput) {
-
-        return;
-    }
-
-    const cajaSeleccionada = cajaInput.value;
-    let totalFondoFijo = 0;
-
-    if (cajaSeleccionada === 'Todas las cajas') {
-        // Sumar el fondo fijo de todas las cajas disponibles
-        Object.values(estado.fondoFijoPorCaja).forEach(caja => {
-            if (caja && caja.monto) {
-                totalFondoFijo += caja.monto;
-            }
-        });
-
-    } else {
-        const fondoFijo = estado.fondoFijoPorCaja[cajaSeleccionada];
-        if (fondoFijo && fondoFijo.monto) {
-            totalFondoFijo = fondoFijo.monto;
-        }
-    }
-
-    const montoFormateado = totalFondoFijo.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-    fondoFijoInput.value = montoFormateado;
+    // **MODIFICADO:** Siempre iniciar en 0 por solicitud del usuario
+    fondoFijoInput.value = "0";
 
     // Recalcular arqueo con el nuevo fondo fijo
     if (typeof actualizarArqueoFinal === 'function') {
