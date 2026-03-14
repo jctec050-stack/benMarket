@@ -221,7 +221,6 @@ async function initSupabaseData() {
     }
 
     cargarResumenDiario();
-    cargarResumenDiario();
     if (typeof window.cargarTablaPagosEgresos === 'function') window.cargarTablaPagosEgresos();
 
     // Configurar interfaz según rol

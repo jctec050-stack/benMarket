@@ -188,7 +188,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             if (registros && registros.length > 0) {
                 registros.forEach(reg => {
                     // Normalizar clave para coincidir con la generación posterior
-                    const clave = `${reg.cajero}_${reg.caja}`;
+                    const clave = `${reg.cajero.trim().toUpperCase()}_${reg.caja.trim().toUpperCase()}`;
                     recaudacionGuardada[clave] = reg.efectivo_ingresado;
                 });
                 console.log('[DEBUG] Recaudación recuperada de BD:', Object.keys(recaudacionGuardada).length, 'registros');
@@ -246,7 +246,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             }
 
             const caja = a.caja || 'Desconocida';
-            const clave = `${cajero}_${caja}`;
+            const clave = `${cajero.trim().toUpperCase()}_${caja.trim().toUpperCase()}`;
 
             if (!datosPorClave[clave]) {
                 datosPorClave[clave] = {
@@ -351,7 +351,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         const rolCajero = mapaRoles[cajero] || 'cajero';
         if (rolCajero !== 'cajero') return;
         const caja = m.caja || 'Desconocida';
-        const clave = `${cajero}_${caja}`;
+        const clave = `${cajero.trim().toUpperCase()}_${caja.trim().toUpperCase()}`;
 
         // Si ya cargamos datos desde un arqueo cerrado, ignoramos movimientos sueltos
         if (datosPorClave[clave] && datosPorClave[clave].esArqueoCerrado) return;
@@ -530,7 +530,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
 
         // Si no está en localStorage, intentar recuperar de Supabase (prioridad 2)
         if (!storedValue && recaudacionGuardada) {
-            const claveSupabase = `${nombreCajero}_${nombreCaja}`;
+            const claveSupabase = `${nombreCajero.trim().toUpperCase()}_${nombreCaja.trim().toUpperCase()}`;
             storedValue = recaudacionGuardada[claveSupabase];
         }
 
