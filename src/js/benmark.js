@@ -2275,11 +2275,8 @@ function cargarHistorialGastos() {
     if (userRole === 'cajero') {
         const cajaAsignada = sessionStorage.getItem('cajaSeleccionada');
         movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaAsignada);
-    } else if (userRole === 'tesoreria') {
-        // Tesorería solo ve los movimientos de su propia caja.
-        movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === 'Tesoreria');
-    } else if (userRole === 'admin') {
-        // El admin puede filtrar por cualquier caja usando el selector.
+    } else if (userRole === 'tesoreria' || userRole === 'admin') {
+        // Tesorería y Admin pueden ver todo o filtrar por caja específica
         if (cajaFiltro) {
             movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaFiltro);
         }
