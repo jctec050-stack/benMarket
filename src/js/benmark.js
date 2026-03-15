@@ -4662,6 +4662,26 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         document.getElementById('nombreUsuarioNav').textContent = `Usuario: ${usuarioActual} (${userRole})`;
+        
+        // Agregar botón de actualización forzada si no existe
+        const navUsuario = document.querySelector('.nav-usuario');
+        if (navUsuario && !document.getElementById('btnForceRefresh')) {
+            const refreshBtn = document.createElement('a');
+            refreshBtn.id = 'btnForceRefresh';
+            refreshBtn.href = '#';
+            refreshBtn.className = 'nav-link-refresh';
+            refreshBtn.style.marginRight = '15px';
+            refreshBtn.style.color = 'var(--color-primario)';
+            refreshBtn.style.fontWeight = 'bold';
+            refreshBtn.style.textDecoration = 'none';
+            refreshBtn.innerHTML = '🔄 Actualizar Datos';
+            refreshBtn.onclick = (e) => {
+                e.preventDefault();
+                if (window.forceRefresh) window.forceRefresh();
+            };
+            navUsuario.insertBefore(refreshBtn, navUsuario.querySelector('.nav-link-logout'));
+        }
+
         const cajaSeleccionada = sessionStorage.getItem('cajaSeleccionada');
         configurarVistaPorRol(userRole, cajaSeleccionada, usuarioActual);
         return true; // Continuar si está autenticado

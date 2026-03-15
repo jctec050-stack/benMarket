@@ -5,5 +5,16 @@
     { "source": "/images/:path*", "destination": "/src/images/:path*" },
     { "source": "/", "destination": "/src/pages/index.html" },
     { "source": "/:page", "destination": "/src/pages/:page" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*).(html|js|css)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        }
+      ]
+    }
   ]
 }

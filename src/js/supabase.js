@@ -41,7 +41,14 @@ function inicializarSupabase() {
     }
 
     if (typeof supabase !== 'undefined') {
-        supabaseClient = supabase.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY);
+        supabaseClient = supabase.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY, {
+            global: {
+                headers: {
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache'
+                }
+            }
+        });
         supabaseInicializado = true;
         console.log('Supabase inicializado correctamente');
 
@@ -829,6 +836,50 @@ window.sincronizarDatosOffline = async function () {
 
 // Mantener compatibilidad con nombre anterior si es necesario, o eliminar
 window.migrarDatosALocalStorage = window.sincronizarDatosOffline;
+
+/**
+ * Fuerza una recarga completa de los datos desde el servidor
+ * Limpia el localStorage de los datos principales y vuelve a inicializar
+ */
+window.forceRefresh = async function () {
+    console.log('🔄 Ejecutando recarga forzada de datos...');
+    
+    // Lista de llaves de localStorage a limpiar
+    const keysToClear = [
+        'arqueos',
+        'movimientos',
+        'egresosCaja',
+        'movimientosTemporales',
+        'depositosServicios',
+        'recaudacion',
+        'total_general'
+    ];
+    
+    // También limpiar llaves específicas con prefijos o fechas que conocemos
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+            key.startsWith('recaudacion_') || 
+            key.startsWith('totalGeneral_') ||
+            key.startsWith('serviciosPAGOS_')
+        )) {
+            localStorage.removeItem(key);
+            i--; // Ajustar índice después de remover
+        }
+    }
+    
+    keysToClear.forEach(key => localStorage.removeItem(key));
+    
+    showNotification('Recargando datos desde el servidor...', 'info');
+    
+    // Volver a inicializar los datos
+    if (window.initSupabaseData) {
+        await window.initSupabaseData();
+        showNotification('Datos actualizados correctamente.', 'success');
+    } else {
+        window.location.reload();
+    }
+};
 
 // Esquema de tablas para Supabase
 const ESQUEMA_TABLAS = {
