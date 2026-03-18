@@ -3648,8 +3648,8 @@ function obtenerTotalRecaudaciones(fechaDesde, fechaHasta, cajaFiltro) {
     const rowTotal = document.getElementById('rowTotalRecaudacion');
     if (rowTotal) {
         const cells = rowTotal.querySelectorAll('td');
-        if (cells.length >= 6) {
-            const subtotalText = cells[5].textContent;
+        if (cells.length >= 2) {
+            const subtotalText = cells[1].textContent;
             const subtotalValue = parsearMoneda(subtotalText);
             // console.log('[DEBUG obtenerTotalRecaudaciones] Leído del DOM:', subtotalValue);
             return subtotalValue;

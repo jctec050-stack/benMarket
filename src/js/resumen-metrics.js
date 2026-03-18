@@ -697,7 +697,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         }
 
         // **NUEVO:** Guardar el total en variable global y actualizar tabla de Ingresos/Egresos
-        window.totalRecaudadoGlobal = tSub;
+        window.totalRecaudadoGlobal = tIngresoTienda;
 
         // **NUEVO:** Calcular Gran Total Ventas Tienda (Tarjeta + PedidosYa + Credito + Ingresos Tienda)
         const granTotalVentas = (window.subtotalTarjetaGlobal || 0) + 
