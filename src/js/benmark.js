@@ -44,6 +44,16 @@ window.addEventListener('load', async () => {
         // Error obteniendo perfil, redirigir
         window.location.href = '/pages/login.html';
     }
+
+    // **NUEVO:** Cargar y configurar persistencia de cotizaciones
+    await cargarCotizaciones();
+    const idsCots = ['cotDolarMovimiento', 'cotRealMovimiento', 'cotPesoMovimiento'];
+    idsCots.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', guardarCotizaciones);
+        }
+    });
 });
 
 // Servicios movidos a config.js
@@ -580,6 +590,63 @@ function calcularTotalEgresoCaja() {
     }
 }
 
+// ===== FUNCIONES PARA COTIZACIONES =====
+
+async function guardarCotizaciones() {
+    const d = document.getElementById('cotDolarMovimiento');
+    const r = document.getElementById('cotRealMovimiento');
+    const p = document.getElementById('cotPesoMovimiento');
+
+    if (d && r && p) {
+        const cotizaciones = {
+            usd: d.value,
+            brl: r.value,
+            ars: p.value
+        };
+
+        // Guardar en DB (Supabase)
+        if (window.db && window.db.guardarCotizaciones) {
+            await window.db.guardarCotizaciones(cotizaciones);
+        }
+
+        // Respaldo local
+        localStorage.setItem('cotizaciones_persistentes', JSON.stringify(cotizaciones));
+    }
+}
+
+async function cargarCotizaciones() {
+    let cotizaciones = null;
+
+    // Intentar cargar de DB
+    if (window.db && window.db.obtenerCotizaciones) {
+        const res = await window.db.obtenerCotizaciones();
+        if (res.success && res.data) {
+            cotizaciones = res.data;
+        }
+    }
+
+    // Fallback a localStorage
+    if (!cotizaciones) {
+        const saved = localStorage.getItem('cotizaciones_persistentes');
+        if (saved) {
+            try {
+                cotizaciones = JSON.parse(saved);
+            } catch (e) {
+                console.error('Error al parsear cotizaciones locales:', e);
+            }
+        }
+    }
+
+    if (cotizaciones) {
+        const d = document.getElementById('cotDolarMovimiento');
+        const r = document.getElementById('cotRealMovimiento');
+        const p = document.getElementById('cotPesoMovimiento');
+        if (d && cotizaciones.usd) d.value = cotizaciones.usd;
+        if (r && cotizaciones.brl) r.value = cotizaciones.brl;
+        if (p && cotizaciones.ars) p.value = cotizaciones.ars;
+    }
+}
+
 function obtenerCotizacion(moneda, esMovimiento = false) {
     const sufijo = esMovimiento ? 'Movimiento' : '';
     switch (moneda) {
@@ -796,7 +863,7 @@ async function agregarMovimiento() {
     // **NUEVO:** Trigger reactive update
     await verificarYActualizarArqueo(movimiento.fecha, movimiento.caja);
 
-    limpiarFormularioMovimiento();
+    await limpiarFormularioMovimiento();
 
     // Cerrar el modal si está abierto
     cerrarModal();
@@ -858,8 +925,12 @@ function limpiarFilasServiciosDinamicos() {
     filasEfectivoDinamicas.forEach(fila => fila.remove());
 }
 
-function limpiarFormularioMovimiento() {
+async function limpiarFormularioMovimiento() {
     document.getElementById('formularioMovimiento').reset();
+    
+    // **NUEVO:** Restaurar cotizaciones después del reset
+    await cargarCotizaciones();
+
     document.getElementById('indiceMovimientoEditar').value = ''; // Limpiar índice de edición
 
     // **CORRECCIÓN:** Limpiar inputs de cantidad de billetes en la tabla de efectivo

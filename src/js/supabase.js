@@ -744,6 +744,44 @@ const db = {
             localStorage.setItem('movimientosTemporales', JSON.stringify(next));
             return { success: true };
         }
+    },
+
+    async obtenerCotizaciones() {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('cotizaciones')
+                    .select('*')
+                    .eq('id', 'actual')
+                    .single();
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                console.error('Error obteniendo cotizaciones:', error);
+                return { success: false, error };
+            }
+        } else {
+            const saved = JSON.parse(localStorage.getItem('cotizaciones_persistentes')) || { usd: '7.000', brl: '1.250', ars: '0' };
+            return { success: true, data: saved };
+        }
+    },
+
+    async guardarCotizaciones(cotizaciones) {
+        if (supabaseClient) {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('cotizaciones')
+                    .upsert([{ id: 'actual', ...cotizaciones, actualizado_en: new Date().toISOString() }]);
+                if (error) throw error;
+                return { success: true, data };
+            } catch (error) {
+                console.error('Error guardando cotizaciones:', error);
+                return { success: false, error };
+            }
+        } else {
+            localStorage.setItem('cotizaciones_persistentes', JSON.stringify(cotizaciones));
+            return { success: true };
+        }
     }
 };
 
