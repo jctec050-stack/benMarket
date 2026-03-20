@@ -2056,6 +2056,22 @@ async function guardarArqueo() {
 
 // Funciones de Modal
 function abrirModal(contenidoId, titulo) {
+    // **NUEVO:** Alerta para cajeros sobre el fondo fijo
+    const userRole = sessionStorage.getItem('userRole');
+    if (userRole === 'cajero' && contenidoId !== 'contenido-fondo-fijo') {
+        const cajaActual = sessionStorage.getItem('cajaSeleccionada') || 'Caja 1';
+        const fondoFijoRef = estado.fondoFijoPorCaja[cajaActual];
+        const montoFondoFijo = fondoFijoRef ? fondoFijoRef.monto : 0;
+
+        if (montoFondoFijo <= 0) {
+            if (window.showNotification) {
+                window.showNotification('⚠️ Por favor, ingrese primero el fondo fijo para evitar diferencias.', 'warning', 6000);
+            } else if (typeof mostrarMensaje === 'function') {
+                mostrarMensaje('⚠️ Por favor, ingrese primero el fondo fijo.', 'advertencia');
+            }
+        }
+    }
+
     // Asegurarse de que el contenido del modal de efectivo esté generado
     if (contenidoId === 'contenido-efectivo') {
         inicializarModalEfectivo();
