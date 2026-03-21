@@ -294,16 +294,19 @@ function obtenerFechaHoraLocalISO() {
 function formatearFechaParaSupa(valorInput) {
     if (!valorInput) {
         const ahora = new Date();
-        const offsetLocal = getLocalOffset();
-        const tzo = -ahora.getTimezoneOffset();
-        const localISOTime = new Date(ahora.getTime() + (tzo * 60000)).toISOString().slice(0, 19);
-        return localISOTime + offsetLocal;
+        // Generar ISO local literal sin offset para TIMESTAMP sin zona horaria
+        const offset = ahora.getTimezoneOffset() * 60000;
+        return new Date(ahora.getTime() - offset).toISOString().slice(0, 19);
     }
-    // Si ya tiene offset (formato ISO completo), devolverlo tal cual
-    if (valorInput.includes('+') || (valorInput.includes('-') && valorInput.length > 10 && valorInput.lastIndexOf('-') > 7)) {
-        return valorInput;
+    // Si ya es un string ISO con offset o Z, lo limpiamos para dejarlo literal local
+    if (valorInput.includes('T')) {
+        // Retornar solo YYYY-MM-DDTHH:mm:ss
+        let localISO = valorInput.split('.')[0].replace('Z', '');
+        if (localISO.includes('+')) localISO = localISO.split('+')[0];
+        if (localISO.length === 16) localISO += ':00';
+        return localISO.slice(0, 19);
     }
-    return `${valorInput}:00${getLocalOffset()}`;
+    return valorInput;
 }
 
 function obtenerFechaLocalISO(date) {

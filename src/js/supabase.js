@@ -345,12 +345,11 @@ const db = {
     async obtenerEgresosCajaPorFecha(fecha) {
         if (supabaseClient) {
             try {
-                const offset = getLocalOffset();
                 const { data, error } = await supabaseClient
                     .from('egresos_caja')
                     .select('*')
-                    .gte('fecha', `${fecha}T00:00:00${offset}`)
-                    .lte('fecha', `${fecha}T23:59:59${offset}`)
+                    .gte('fecha', `${fecha}T00:00:00`)
+                    .lte('fecha', `${fecha}T23:59:59`)
                     .order('fecha', { ascending: false });
                 if (error) throw error;
                 return { success: true, data };
@@ -484,12 +483,11 @@ const db = {
     async obtenerMovimientosPorFecha(fecha) {
         if (supabaseClient) {
             try {
-                const offset = getLocalOffset();
                 const { data, error } = await supabaseClient
                     .from('movimientos')
                     .select('*')
-                    .gte('fecha', `${fecha}T00:00:00${offset}`)
-                    .lte('fecha', `${fecha}T23:59:59${offset}`)
+                    .gte('fecha', `${fecha}T00:00:00`)
+                    .lte('fecha', `${fecha}T23:59:59`)
                     .order('fecha', { ascending: false });
 
                 if (error) throw error;
@@ -723,12 +721,11 @@ const db = {
     async obtenerMovimientosTemporalesPorFechaCaja(fecha, caja) {
         if (supabaseClient) {
             try {
-                const offset = getLocalOffset();
                 let query = supabaseClient
                     .from('movimientos_temporales')
                     .select('*')
-                    .gte('fecha', `${fecha}T00:00:00${offset}`)
-                    .lte('fecha', `${fecha}T23:59:59${offset}`)
+                    .gte('fecha', `${fecha}T00:00:00`)
+                    .lte('fecha', `${fecha}T23:59:59`)
                     .order('fecha', { ascending: false });
                 if (caja) query = query.eq('caja', caja);
                 const { data, error } = await query;
@@ -1098,9 +1095,8 @@ async function obtenerArqueosPorFecha(fecha) {
             throw new Error('Supabase no está inicializado');
         }
 
-        const offset = getLocalOffset();
-        const fechaInicio = `${fecha}T00:00:00${offset}`;
-        const fechaFin = `${fecha}T23:59:59${offset}`;
+        const fechaInicio = `${fecha}T00:00:00`;
+        const fechaFin = `${fecha}T23:59:59`;
 
         const { data, error } = await supabaseClient
             .from('arqueos')
