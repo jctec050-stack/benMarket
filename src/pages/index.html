@@ -491,9 +491,14 @@
                     }
                 });
 
-                // **ELIMINADO:** No cargar el valor guardado automáticamente por solicitud del usuario
-                // Siempre iniciar en 0
-                montoFondoFijoInput.value = "0";
+                // Cargar el valor guardado para la caja actual si existe
+                const cajaActual = sessionStorage.getItem('cajaSeleccionada') || 'Caja 1';
+                if (typeof estado !== 'undefined' && estado.fondoFijoPorCaja && estado.fondoFijoPorCaja[cajaActual]) {
+                    const montoFondo = estado.fondoFijoPorCaja[cajaActual].monto;
+                    montoFondoFijoInput.value = new Intl.NumberFormat('es-PY').format(montoFondo);
+                } else {
+                    montoFondoFijoInput.value = "0";
+                }
             }
 
             if (typeof window.actualizarMetricasIngresos === 'function') {

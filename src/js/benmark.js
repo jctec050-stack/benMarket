@@ -489,8 +489,20 @@ function cargarFondoFijoEnArqueo() {
     const fondoFijoInput = document.getElementById('fondoFijo');
     if (!fondoFijoInput) return;
 
-    // **MODIFICADO:** Siempre iniciar en 0 por solicitud del usuario
-    fondoFijoInput.value = "0";
+    // Obtener la caja seleccionada en el arqueo
+    const cajaSeleccionada = document.getElementById('caja')?.value || 'Caja 1';
+    
+    // Buscar si hay un fondo fijo guardado para esa caja en el estado persistente
+    const fondoFijo = estado.fondoFijoPorCaja[cajaSeleccionada];
+    
+    if (fondoFijo && fondoFijo.monto !== undefined) {
+        // Formatear el monto antes de asignarlo (Intl.NumberFormat para puntos de miles)
+        fondoFijoInput.value = new Intl.NumberFormat('es-PY').format(fondoFijo.monto);
+        console.log(`Cargando fondo fijo para ${cajaSeleccionada}: ${fondoFijo.monto}`);
+    } else {
+        // Fallback a 0 si no hay fondo fijo registrado para esa caja
+        fondoFijoInput.value = "0";
+    }
 
     // Recalcular arqueo con el nuevo fondo fijo
     if (typeof actualizarArqueoFinal === 'function') {
@@ -2059,7 +2071,17 @@ async function guardarArqueo() {
             // **NUEVO:** Sincronizar con la tabla de Recaudación (Resumen Tesorería)
             if (window.db && window.db.guardarRecaudacion) {
                 const soloFecha = arqueo.fecha.split('T')[0];
-                window.db.guardarRecaudacion(soloFecha, arqueo.cajero, arqueo.caja, totalIngresosParaGuardar)
+                
+                // Calcular "Total Ingresos Tienda" (Efectivo Bruto + Egresos - Servicios Efectivo - Fondo Fijo)
+                // para que coincida exactamente con lo que muestra la UI del Arqueo
+                const totalServiciosEfectivo = Object.values(totales.servicios).flat().reduce((sum, s) => sum + (s.monto || 0), 0);
+                const totalEgresosSuma = todosLosEgresos.reduce((sum, e) => sum + (e.monto || 0), 0);
+                const totalADeclararSistema = totalEgresosSuma + totalEfectivoBruto;
+                const totalIngresosTiendaRecaudacion = totalADeclararSistema - totalServiciosEfectivo - arqueo.fondoFijo;
+
+                console.log(`Sincronizando Recaudación: Fecha=${soloFecha}, Monto=${totalIngresosTiendaRecaudacion}`);
+
+                window.db.guardarRecaudacion(soloFecha, arqueo.cajero, arqueo.caja, totalIngresosTiendaRecaudacion)
                     .then(success => {
                         if (success) {
                             console.log('✓ Recaudación sincronizada automáticamente con el arqueo.');
