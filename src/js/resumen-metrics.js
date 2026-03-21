@@ -476,13 +476,16 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         const { nombreCajero, nombreCaja } = d;
 
         // **NUEVA VALIDACIÓN:** No mostrar filas que no tienen actividad real 
-        // (Ventas, Egresos o Efectivo que no sea el fondo fijo inicial)
-        const tieneActividad = (d.tarjeta || 0) > 0 || (d.pedidosYa || 0) > 0 || (d.credito || 0) > 0 || (d.egresos || 0) > 0 || (d.totalDeclarar - d.egresos) > 0;
+        // Solo mostrar si hay algún valor mayor a cero en las columnas de ingreso o egreso
+        const tieneActividadReal = 
+            (d.tarjeta || 0) !== 0 || 
+            (d.pedidosYa || 0) !== 0 || 
+            (d.credito || 0) !== 0 || 
+            (d.egresos || 0) !== 0 || 
+            (d.totalDeclarar - (d.egresos || 0)) !== 0; // Efectivo Bruto != 0
         
-        // Si el saldo es exactamente el fondo fijo negativo (significa que no hubo ingresos reales) y no hay actividad, saltar
-        if (!tieneActividad && d.ingresoTiendaCalculado === -d.fondoFijo) {
-            console.log(`[Recaudacion] Omitiendo fila sin actividad para ${nombreCajero} (${nombreCaja})`);
-            return; 
+        if (!tieneActividadReal) {
+            return; // Omitir fila sin movimientos
         }
 
         const row = document.createElement('tr');
