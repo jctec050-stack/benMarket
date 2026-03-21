@@ -1967,17 +1967,35 @@ async function guardarArqueo() {
         }
     };
 
-    // **NUEVO:** Verificar modo edición
-    const idEdicion = document.getElementById('idArqueoEditar')?.value;
-    const esEdicion = !!idEdicion;
+    // **NUEVO:** Verificar modo edición o detectar duplicado para evitar líneas múltiples por día/caja
+    let idEdicion = document.getElementById('idArqueoEditar')?.value;
+    let esEdicion = !!idEdicion;
+
+    // Si no estamos en modo edición explícito, buscar si ya existe un arqueo para esta fecha, caja y cajero
+    if (!esEdicion) {
+        const soloFecha = (arqueo.fecha || '').slice(0, 10);
+        const arqueoExistente = (estado.arqueos || []).find(a => 
+            (a.fecha || '').slice(0, 10) === soloFecha && 
+            a.caja === arqueo.caja && 
+            a.cajero === arqueo.cajero
+        );
+        
+        if (arqueoExistente) {
+            console.log(`[Arqueo] Detectado arqueo existente para ${soloFecha} - ${arqueo.caja} (${arqueo.cajero}). Cambiando a modo actualización para evitar duplicados.`);
+            idEdicion = arqueoExistente.id;
+            arqueo.id = idEdicion;
+            esEdicion = true;
+        }
+    }
 
     if (esEdicion) {
-        // Si es edición, recuperar el objeto original para preservar datos si es necesario, 
+        // Si es edición (o detectamos duplicado), recuperar el objeto original para preservar datos si es necesario, 
         // pero RECALCULAR lo que dependa de los inputs actuales (efectivo y fondo fijo).
         const arqueoOriginal = estado.arqueos.find(a => a.id === idEdicion);
 
         if (arqueoOriginal) {
             arqueo.cajero = arqueoOriginal.cajero;
+            // arqueo.id ya se asignó arriba o ya estaba
             // arqueo.fecha ya viene del input que se pobló al iniciar edición, igual que caja y fondoFijo.
         }
     }
