@@ -488,15 +488,8 @@ window.guardarFondoFijo = function () {
 
     const total = parsearMoneda(montoInput.value);
 
-    if (total === 0) {
-        // Si el monto es 0, eliminar el fondo fijo de esta caja
-        delete estado.fondoFijoPorCaja[cajaActual];
-        guardarEnLocalStorage();
-        console.log('Fondo Fijo eliminado para', cajaActual);
-        return;
-    }
-
-    // Guardar en estado
+    // **MODIFICADO:** Permitir guardar monto 0 según solicitud del usuario
+    // Guardar en estado (incluso si es 0)
     estado.fondoFijoPorCaja[cajaActual] = {
         monto: total,
         fecha: new Date().toISOString()

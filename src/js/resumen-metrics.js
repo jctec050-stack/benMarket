@@ -444,8 +444,11 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
                 .reduce((sum, e) => sum + (e.monto || 0), 0);
         }
 
-        // Usar fondo fijo por defecto (700000)
-        const fondoFijo = 700000;
+        // **MODIFICADO:** Obtener fondo fijo guardado para esta caja o usar 0 por defecto (evitando el hardcode de 700k)
+        // Esto permite que si el usuario guarda 0 en el arqueo/configuración, se respete aquí.
+        const fondoFijo = (estado.fondoFijoPorCaja && estado.fondoFijoPorCaja[nombreCaja]) 
+            ? (estado.fondoFijoPorCaja[nombreCaja].monto || 0) 
+            : 0;
 
         // FÓRMULA CORRECTA: Total Ingresos Tienda = (Efectivo Bruto + Egresos) - Servicios - Fondo Fijo
         const totalADeclarar = temp.efectivoBruto + egresosDelCajero;
