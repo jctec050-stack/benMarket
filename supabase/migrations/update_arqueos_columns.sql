@@ -1,0 +1,10 @@
+ALTER TABLE arqueos ALTER COLUMN id SET DEFAULT gen_random_uuid();
+
+ALTER TABLE arqueos 
+ADD COLUMN IF NOT EXISTS total_egresos INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS total_movimientos INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS saldo_caja INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS diferencia INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS observaciones TEXT;
+
+COMMENT ON COLUMN arqueos.id IS 'Identificador único (UUID) con generación automática';

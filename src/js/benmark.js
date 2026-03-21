@@ -265,7 +265,13 @@ function formatearFecha(fecha) {
 }
 
 function generarId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    try {
+        // Intentar usar el generador nativo de UUID del navegador
+        return crypto.randomUUID();
+    } catch (e) {
+        // Fallback para contextos no seguros o navegadores antiguos
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
 }
 
 function obtenerFechaHoraLocalISO() {
@@ -1997,7 +2003,6 @@ async function guardarArqueo() {
 
     // Preparar datos para guardar en la base de datos
     const datosParaBD = {
-        // **NOTA:** NO incluir 'id' - Supabase lo genera automáticamente como UUID
         fecha: arqueo.fecha,
         caja: arqueo.caja,
         cajero: arqueo.cajero,
@@ -2050,6 +2055,19 @@ async function guardarArqueo() {
             return; // Detener si hay error
         } else {
             console.log('✅ Arqueo guardado/actualizado exitosamente en Supabase');
+            
+            // **NUEVO:** Sincronizar con la tabla de Recaudación (Resumen Tesorería)
+            if (window.db && window.db.guardarRecaudacion) {
+                const soloFecha = arqueo.fecha.split('T')[0];
+                window.db.guardarRecaudacion(soloFecha, arqueo.cajero, arqueo.caja, totalIngresosParaGuardar)
+                    .then(success => {
+                        if (success) {
+                            console.log('✓ Recaudación sincronizada automáticamente con el arqueo.');
+                        } else {
+                            console.warn('⚠️ No se pudo sincronizar la recaudación automáticamente.');
+                        }
+                    });
+            }
         }
     } else {
         console.warn('⚠️ window.db.guardarArqueo/actualizarArqueo no disponible');
@@ -7479,7 +7497,8 @@ function cancelarEdicionArqueo() {
     const inputId = document.getElementById('idArqueoEditar');
     if (inputId) inputId.value = '';
 
-    document.getElementById('formularioArqueo').reset();
+    const formArqueo = document.getElementById('controlesArqueo') || document.getElementById('formularioArqueo');
+    if (formArqueo) formArqueo.reset();
     document.getElementById('fecha').value = new Date().toISOString().split('T')[0]; // Restaurar hoy
 
     // Restaurar botón
