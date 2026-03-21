@@ -1722,7 +1722,7 @@ function actualizarArqueoFinal() {
 
     if (!fechaInput || !cajaInput) return;
 
-    const fechaArqueo = fechaInput.value.split('T')[0];
+    const fechaArqueo = (fechaInput.value || '').slice(0, 10);
     const cajaFiltro = cajaInput.value;
     const userRole = sessionStorage.getItem('userRole');
     const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria';
@@ -1735,7 +1735,8 @@ function actualizarArqueoFinal() {
 
     // 1. Obtener ingresos del día
     let ingresosParaArqueo = estado.movimientosTemporales.filter(m => {
-        const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
+        // **CORRECCIÓN:** Usar slice(0, 10) para manejar formatos con 'T' o espacio
+        const coincideFecha = (m.fecha || '').slice(0, 10) === fechaArqueo;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
         const visible = mostrarArqueados || !m.arqueado;
 
@@ -1749,7 +1750,8 @@ function actualizarArqueoFinal() {
 
     // 2. Obtener egresos de la sección "Egresos"
     let egresosDeCaja = estado.egresosCaja.filter(e => {
-        const coincideFecha = e.fecha.split('T')[0] === fechaArqueo;
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const coincideFecha = (e.fecha || '').slice(0, 10) === fechaArqueo;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
         const visible = mostrarArqueados || !e.arqueado;
         // User check + Filtro manual
@@ -1764,7 +1766,8 @@ function actualizarArqueoFinal() {
     let egresosDeOperaciones = estado.movimientos.filter(m => {
         // Solo considerar 'gasto' y 'egreso' (pago a proveedor) que tengan una caja asignada
         const esEgreso = (m.tipo === 'gasto' || m.tipo === 'egreso');
-        const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const coincideFecha = (m.fecha || '').slice(0, 10) === fechaArqueo;
         const coincideCaja = m.caja && (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
 
         const visible = mostrarArqueados || !m.arqueado;
@@ -1802,11 +1805,13 @@ function cargarHistorialMovimientosDia() {
     const cajaInput = document.getElementById('caja');
     if (!fechaInput || !cajaInput) return;
 
-    const fechaFiltro = fechaInput.value.split('T')[0];
+    const fechaFiltro = (fechaInput.value || '').slice(0, 10);
     let cajaFiltro = cajaInput.value;
 
-    // **SEGURIDAD:** Si es cajero, forzar la caja asignada
-    if (sessionStorage.getItem('userRole') === 'cajero') {
+    // **SEGURIDAD:** Si es cajero y es hoy, forzar la caja asignada
+    // **CORRECCIÓN:** Si es historia (no es hoy), permitir ver cualquier caja
+    const hoy = obtenerFechaLocalISO();
+    if (sessionStorage.getItem('userRole') === 'cajero' && fechaFiltro === hoy) {
         cajaFiltro = sessionStorage.getItem('cajaSeleccionada');
     }
 
@@ -1828,7 +1833,8 @@ function cargarHistorialMovimientosDia() {
     */
 
     const ingresos = estado.movimientosTemporales.filter(m => {
-        const coincideFecha = m.fecha.startsWith(fechaFiltro);
+        // **CORRECCIÓN:** Usar slice(0, 10) y manejar nulos
+        const coincideFecha = (m.fecha || '').slice(0, 10) === fechaFiltro;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
         // const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
         // **NUEVO:** Ocultar ingresos arqueados para cajeros
@@ -1839,7 +1845,8 @@ function cargarHistorialMovimientosDia() {
 
 
     const egresosCaja = estado.egresosCaja.filter(e => {
-        const coincideFecha = e.fecha.startsWith(fechaFiltro);
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const coincideFecha = (e.fecha || '').slice(0, 10) === fechaFiltro;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
         // const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
         // **NUEVO:** Ocultar egresos arqueados para cajeros
@@ -1856,7 +1863,7 @@ function cargarHistorialMovimientosDia() {
 
 
     const egresosOperaciones = estado.movimientos.filter(m => {
-        const coincideFecha = m.fecha.startsWith(fechaFiltro);
+        const coincideFecha = (m.fecha || '').slice(0, 10) === fechaFiltro;
         const esEgreso = (m.tipo === 'gasto' || m.tipo === 'egreso');
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
         // const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
@@ -1976,7 +1983,7 @@ async function guardarArqueo() {
     }
 
     // **REFACTORIZADO:** Usar los totales ya calculados para la vista en pantalla.
-    const fechaArqueo = arqueo.fecha.split('T')[0];
+    const fechaArqueo = (arqueo.fecha || '').slice(0, 10);
     const cajaFiltro = arqueo.caja;
     const cajeroFiltro = arqueo.cajero; // **NUEVO:** Filtrar también por cajero
 
@@ -1985,18 +1992,18 @@ async function guardarArqueo() {
     const ingresosParaArqueo = estado.movimientosTemporales.filter(m =>
         m.caja === cajaFiltro &&
         m.cajero === cajeroFiltro && // **NUEVO:** Filtrar por cajero
-        m.fecha.startsWith(fechaArqueo) &&
+        (m.fecha || '').slice(0, 10) === fechaArqueo &&
         m.arqueado !== true
     );
     // **NUEVO:** Excluir egresos ya arqueados Y filtrar por cajero
     const egresosDeCaja = estado.egresosCaja.filter(e =>
-        e.fecha.startsWith(fechaArqueo) &&
+        (e.fecha || '').slice(0, 10) === fechaArqueo &&
         e.caja === cajaFiltro &&
         (e.cajero === cajeroFiltro || e.usuario === cajeroFiltro) && // **NUEVO:** Filtrar por cajero
         e.arqueado !== true
     );
     const egresosDeOperaciones = estado.movimientos.filter(m =>
-        m.fecha.startsWith(fechaArqueo) &&
+        (m.fecha || '').slice(0, 10) === fechaArqueo &&
         (m.tipo === 'gasto' || m.tipo === 'egreso') &&
         m.caja === cajaFiltro &&
         m.cajero === cajeroFiltro // **NUEVO:** Filtrar por cajero
@@ -2104,7 +2111,7 @@ async function guardarArqueo() {
             
             // **NUEVO:** Sincronizar con la tabla de Recaudación (Resumen Tesorería)
             if (window.db && window.db.guardarRecaudacion) {
-                const soloFecha = arqueo.fecha.split('T')[0];
+                const soloFecha = (arqueo.fecha || '').slice(0, 10);
                 
                 // Calcular "Total Ingresos Tienda" (Efectivo Bruto + Egresos - Servicios Efectivo - Fondo Fijo)
                 // para que coincida exactamente con lo que muestra la UI del Arqueo
@@ -2158,7 +2165,7 @@ async function guardarArqueo() {
 
     // **NUEVO:** Marcar movimientos como arqueados en lugar de borrarlos
     const movimientosArqueados = estado.movimientosTemporales.filter(m =>
-        m.caja === cajaFiltro && m.fecha.startsWith(fechaArqueo)
+        m.caja === cajaFiltro && (m.fecha || '').slice(0, 10) === fechaArqueo
     );
 
     console.log(`Marcando ${movimientosArqueados.length} movimientos como arqueados...`);
@@ -2174,7 +2181,7 @@ async function guardarArqueo() {
 
     // **NUEVO:** Marcar también los Egresos de Caja como arqueados
     const egresosArqueados = estado.egresosCaja.filter(e =>
-        e.caja === cajaFiltro && e.fecha.startsWith(fechaArqueo)
+        e.caja === cajaFiltro && (e.fecha || '').slice(0, 10) === fechaArqueo
     );
 
 
@@ -2397,7 +2404,7 @@ function cargarHistorialGastos() {
 
     if (fechaFiltro) {
         movimientosFiltrados = movimientosFiltrados.filter(m =>
-            m.fecha.startsWith(fechaFiltro)
+            (m.fecha || '').slice(0, 10) === fechaFiltro
         );
     }
 
@@ -2601,7 +2608,7 @@ async function guardarEgresoCaja(event) {
 
     const egreso = {
         id: esEdicion ? idEditar : generarId(),
-        fecha: new Date(fecha).toISOString(), // Asegurar formato ISO
+        fecha: fecha, // **CORRECCIÓN:** No usar toISOString() para TIMESTAMP WITHOUT TZ
         caja: caja,
         cajero: cajero,
         categoria: categoria,
@@ -2710,7 +2717,7 @@ function cargarHistorialEgresosCaja() {
 
     // 4. Filtro por Fecha
     if (fechaFiltro) {
-        egresosFiltrados = egresosFiltrados.filter(e => e.fecha.startsWith(fechaFiltro));
+        egresosFiltrados = egresosFiltrados.filter(e => (e.fecha || '').slice(0, 10) === fechaFiltro);
     }
 
     // Ordenar por fecha descendente
@@ -3056,7 +3063,8 @@ async function cargarResumenDiario() {
             if (resultado && resultado.success && resultado.data) {
                 // Filtrar por el rango de fechas seleccionado
                 estado.arqueos = resultado.data.filter(a => {
-                    const fechaArqueo = a.fecha.split('T')[0];
+                    // **CORRECCIÓN:** Usar slice(0, 10)
+                    const fechaArqueo = (a.fecha || '').slice(0, 10);
                     const dentroRango = (!fechaDesde || fechaArqueo >= fechaDesde) &&
                         (!fechaHasta || fechaArqueo <= fechaHasta);
                     return dentroRango;
@@ -3097,18 +3105,21 @@ async function cargarResumenDiario() {
     // --- OBTENCIÓN DE DATOS ---
     // **CORRECCIÓN:** Usar movimientos temporales para ingresos y movimientos guardados para operaciones.
     const movimientosIngresos = estado.movimientosTemporales.filter(m => { // Ingresos del día (no guardados en arqueo)
-        const fechaMov = m.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fechaMov = (m.fecha || '').slice(0, 10);
         return (!fechaDesde || fechaMov >= fechaDesde) && (!fechaHasta || fechaMov <= fechaHasta);
     });
 
     const movimientosOperaciones = estado.movimientos.filter(m => { // Gastos, Egresos, etc. (ya guardados)
-        const fechaMov = m.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fechaMov = (m.fecha || '').slice(0, 10);
         return (!fechaDesde || fechaMov >= fechaDesde) && (!fechaHasta || fechaMov <= fechaHasta);
     });
 
     // Los egresos de caja son un tipo separado de movimiento
     const egresosCajaDelPeriodo = estado.egresosCaja.filter(e => {
-        const fechaEgreso = e.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fechaEgreso = (e.fecha || '').slice(0, 10);
         return (!fechaDesde || fechaEgreso >= fechaDesde) && (!fechaHasta || fechaEgreso <= fechaHasta);
     });
 
@@ -3386,7 +3397,8 @@ window.cargarTablaPagosEgresos = function () {
 
     // Filtrar Egresos de Caja
     const egresosCaja = (estado.egresosCaja || []).filter(e => {
-        const fecha = e.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fecha = (e.fecha || '').slice(0, 10);
         const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
         const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || e.caja === cajaFiltro);
         return matchFecha && matchCaja;
@@ -3394,7 +3406,8 @@ window.cargarTablaPagosEgresos = function () {
 
     // Filtrar Operaciones (Gastos/Egresos)
     const egresosOperaciones = (estado.movimientos || []).filter(m => {
-        const fecha = m.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fecha = (m.fecha || '').slice(0, 10);
         const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
         const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
         const esEgreso = ['gasto', 'egreso', 'transferencia', 'operacion'].includes(m.tipo);
@@ -3492,14 +3505,15 @@ window.cargarTablaIngresosEgresos = async function () {
 
     // Obtener egresos (reutilizar lógica de cargarTablaPagosEgresos)
     const egresosCaja = (estado.egresosCaja || []).filter(e => {
-        const fecha = e.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fecha = (e.fecha || '').slice(0, 10);
         const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
         const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || e.caja === cajaFiltro);
         return matchFecha && matchCaja;
     });
 
     const egresosOperaciones = (estado.movimientos || []).filter(m => {
-        const fecha = m.fecha.split('T')[0];
+        const fecha = (m.fecha || '').slice(0, 10);
         const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
         const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
         const esEgreso = ['gasto', 'egreso', 'transferencia', 'operacion'].includes(m.tipo);
@@ -3581,7 +3595,8 @@ window.cargarTablaIngresosEgresos = async function () {
 
     // **NUEVO**: Agregar operaciones bancarias individualmente
     const operacionesBancarias = (estado.movimientos || []).filter(m => {
-        const fecha = m.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fecha = (m.fecha || '').slice(0, 10);
         const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
         const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
 
@@ -3747,7 +3762,8 @@ function calcularIngresosPorServicio(fechaDesde, fechaHasta, cajaFiltro) {
 
     // **CORREGIDO**: Los ingresos están en movimientosTemporales, no en movimientos
     const movimientosIngresos = (estado.movimientosTemporales || []).filter(m => {
-        const fecha = m.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fecha = (m.fecha || '').slice(0, 10);
         const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
         const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
         return matchFecha && matchCaja;
@@ -3833,10 +3849,11 @@ function obtenerInversiones(fechaDesde, fechaHasta, cajaFiltro) {
     console.log('[DEBUG obtenerInversiones] estado.movimientos completo:', estado.movimientos);
 
     const operaciones = (estado.movimientos || []).filter(m => {
-        const fecha = m.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fecha = (m.fecha || '').slice(0, 10);
         const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
         const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
-
+        
         // Filtrar por tipo "deposito-inversiones" (con guion)
         const esInversion = m.tipo === 'deposito-inversiones';
 
@@ -3862,7 +3879,8 @@ function obtenerInversiones(fechaDesde, fechaHasta, cajaFiltro) {
 function calcularIngresosNegativos(fechaDesde, fechaHasta, cajaFiltro) {
     // Buscar movimientos con monto negativo en movimientosTemporales
     const movimientosNegativos = (estado.movimientosTemporales || []).filter(m => {
-        const fecha = m.fecha.split('T')[0];
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        const fecha = (m.fecha || '').slice(0, 10);
         const matchFecha = (!fechaDesde || fecha >= fechaDesde) && (!fechaHasta || fecha <= fechaHasta);
         const matchCaja = (!cajaFiltro || cajaFiltro === 'Todas las Cajas' || m.caja === cajaFiltro);
 
@@ -4213,7 +4231,7 @@ async function descargarExcel() {
     }
 
     // Filtrar datos por fecha
-    const arqueosDelPeriodo = estado.arqueos.filter(a => a.fecha.split('T')[0] >= fechaDesde && a.fecha.split('T')[0] <= fechaHasta);
+    const arqueosDelPeriodo = estado.arqueos.filter(a => (a.fecha || '').slice(0, 10) >= fechaDesde && (a.fecha || '').slice(0, 10) <= fechaHasta);
 
     // Combinar movimientos temporales (ingresos del día actual) con movimientos guardados (ingresos de arqueos anteriores)
     const todosLosMovimientos = [
@@ -4221,9 +4239,9 @@ async function descargarExcel() {
         ...(estado.movimientos || [])
     ];
 
-    const movimientosDelPeriodo = todosLosMovimientos.filter(m => m.fecha.split('T')[0] >= fechaDesde && m.fecha.split('T')[0] <= fechaHasta);
-    const egresosCajaDelPeriodo = estado.egresosCaja.filter(e => e.fecha.split('T')[0] >= fechaDesde && e.fecha.split('T')[0] <= fechaHasta);
-    const serviciosEfectivoDelPeriodo = estado.serviciosEfectivo ? estado.serviciosEfectivo.filter(s => s.fecha.split('T')[0] >= fechaDesde && s.fecha.split('T')[0] <= fechaHasta) : [];
+    const movimientosDelPeriodo = todosLosMovimientos.filter(m => (m.fecha || '').slice(0, 10) >= fechaDesde && (m.fecha || '').slice(0, 10) <= fechaHasta);
+    const egresosCajaDelPeriodo = estado.egresosCaja.filter(e => (e.fecha || '').slice(0, 10) >= fechaDesde && (e.fecha || '').slice(0, 10) <= fechaHasta);
+    const serviciosEfectivoDelPeriodo = estado.serviciosEfectivo ? estado.serviciosEfectivo.filter(s => (s.fecha || '').slice(0, 10) >= fechaDesde && (s.fecha || '').slice(0, 10) <= fechaHasta) : [];
 
     // Crear libro de trabajo
     const wb = XLSX.utils.book_new();
@@ -4520,7 +4538,7 @@ function exportarHistorialArqueosExcel() {
     }
 
     const arqueosFiltrados = estado.arqueos.filter(a => {
-        const fechaArqueo = a.fecha.split('T')[0];
+        const fechaArqueo = (a.fecha || '').slice(0, 10);
         return fechaArqueo >= fechaDesde && fechaArqueo <= fechaHasta;
     }).sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
 
@@ -5193,7 +5211,7 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
 
     // Filtros de lógica base (mismos que actualizarArqueoFinal)
     let ingresosParaArqueo = estado.movimientosTemporales.filter(m => {
-        const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
+        const coincideFecha = (m.fecha || '').slice(0, 10) === fechaArqueo;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
         const visible = mostrarArqueados || !m.arqueado;
         const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
@@ -5201,7 +5219,7 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
     });
 
     let egresosDeCaja = estado.egresosCaja.filter(e => {
-        const coincideFecha = e.fecha.split('T')[0] === fechaArqueo;
+        const coincideFecha = (e.fecha || '').slice(0, 10) === fechaArqueo;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
         const visible = mostrarArqueados || !e.arqueado;
         const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
@@ -5210,7 +5228,7 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
 
     let egresosDeOperaciones = estado.movimientos.filter(m => {
         const esEgreso = (m.tipo === 'gasto' || m.tipo === 'egreso');
-        const coincideFecha = m.fecha.split('T')[0] === fechaArqueo;
+        const coincideFecha = (m.fecha || '').slice(0, 10) === fechaArqueo;
         const coincideCaja = m.caja && (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
         const visible = mostrarArqueados || !m.arqueado;
         const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
@@ -5528,7 +5546,7 @@ function exportarArqueoPDF(arqueo, esGuardadoFinal = false) {
     doc.text(`Total Ingresos Tienda: ${formatearMoneda(arqueo.resumen.totalIngresosTienda, 'gs')}`, 18, finalY + 22);
 
     // Guardar
-    const fechaArchivo = arqueo.fecha.split('T')[0].replace(/-/g, '_');
+    const fechaArchivo = (arqueo.fecha || '').slice(0, 10).replace(/-/g, '_');
     doc.save(`Arqueo_${arqueo.caja}_${fechaArchivo}.pdf`);
 }
 
@@ -6360,14 +6378,14 @@ window.actualizarMetricasIngresos = function () {
     // Intentar leer desde estado si existe
     if (typeof estado !== 'undefined' && estado.movimientosTemporales) {
         movimientosHoy = estado.movimientosTemporales.filter(m => {
-            const fechaMov = m.fecha.split('T')[0];
+            const fechaMov = (m.fecha || '').slice(0, 10);
             return fechaMov === hoy;
         });
     } else {
         // Si no existe estado, intentar desde localStorage
         const todosMovimientos = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
         movimientosHoy = todosMovimientos.filter(m => {
-            const fechaMov = m.fecha.split('T')[0];
+            const fechaMov = (m.fecha || '').slice(0, 10);
             return fechaMov === hoy;
         });
     }
@@ -6375,7 +6393,7 @@ window.actualizarMetricasIngresos = function () {
     // Leer egresos desde localStorage
     const todosLosEgresos = JSON.parse(localStorage.getItem('egresosCaja')) || [];
     const egresosHoy = todosLosEgresos.filter(e => {
-        const fechaEgreso = e.fecha.split('T')[0];
+        const fechaEgreso = (e.fecha || '').slice(0, 10);
         return fechaEgreso === hoy;
     });
 
@@ -6446,7 +6464,7 @@ window.actualizarMetricasEgresos = function () {
     // Leer egresos desde localStorage
     const todosLosEgresos = JSON.parse(localStorage.getItem('egresosCaja')) || [];
     const egresosHoy = todosLosEgresos.filter(e => {
-        const fechaEgreso = e.fecha.split('T')[0];
+        const fechaEgreso = (e.fecha || '').slice(0, 10);
         return fechaEgreso === hoy;
     });
 
@@ -6456,14 +6474,14 @@ window.actualizarMetricasEgresos = function () {
     // Intentar leer desde estado si existe
     if (typeof estado !== 'undefined' && estado.movimientosTemporales) {
         movimientosHoy = estado.movimientosTemporales.filter(m => {
-            const fechaMov = m.fecha.split('T')[0];
+            const fechaMov = (m.fecha || '').slice(0, 10);
             return fechaMov === hoy;
         });
     } else {
         // Si no existe estado, intentar desde localStorage
         const todosMovimientos = JSON.parse(localStorage.getItem('movimientosTemporales')) || [];
         movimientosHoy = todosMovimientos.filter(m => {
-            const fechaMov = m.fecha.split('T')[0];
+            const fechaMov = (m.fecha || '').slice(0, 10);
             return fechaMov === hoy;
         });
     }
@@ -7495,7 +7513,7 @@ function iniciarEdicionArqueo(arqueoId) {
     inputId.value = arqueo.id;
 
     // Cargar Datos Principales
-    document.getElementById('fecha').value = arqueo.fecha.split('T')[0]; // Ajustar formato fecha
+    document.getElementById('fecha').value = (arqueo.fecha || '').slice(0, 10); // Ajustar formato fecha
     document.getElementById('caja').value = arqueo.caja;
     document.getElementById('cajero').value = arqueo.cajero;
     document.getElementById('fondoFijo').value = formatearMoneda(arqueo.fondo_fijo || arqueo.fondoFijo || 0, 'gs').replace('Gs ', '').trim();
@@ -7578,11 +7596,11 @@ function cancelarEdicionArqueo() {
 async function recalcularArqueoExistente(fechaISO, caja) {
     if (!fechaISO || !caja) return;
 
-    const fechaArqueo = fechaISO.split('T')[0];
+    const fechaArqueo = (fechaISO || '').slice(0, 10);
 
     // Buscar arqueo existente
     const arqueoIndex = estado.arqueos.findIndex(a =>
-        a.fecha.split('T')[0] === fechaArqueo && a.caja === caja
+        (a.fecha || '').slice(0, 10) === fechaArqueo && a.caja === caja
     );
 
     if (arqueoIndex === -1) return; // No existe arqueo para actualizar
@@ -7595,16 +7613,16 @@ async function recalcularArqueoExistente(fechaISO, caja) {
 
     // 1. Reconstruir lista de movimientos relevantes
     const ingresos = estado.movimientosTemporales.filter(m =>
-        m.caja === caja && m.fecha.startsWith(fechaArqueo)
+        m.caja === caja && (m.fecha || '').slice(0, 10) === fechaArqueo
         // Nota: Incluimos TODOS, incluso si ya tienen 'arqueado: true', porque estamos recalculando EL arqueo
     ).map(m => ({ ...m, tipoMovimiento: 'ingreso' }));
 
     const egresosCaja = estado.egresosCaja.filter(e =>
-        e.caja === caja && e.fecha.startsWith(fechaArqueo)
+        e.caja === caja && (e.fecha || '').slice(0, 10) === fechaArqueo
     ).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
 
     const egresosOperaciones = estado.movimientos.filter(m =>
-        m.caja === caja && m.fecha.startsWith(fechaArqueo) &&
+        m.caja === caja && (m.fecha || '').slice(0, 10) === fechaArqueo &&
         (m.tipo === 'gasto' || m.tipo === 'egreso')
     ).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
 
@@ -7703,7 +7721,7 @@ window.poblarFiltroCajeroArqueo = function () {
     // Revisar movimientos temporales
     if (estado.movimientosTemporales) {
         estado.movimientosTemporales.forEach(m => {
-            if (m.fecha && m.fecha.startsWith(fecha)) {
+            if (m.fecha && (m.fecha || '').slice(0, 10) === fecha) {
                 if (caja === 'Todas las cajas' || m.caja === caja) {
                     if (m.cajero) cajerosSet.add(m.cajero);
                 }
@@ -7714,7 +7732,7 @@ window.poblarFiltroCajeroArqueo = function () {
     // Revisar egresos
     if (estado.egresosCaja) {
         estado.egresosCaja.forEach(e => {
-            if (e.fecha && e.fecha.startsWith(fecha)) {
+            if (e.fecha && (e.fecha || '').slice(0, 10) === fecha) {
                 if (caja === 'Todas las cajas' || e.caja === caja) {
                     if (e.cajero || e.usuario) cajerosSet.add(e.cajero || e.usuario);
                 }

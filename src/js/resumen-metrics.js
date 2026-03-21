@@ -24,11 +24,13 @@ window.actualizarMetricasResumen = function () {
     ];
 
     if (fechaDesde) {
-        movimientosFiltrados = movimientosFiltrados.filter(m => m.fecha.split('T')[0] >= fechaDesde);
+        // **CORRECCIÓN:** Usar slice(0, 10) para manejar formatos con 'T' o espacio
+        movimientosFiltrados = movimientosFiltrados.filter(m => (m.fecha || '').slice(0, 10) >= fechaDesde);
     }
 
     if (fechaHasta) {
-        movimientosFiltrados = movimientosFiltrados.filter(m => m.fecha.split('T')[0] <= fechaHasta);
+        // **CORRECCIÓN:** Usar slice(0, 10)
+        movimientosFiltrados = movimientosFiltrados.filter(m => (m.fecha || '').slice(0, 10) <= fechaHasta);
     }
 
     if (filtroCajaGeneral && filtroCajaGeneral !== 'Todas las Cajas') {
@@ -231,19 +233,17 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
     // 1. Agrupar Arqueos existentes
     if (estado.arqueos) {
         estado.arqueos.forEach(a => {
-            const fechaArqueo = a.fecha.split('T')[0];
+            // **CORRECCIÓN:** Usar slice(0, 10)
+            const fechaArqueo = (a.fecha || '').slice(0, 10);
             if (fechaDesde && fechaArqueo < fechaDesde) return;
             if (fechaHasta && fechaArqueo > fechaHasta) return;
             if (filtroCaja && filtroCaja !== 'Todas las Cajas' && a.caja !== filtroCaja) return;
 
             const cajero = a.cajero || 'Desconocido';
 
-            // **FILTRO DE ROL:** Solo incluir si el rol es 'cajero'
-            const rolCajero = mapaRoles[cajero] || 'cajero'; // Default a cajero si no existe
-            if (rolCajero !== 'cajero') {
-                console.log(`[Recaudación] Excluyendo arqueo de ${cajero} por rol: ${rolCajero}`);
-                return;
-            }
+            // **FILTRO DE ROL ELIMINADO:** Mostrar todos los que tengan movimientos
+            // const rolCajero = mapaRoles[cajero] || 'cajero';
+            // if (rolCajero !== 'cajero') return;
 
             const caja = a.caja || 'Desconocida';
             const clave = `${cajero.trim().toUpperCase()}_${caja.trim().toUpperCase()}`;
@@ -347,9 +347,9 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
 
         const cajero = m.cajero || 'Desconocido';
 
-        // **FILTRO DE ROL:** Solo incluir si el rol es 'cajero'
-        const rolCajero = mapaRoles[cajero] || 'cajero';
-        if (rolCajero !== 'cajero') return;
+        // **FILTRO DE ROL ELIMINADO**
+        // const rolCajero = mapaRoles[cajero] || 'cajero';
+        // if (rolCajero !== 'cajero') return;
         const caja = m.caja || 'Desconocida';
         const clave = `${cajero.trim().toUpperCase()}_${caja.trim().toUpperCase()}`;
 
