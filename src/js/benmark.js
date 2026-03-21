@@ -141,12 +141,12 @@ async function initSupabaseData() {
         document.getElementById('fechaGasto') ||
         document.getElementById('fechaMovimiento');
 
-    // Si aún no hay fecha, usar la fecha actual
+    // Si aún no hay fecha, usar la fecha actual LOCAL
     let fechaBase;
     if (fechaInput && fechaInput.value) {
         fechaBase = fechaInput.value.split('T')[0];
     } else {
-        fechaBase = new Date().toISOString().slice(0, 10);
+        fechaBase = obtenerFechaLocalISO();
     }
 
     const rol = sessionStorage.getItem('userRole');
@@ -225,7 +225,7 @@ async function initSupabaseData() {
     const fechaResumenDesde = document.getElementById('fechaResumenDesde');
     const fechaResumenHasta = document.getElementById('fechaResumenHasta');
     if (fechaResumenDesde && fechaResumenHasta) {
-        const hoy = new Date().toISOString().slice(0, 10);
+        const hoy = obtenerFechaLocalISO();
         if (!fechaResumenDesde.value) fechaResumenDesde.value = hoy;
         if (!fechaResumenHasta.value) fechaResumenHasta.value = hoy;
     }
@@ -274,11 +274,42 @@ function generarId() {
     }
 }
 
+function getLocalOffset() {
+    const offsetMinutes = -new Date().getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const absOffset = Math.abs(offsetMinutes);
+    const hours = Math.floor(absOffset / 60).toString().padStart(2, '0');
+    const minutes = (absOffset % 60).toString().padStart(2, '0');
+    return `${sign}${hours}:${minutes}`;
+}
+
 function obtenerFechaHoraLocalISO() {
     const ahora = new Date();
-    // Se ajusta la fecha a la zona horaria local para que toISOString() funcione como se espera.
-    ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset());
-    return ahora.toISOString().slice(0, 16);
+    // Valor local sin offset para inputs datetime-local
+    const offset = ahora.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(ahora.getTime() - offset).toISOString().slice(0, 16);
+    return localISOTime;
+}
+
+function formatearFechaParaSupa(valorInput) {
+    if (!valorInput) {
+        const ahora = new Date();
+        const offsetLocal = getLocalOffset();
+        const tzo = -ahora.getTimezoneOffset();
+        const localISOTime = new Date(ahora.getTime() + (tzo * 60000)).toISOString().slice(0, 19);
+        return localISOTime + offsetLocal;
+    }
+    // Si ya tiene offset (formato ISO completo), devolverlo tal cual
+    if (valorInput.includes('+') || (valorInput.includes('-') && valorInput.length > 10 && valorInput.lastIndexOf('-') > 7)) {
+        return valorInput;
+    }
+    return `${valorInput}:00${getLocalOffset()}`;
+}
+
+function obtenerFechaLocalISO(date) {
+    const d = date || new Date();
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().slice(0, 10);
 }
 
 // Inicializar formulario de arqueo
@@ -729,7 +760,7 @@ async function agregarMovimiento() {
     // Crear el objeto movimiento CON TODOS LOS VALORES CAPTURADOS
     const movimiento = {
         id: generarId(),
-        fecha: document.getElementById('fechaMovimiento').value,
+        fecha: formatearFechaParaSupa(document.getElementById('fechaMovimiento').value),
         cajero: sessionStorage.getItem('usuarioActual'),
         // **CORREGIDO:** Asegurar que la caja sea la correcta para cada rol.
         caja: sessionStorage.getItem('userRole') === 'tesoreria'
@@ -2015,7 +2046,7 @@ async function guardarArqueo() {
 
     // Preparar datos para guardar en la base de datos
     const datosParaBD = {
-        fecha: arqueo.fecha,
+        fecha: formatearFechaParaSupa(arqueo.fecha),
         caja: arqueo.caja,
         cajero: arqueo.cajero,
         fondo_fijo: arqueo.fondoFijo,
@@ -2306,7 +2337,7 @@ async function guardarGasto(event) {
 
         const gasto = {
             id: generarId(),
-            fecha: document.getElementById('fechaGasto').value,
+            fecha: formatearFechaParaSupa(document.getElementById('fechaGasto').value),
             cajero: sessionStorage.getItem('usuarioActual'), // **NUEVO:** Guardar el usuario que realiza la operación.
             tipo: tipoGasto,
             historialEdiciones: [], // Inicializar historial
@@ -2519,7 +2550,7 @@ async function guardarEgresoCaja(event) {
     const esEdicion = idEditar !== '';
 
     // Obtener datos del formulario
-    const fecha = document.getElementById('fechaEgresoCaja').value;
+    const fecha = formatearFechaParaSupa(document.getElementById('fechaEgresoCaja').value);
     const caja = document.getElementById('cajaEgreso').value;
     const categoria = document.getElementById('categoriaEgresoCaja').value;
     let descripcion = document.getElementById('descripcionEgresoCaja').value.trim();
@@ -6317,8 +6348,8 @@ window.actualizarMetricasIngresos = function () {
     // Verificar que estamos en la página de ingresos
     if (!document.getElementById('metricTotalIngresosDia')) return;
 
-    // Obtener fecha actual
-    const hoy = new Date().toISOString().split('T')[0];
+    // Obtener fecha actual LOCAL
+    const hoy = obtenerFechaLocalISO();
 
     // **CORRECCIÓN:** Leer desde localStorage o estado
     let movimientosHoy = [];
@@ -6406,8 +6437,8 @@ window.actualizarMetricasEgresos = function () {
     // Verificar que estamos en la página de egresos
     if (!document.getElementById('metricTotalEgresosDia')) return;
 
-    // Obtener fecha actual
-    const hoy = new Date().toISOString().split('T')[0];
+    // Obtener fecha actual LOCAL
+    const hoy = obtenerFechaLocalISO();
 
     // Leer egresos desde localStorage
     const todosLosEgresos = JSON.parse(localStorage.getItem('egresosCaja')) || [];
@@ -6704,7 +6735,7 @@ function renderizarResumenServicios() {
                 row.style.borderBottom = '1px dashed #eee';
 
                 // Clave para localStorage
-                const fechaKey = fechaDesde ? fechaDesde.split('T')[0] : new Date().toISOString().split('T')[0];
+                const fechaKey = fechaDesde ? fechaDesde.split('T')[0] : obtenerFechaLocalISO();
                 const storageKey = `monto_depositar_${fechaKey}_${servicio.replace(/\s+/g, '_')}`;
                 const savedValue = localStorage.getItem(storageKey) || '';
 
@@ -7036,7 +7067,7 @@ async function guardarResumenDepositos() {
         // Preparar objeto para guardar
         const deposito = {
             id: generarIdUnico(), // Generar ID único
-            fecha: new Date().toISOString().split('T')[0],
+            fecha: obtenerFechaLocalISO(),
             fecha_desde: fechaDesde,
             fecha_hasta: fechaHasta,
             caja: (cajaFiltro && cajaFiltro !== 'Todas las Cajas') ? cajaFiltro : null,
@@ -7187,8 +7218,8 @@ async function verHistorialDepositos() {
     const haceUnMes = new Date();
     haceUnMes.setMonth(haceUnMes.getMonth() - 1);
 
-    document.getElementById('filtroHistorialDesde').value = haceUnMes.toISOString().split('T')[0];
-    document.getElementById('filtroHistorialHasta').value = hoy.toISOString().split('T')[0];
+    document.getElementById('filtroHistorialDesde').value = obtenerFechaLocalISO(haceUnMes);
+    document.getElementById('filtroHistorialHasta').value = obtenerFechaLocalISO(hoy);
 
     modal.style.display = 'block';
 
@@ -7521,7 +7552,7 @@ function cancelarEdicionArqueo() {
 
     const formArqueo = document.getElementById('controlesArqueo') || document.getElementById('formularioArqueo');
     if (formArqueo) formArqueo.reset();
-    document.getElementById('fecha').value = new Date().toISOString().split('T')[0]; // Restaurar hoy
+    document.getElementById('fecha').value = obtenerFechaLocalISO(); // Restaurar hoy
 
     // Restaurar botón
     const btnGuardar = document.querySelector('button[onclick="guardarArqueo()"]');

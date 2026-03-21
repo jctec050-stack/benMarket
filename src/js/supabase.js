@@ -25,6 +25,18 @@ const SUPABASE_CONFIG = {
     ANON_KEY: getEnvVar('SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdyZnl6d2Zpbm1vd3FxeGZlZ3N4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI4MTY3ODMsImV4cCI6MjA3ODM5Mjc4M30.PSr-D8iyMv0ccLUhlFy5Vi6QO12VVWQVDFubmsrotT8')
 };
 
+/**
+ * Obtiene el desplazamiento de la zona horaria local en formato (+/-)HH:mm
+ */
+function getLocalOffset() {
+    const offsetMinutes = -new Date().getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const absOffset = Math.abs(offsetMinutes);
+    const hours = Math.floor(absOffset / 60).toString().padStart(2, '0');
+    const minutes = (absOffset % 60).toString().padStart(2, '0');
+    return `${sign}${hours}:${minutes}`;
+}
+
 // Cliente de Supabase (se inicializará cuando esté disponible)
 let supabaseClient = null;
 let usuarioActual = null;
@@ -41,6 +53,8 @@ function inicializarSupabase() {
     }
 
     if (typeof supabase !== 'undefined') {
+        // La declaración de supabaseClient ya existe, la modificamos para usar SUPABASE_CONFIG
+        // y añadimos la configuración global.
         supabaseClient = supabase.createClient(SUPABASE_CONFIG.URL, SUPABASE_CONFIG.ANON_KEY, {
             global: {
                 headers: {
@@ -331,11 +345,12 @@ const db = {
     async obtenerEgresosCajaPorFecha(fecha) {
         if (supabaseClient) {
             try {
+                const offset = getLocalOffset();
                 const { data, error } = await supabaseClient
                     .from('egresos_caja')
                     .select('*')
-                    .gte('fecha', fecha)
-                    .lt('fecha', fecha + 'T23:59:59')
+                    .gte('fecha', `${fecha}T00:00:00${offset}`)
+                    .lte('fecha', `${fecha}T23:59:59${offset}`)
                     .order('fecha', { ascending: false });
                 if (error) throw error;
                 return { success: true, data };
@@ -469,11 +484,12 @@ const db = {
     async obtenerMovimientosPorFecha(fecha) {
         if (supabaseClient) {
             try {
+                const offset = getLocalOffset();
                 const { data, error } = await supabaseClient
                     .from('movimientos')
                     .select('*')
-                    .gte('fecha', fecha)
-                    .lt('fecha', fecha + 'T23:59:59')
+                    .gte('fecha', `${fecha}T00:00:00${offset}`)
+                    .lte('fecha', `${fecha}T23:59:59${offset}`)
                     .order('fecha', { ascending: false });
 
                 if (error) throw error;
@@ -707,11 +723,12 @@ const db = {
     async obtenerMovimientosTemporalesPorFechaCaja(fecha, caja) {
         if (supabaseClient) {
             try {
+                const offset = getLocalOffset();
                 let query = supabaseClient
                     .from('movimientos_temporales')
                     .select('*')
-                    .gte('fecha', fecha)
-                    .lt('fecha', fecha + 'T23:59:59')
+                    .gte('fecha', `${fecha}T00:00:00${offset}`)
+                    .lte('fecha', `${fecha}T23:59:59${offset}`)
                     .order('fecha', { ascending: false });
                 if (caja) query = query.eq('caja', caja);
                 const { data, error } = await query;
@@ -1081,8 +1098,9 @@ async function obtenerArqueosPorFecha(fecha) {
             throw new Error('Supabase no está inicializado');
         }
 
-        const fechaInicio = `${fecha}T00:00:00`;
-        const fechaFin = `${fecha}T23:59:59`;
+        const offset = getLocalOffset();
+        const fechaInicio = `${fecha}T00:00:00${offset}`;
+        const fechaFin = `${fecha}T23:59:59${offset}`;
 
         const { data, error } = await supabaseClient
             .from('arqueos')
