@@ -111,8 +111,12 @@
                 </div>
             </div>
 
-            <!-- Botón Guardar Arqueo (Movido al final) -->
-            <div class="form-botones" style="margin-top: 2rem; display: flex; justify-content: flex-end;">
+            <!-- Botones de Acción (Arqueo y Resumen) -->
+            <div class="form-botones" style="margin-top: 2rem; display: flex; justify-content: flex-end; gap: 1rem;">
+                <button type="button" id="btnVerResumenPersonal" class="btn btn-secundario" onclick="window.location.href='resumen.html'"
+                    style="font-size: 1.1rem; padding: 0.8rem 1.5rem; display: none;">
+                    📊 Ver Mi Resumen
+                </button>
                 <button type="button" class="btn btn-primario" onclick="guardarArqueo()"
                     style="font-size: 1.1rem; padding: 0.8rem 1.5rem;">
                     💾 Guardar Arqueo

@@ -214,6 +214,9 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
     });
 
 
+    const userRole = sessionStorage.getItem('userRole');
+    const usuarioActual = sessionStorage.getItem('usuarioActual');
+
     // Agrupar por cajero Y caja
     const datosPorClave = {}; // Clave: "Cajero_Caja"
 
@@ -244,9 +247,8 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
 
             const cajero = a.cajero || 'Desconocido';
 
-            // **FILTRO DE ROL ELIMINADO:** Mostrar todos los que tengan movimientos
-            // const rolCajero = mapaRoles[cajero] || 'cajero';
-            // if (rolCajero !== 'cajero') return;
+            // **NUEVO:** Filtro de Segregación para Cajeros
+            if (userRole === 'cajero' && usuarioActual && cajero !== usuarioActual) return;
 
             const caja = a.caja || 'Desconocida';
             const clave = `${cajero.trim().toUpperCase()}_${caja.trim().toUpperCase()}`;
@@ -350,9 +352,9 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
 
         const cajero = m.cajero || 'Desconocido';
 
-        // **FILTRO DE ROL ELIMINADO**
-        // const rolCajero = mapaRoles[cajero] || 'cajero';
-        // if (rolCajero !== 'cajero') return;
+        // **NUEVO:** Filtro de Segregación para Cajeros
+        if (userRole === 'cajero' && usuarioActual && cajero !== usuarioActual) return;
+
         const caja = m.caja || 'Desconocida';
         const clave = `${cajero.trim().toUpperCase()}_${caja.trim().toUpperCase()}`;
 

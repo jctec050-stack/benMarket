@@ -1029,10 +1029,9 @@ function renderizarIngresosAgregados() {
     }
 
     if (userRole !== 'admin' && userRole !== 'tesoreria') {
-        // 1. Ocultar Arqueados
-        movimientosFiltrados = movimientosFiltrados.filter(m => !m.arqueado);
+        // **NUEVO:** Relajar el filtrado de arqueados para que el cajero pueda ver su historial
+        movimientosFiltrados = movimientosFiltrados.filter(m => !m.arqueado || m.cajero === usuarioActual);
 
-        // 2. Filtrar por CAJA (segregación por caja, no por usuario)
         const cajaAsignada = sessionStorage.getItem('cajaSeleccionada');
         if (cajaAsignada) {
             movimientosFiltrados = movimientosFiltrados.filter(m => m.caja === cajaAsignada);
@@ -1666,10 +1665,10 @@ function actualizarArqueoFinal() {
     const cajaFiltro = cajaInput.value;
     const userRole = sessionStorage.getItem('userRole');
     
-    // **NUEVO:** Los cajeros deben poder ver los movimientos ya arqueados si están consultando una fecha anterior
+    // **NUEVO:** Los cajeros deben poder ver los movimientos ya arqueados si están consultando su propio historial
     const hoy = obtenerFechaLocalISO();
     const esFechaPasada = fechaArqueo !== hoy;
-    const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria' || esFechaPasada;
+    const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria' || esFechaPasada || userRole === 'cajero';
 
     // **NUEVO:** Segregación por usuario para no mezclar cajas de diferentes cajeros
     const usuarioActual = sessionStorage.getItem('usuarioActual');
@@ -1767,7 +1766,7 @@ function actualizarArqueoFinal() {
     const userRole = sessionStorage.getItem('userRole');
     const hoyParaHistorial = obtenerFechaLocalISO();
     const esFechaPasadaHistorial = fechaFiltro !== hoyParaHistorial;
-    const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria' || esFechaPasadaHistorial;
+    const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria' || esFechaPasadaHistorial || userRole === 'cajero';
 
     // **CAMBIO:** Ya no filtramos por usuario específico, sino estrictamente por caja.
     /*
@@ -2722,11 +2721,10 @@ function cargarHistorialEgresosCaja() {
         egresosFiltrados = egresosFiltrados.filter(e => !e.cajero || e.cajero === nombreUsuarioActual);
     }
 
-    // 2. Filtro por Arqueado (Ocultar cerrados para cajeros)
+    // 2. Filtro por Arqueado (Relajado para cajeros para permitir ver historial propio)
     if (!mostrarTodo) {
-        const antesArqueado = egresosFiltrados.length;
-        egresosFiltrados = egresosFiltrados.filter(e => !e.arqueado);
-
+        const nombreUsuarioActual = (usuarioPerfil && usuarioPerfil.username) ? usuarioPerfil.username : sessionStorage.getItem('usuarioActual');
+        egresosFiltrados = egresosFiltrados.filter(e => !e.arqueado || (e.cajero === nombreUsuarioActual));
     }
 
     // 3. Filtro por Caja
@@ -4676,6 +4674,10 @@ function configurarVistaPorRol(rol, caja, usuario) {
         // Cajeros solo ven: Ingresos, Egresos, Arqueo de Caja
         if (navOperaciones) navOperaciones.style.display = 'none';
         if (navResumen) navResumen.style.display = 'none';
+
+        // **NUEVO:** Mostrar botón de resumen personal en Arqueo
+        const btnResumen = document.getElementById('btnVerResumenPersonal');
+        if (btnResumen) btnResumen.style.display = 'block';
     } else if (rol === 'tesoreria') {
         // Tesorería ve todo excepto Usuarios
         if (navOperaciones) navOperaciones.style.display = '';
