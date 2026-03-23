@@ -1615,13 +1615,28 @@ function renderizarVistaArqueoFinal(totales, todosLosEgresos = []) {
         egresosHTML = '<tr><td colspan="2">No hay egresos registrados.</td></tr>';
     }
 
+    // Determinar qué cajero mostrar
+    const filtroCajero = document.getElementById('filtroCajeroArqueo');
+    let nombreCajeroMostrar = document.getElementById('cajero').value || 'No especificado';
+    
+    if (filtroCajero) {
+        if (filtroCajero.value !== '') {
+            nombreCajeroMostrar = filtroCajero.options[filtroCajero.selectedIndex].text;
+        } else {
+            const userRole = sessionStorage.getItem('userRole');
+            if (userRole === 'admin' || userRole === 'tesoreria') {
+                nombreCajeroMostrar = 'Todos los cajeros';
+            }
+        }
+    }
+
     // Construir el HTML final para la vista
     contenedorVista.innerHTML = `
         <!-- **NUEVO:** Información General del Arqueo -->
         <div class="detalle-seccion" style="border-bottom: 1px solid var(--color-borde); padding-bottom: 1rem; margin-bottom: 1rem;">
             <h5>Información General del Arqueo</h5>
             <p><strong>Fecha y Hora:</strong> ${formatearFecha(document.getElementById('fecha').value)}</p>
-            <p><strong>Cajero:</strong> ${document.getElementById('cajero').value || 'No especificado'}</p>
+            <p><strong>Cajero:</strong> ${nombreCajeroMostrar}</p>
             <p><strong>Caja:</strong> ${document.getElementById('caja').value}</p>
         </div>
 
@@ -1981,9 +1996,25 @@ async function guardarArqueo() {
         return;
     }
 
+    // Determinar qué cajero guardar
+    const filtroCajero = document.getElementById('filtroCajeroArqueo');
+    let nombreCajeroGuardar = document.getElementById('cajero').value;
+    
+    if (filtroCajero && filtroCajero.value !== '') {
+        nombreCajeroGuardar = filtroCajero.options[filtroCajero.selectedIndex].text;
+    } else if (filtroCajero && filtroCajero.value === '') {
+        // Validación: Un admin no debería guardar un arqueo general de "Todos los cajeros" 
+        // porque mezcla el dinero físico. Deberían hacerlo por separado.
+        // Pero si el sistema lo permite temporalmente, se guarda como está o como "Todos los cajeros".
+        const userRole = sessionStorage.getItem('userRole');
+        if (userRole === 'admin' || userRole === 'tesoreria') {
+            nombreCajeroGuardar = 'Todos los cajeros';
+        }
+    }
+
     const arqueo = {
         fecha: document.getElementById('fecha').value,
-        cajero: document.getElementById('cajero').value,
+        cajero: nombreCajeroGuardar,
         caja: document.getElementById('caja').value,
         fondoFijo: parsearMoneda(document.getElementById('fondoFijo').value),
         // Los siguientes campos se llenarán con los datos ya calculados para la vista
