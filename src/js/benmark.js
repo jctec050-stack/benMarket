@@ -152,8 +152,8 @@ async function initSupabaseData() {
     const rol = sessionStorage.getItem('userRole');
     const caja = rol === 'tesoreria' ? 'Tesoreria' : (sessionStorage.getItem('cajaSeleccionada') || '');
 
-    // **CORRECCIÓN:** Cargar TODOS los datos de Supabase (sin filtro de fecha)
-    const a = await window.db.obtenerArqueosPorFecha(fechaBase);
+    // **CORRECCIÓN:** Cargar TODOS los datos de Supabase (sin filtro de fecha) para poder ver historial de arqueos
+    const a = await (window.db.obtenerArqueos ? window.db.obtenerArqueos() : window.db.obtenerArqueosPorFecha(fechaBase));
 
     // Obtener TODOS los movimientos, no solo de hoy
     const m = await (window.db.obtenerMovimientos ?
@@ -1788,6 +1788,60 @@ function actualizarArqueoFinal() {
     const totales = calcularTotalesArqueo(movimientosParaArqueo);
     renderizarVistaArqueoFinal(totales, todosLosEgresos);
     cargarHistorialMovimientosDia(); // Actualizar el historial visual
+    cargarHistorialArqueosCerrados(); // **NUEVO:** Mostrar historial de arqueos cerrados
+}
+
+function cargarHistorialArqueosCerrados() {
+    const contenedor = document.getElementById('listaArqueosCerrados');
+    if (!contenedor) return;
+    
+    const fechaInput = document.getElementById('fecha');
+    const cajaInput = document.getElementById('caja');
+    if (!fechaInput || !cajaInput) return;
+
+    const fechaFiltro = (fechaInput.value || '').slice(0, 10);
+    const cajaFiltro = cajaInput.value;
+    
+    const userRole = sessionStorage.getItem('userRole');
+    const usuarioActual = sessionStorage.getItem('usuarioActual');
+    
+    // Filtrar arqueos
+    const arqueosCerrados = estado.arqueos.filter(a => {
+        const coincideFecha = (a.fecha || '').slice(0, 10) === fechaFiltro;
+        const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || a.caja === cajaFiltro);
+        
+        // Cajeros solo ven sus propios arqueos. Admins ven todos.
+        const coincideUsuario = (userRole !== 'cajero') || (a.cajero === usuarioActual);
+        
+        return coincideFecha && coincideCaja && coincideUsuario;
+    }).sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+    
+    contenedor.innerHTML = '';
+    
+    if (arqueosCerrados.length === 0) {
+        contenedor.innerHTML = '<p class="text-center" style="color: var(--color-secundario);">No hay arqueos cerrados para este día/caja.</p>';
+        return;
+    }
+    
+    arqueosCerrados.forEach(arq => {
+        const div = document.createElement('div');
+        div.className = 'movimiento-item arqueo-item';
+        div.style.borderLeft = '4px solid var(--color-primario)';
+        div.style.cursor = 'pointer';
+        div.onclick = () => mostrarDetallesArqueo(arq.id); // Redirigir al modal de detalles actual
+        
+        div.innerHTML = `
+            <div class="movimiento-header">
+                <span class="movimiento-tipo"><strong>Arqueo Caja:</strong> ${arq.caja}</span>
+                <span class="movimiento-monto" style="color: var(--color-primario); font-weight: bold;">${formatearMoneda(arq.totalIngresos || arq.total_ingresos || 0, 'gs')}</span>
+            </div>
+            <div class="movimiento-detalles" style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                <small>👤 ${arq.cajero || 'Desconocido'} | 🕐 ${formatearFecha(arq.fecha)}</small>
+                <button class="btn btn-sm btn-outline-primario" onclick="event.stopPropagation(); mostrarDetallesArqueo('${arq.id}')">Ver Detalles</button>
+            </div>
+        `;
+        contenedor.appendChild(div);
+    });
 }
 
 function cargarHistorialMovimientosDia() {
