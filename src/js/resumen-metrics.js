@@ -2,7 +2,7 @@
  * Actualiza las métricas quick stats en la página de Resumen
  * Muestra total efectivo, total tarjeta, total crédito y caja destacada
  */
-window.actualizarMetricasResumen = function () {
+const _actualizarMetricasResumen = function () {
     // Verificar que estamos en la página de resumen
     if (!document.getElementById('metricTotalTarjeta')) return;
 
@@ -92,6 +92,9 @@ window.actualizarMetricasResumen = function () {
     actualizarTablaRecaudacion(movimientosFiltrados, fechaDesde, fechaHasta, filtroCajaGeneral);
 };
 
+// Exportar versión con debounce de 300ms
+window.actualizarMetricasResumen = window.debounce ? window.debounce(_actualizarMetricasResumen, 300) : _actualizarMetricasResumen;
+
 // **NUEVO:** Funciones para el Modal de Detalle
 window.mostrarDetalleMetrica = function (tipo, movimientos) {
     const modal = document.getElementById('modalDetalleMetrica');
@@ -133,13 +136,13 @@ window.mostrarDetalleMetrica = function (tipo, movimientos) {
     if (movimientosFiltrados.length === 0) {
         tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No hay movimientos registrados.</td></tr>';
     } else {
-        movimientosFiltrados.forEach(m => {
+        const rowsHtml = movimientosFiltrados.map(m => {
             let montoMostrar = 0;
             if (tipo === 'tarjeta') montoMostrar = m.pagosTarjeta;
             else if (tipo === 'pedidosya') montoMostrar = m.pedidosYa;
             else if (tipo === 'credito') montoMostrar = m.ventasCredito;
 
-            const row = `
+            return `
                 <tr>
                     <td>${formatearFecha(m.fecha)}</td>
                     <td>${m.cajero || 'N/A'}</td>
@@ -148,8 +151,8 @@ window.mostrarDetalleMetrica = function (tipo, movimientos) {
                     <td style="text-align: right; font-weight: bold;">${formatearMoneda(montoMostrar, 'gs')}</td>
                 </tr>
             `;
-            tbody.innerHTML += row;
-        });
+        }).join('');
+        tbody.innerHTML = rowsHtml;
     }
 
     if (totalEl) totalEl.textContent = formatearMoneda(total, 'gs');
@@ -356,6 +359,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         // Si ya cargamos datos desde un arqueo cerrado, ignoramos movimientos sueltos
         if (datosPorClave[clave] && datosPorClave[clave].esArqueoCerrado) return;
 
+
         if (!datosPorClaveTemp[clave]) {
             datosPorClaveTemp[clave] = {
                 nombreCajero: cajero,
@@ -368,9 +372,9 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             };
         }
 
-        datosPorClaveTemp[clave].tarjeta += (m.pagosTarjeta || 0);
-        datosPorClaveTemp[clave].pedidosYa += (m.pedidosYa || 0);
-        datosPorClaveTemp[clave].credito += (m.ventasCredito || 0);
+        datosPorClaveTemp[clave].tarjeta = (m.pagosTarjeta || 0);
+        datosPorClaveTemp[clave].pedidosYa = (m.pedidosYa || 0);
+        datosPorClaveTemp[clave].credito = (m.ventasCredito || 0);
 
         let efectivoMovimiento = 0;
         if (m.valorVenta > 0) {
@@ -398,7 +402,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
                 efectivoMovimiento += obtenerMontoMonedaMov(monedas.ars);
             }
         }
-        datosPorClaveTemp[clave].efectivoBruto += efectivoMovimiento;
+        datosPorClaveTemp[clave].efectivoBruto = efectivoMovimiento;
 
         let montoServicioEfectivo = 0;
         if (m.servicios) {
@@ -415,7 +419,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
                 montoServicioEfectivo += monto;
             });
         }
-        datosPorClaveTemp[clave].servicios += montoServicioEfectivo;
+        datosPorClaveTemp[clave].servicios = montoServicioEfectivo;
     });
 
     // Ahora procesar datos consolidados
@@ -446,8 +450,8 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
 
         // **MODIFICADO:** Obtener fondo fijo guardado para esta caja o usar 0 por defecto (evitando el hardcode de 700k)
         // Esto permite que si el usuario guarda 0 en el arqueo/configuración, se respete aquí.
-        const fondoFijo = (estado.fondoFijoPorCaja && estado.fondoFijoPorCaja[nombreCaja]) 
-            ? (estado.fondoFijoPorCaja[nombreCaja].monto || 0) 
+        const fondoFijo = (estado.fondoFijoPorCaja && estado.fondoFijoPorCaja[nombreCaja])
+            ? (estado.fondoFijoPorCaja[nombreCaja].monto || 0)
             : 0;
 
         // FÓRMULA CORRECTA: Total Ingresos Tienda = (Efectivo Bruto + Egresos) - Servicios - Fondo Fijo
@@ -458,10 +462,9 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             efectivoBruto: temp.efectivoBruto,
             egresos: egresosDelCajero,
             servicios: temp.servicios,
-            serviciosDetalle: temp.serviciosDetalle, // **NUEVO:** Ver detalle de servicios
             fondoFijo: fondoFijo,
             totalADeclarar: totalADeclarar,
-            ingresoTiendaCalculado: Math.max(0, ingresoTiendaCalculado)
+            ingresoTiendaCalculado: ingresoTiendaCalculado
         });
 
 
@@ -480,13 +483,13 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
 
         // **NUEVA VALIDACIÓN:** No mostrar filas que no tienen actividad real 
         // Solo mostrar si hay algún valor mayor a cero en las columnas de ingreso o egreso
-        const tieneActividadReal = 
-            (d.tarjeta || 0) !== 0 || 
-            (d.pedidosYa || 0) !== 0 || 
-            (d.credito || 0) !== 0 || 
-            (d.egresos || 0) !== 0 || 
+        const tieneActividadReal =
+            (d.tarjeta || 0) !== 0 ||
+            (d.pedidosYa || 0) !== 0 ||
+            (d.credito || 0) !== 0 ||
+            (d.egresos || 0) !== 0 ||
             (d.totalDeclarar - (d.egresos || 0)) !== 0; // Efectivo Bruto != 0
-        
+
         if (!tieneActividadReal) {
             return; // Omitir fila sin movimientos
         }
@@ -566,18 +569,18 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             let sobrante = 0;
             let faltante = 0;
 
-            if (difference < 0) {
-                sobrante = Math.abs(difference);
-            } else if (difference > 0) {
-                faltante = difference;
+            if (difference > 0) {
+                sobrante = difference;
+            } else if (difference < 0) {
+                faltante = Math.abs(difference);
             }
             // Si difference === 0, ambos quedan en 0
 
             row.querySelector('.col-sobrante').textContent = formatearMoneda(sobrante, 'gs');
             row.querySelector('.col-faltante').textContent = formatearMoneda(faltante, 'gs');
 
-            // Subtotales = Efectivo ingresado + Sobrante - Faltante
-            const totalCajero = inputVal + sobrante - faltante;
+            // Subtotales = Efectivo ingresado - Sobrante + Faltante
+            const totalCajero = inputVal - sobrante + faltante;
             row.querySelector('.col-subtotal').innerHTML = `<strong>${formatearMoneda(totalCajero, 'gs')}</strong>`;
 
             actualizarTotalesFooter();
@@ -594,12 +597,12 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             // Limpiar puntos antes de parsear para evitar errores
             const rawValue = input.value.replace(/\./g, '');
             const value = parseFloat(rawValue) || 0;
-            
+
             if (value > 0) {
                 // Formatear con separadores de miles
                 input.value = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(value);
             }
-            
+
             // Guardar en localStorage usando el valor numérico
             localStorage.setItem(claveStorage, value);
 
@@ -614,27 +617,27 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
                 });
             }
         });
-        
+
         // Al cargar, formatear si ya tiene valor
         if (storedValue && parseFloat(storedValue) > 0) {
-             input.value = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(parseFloat(storedValue));
+            input.value = new Intl.NumberFormat('es-PY', { minimumFractionDigits: 0 }).format(parseFloat(storedValue));
         }
         input.addEventListener('focus', () => {
             // Remover formato cuando gana el foco para que pueda editar
             const value = parseFloat(input.value.replace(/\./g, '')) || 0;
             input.value = value;
         });
-        
+
         // Listener para el botón de guardar
         const btnGuardar = row.querySelector('.btn-guardar-recaudacion');
         if (btnGuardar) {
             btnGuardar.addEventListener('click', () => {
                 const rawValue = input.value.replace(/\./g, '');
                 const value = parseFloat(rawValue) || 0;
-                
+
                 // Efecto visual de carga
                 btnGuardar.textContent = '⏳';
-                
+
                 // Guardar en Supabase
                 if (db && db.guardarRecaudacion && fechaDesde) {
                     db.guardarRecaudacion(fechaDesde, nombreCajero, nombreCaja, value).then(success => {
@@ -643,7 +646,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
                             // Feedback de éxito
                             btnGuardar.textContent = '✅';
                             showNotification(`Recaudación de ${nombreCajero} guardada correctamente`, 'success');
-                            
+
                             // Restaurar icono después de 2 segundos
                             setTimeout(() => {
                                 btnGuardar.textContent = '💾';
@@ -659,7 +662,7 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
                 }
             });
         }
-        
+
         setTimeout(updateRow, 0);
 
         tbody.appendChild(row);
@@ -716,11 +719,11 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
         window.totalRecaudadoGlobal = tIngresoTienda;
 
         // **NUEVO:** Calcular Gran Total Ventas Tienda (Tarjeta + PedidosYa + Credito + Ingresos Tienda)
-        const granTotalVentas = (window.subtotalTarjetaGlobal || 0) + 
-                               (window.subtotalPedidosYaGlobal || 0) + 
-                               (window.subtotalCreditoGlobal || 0) + 
-                               tIngresoTienda;
-        
+        const granTotalVentas = (window.subtotalTarjetaGlobal || 0) +
+            (window.subtotalPedidosYaGlobal || 0) +
+            (window.subtotalCreditoGlobal || 0) +
+            tIngresoTienda;
+
         const elGranTotal = document.getElementById('metricTotalVentasTienda');
         if (elGranTotal) {
             elGranTotal.textContent = formatearMoneda(granTotalVentas, 'gs');

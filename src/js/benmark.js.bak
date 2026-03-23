@@ -242,11 +242,78 @@ async function initSupabaseData() {
 
 window.initSupabaseData = initSupabaseData;
 
-// Utilidades y formateo movidos a utils.js
-// Utilidades movidas a utils.js
+// Funciones de formateo movidas a utils.js
 
 
+function formatearFecha(fecha) {
+    if (!fecha) return '';
+    // Si es solo fecha (YYYY-MM-DD), agregar hora para que sea local y no UTC
+    if (fecha.length === 10 && fecha.includes('-')) {
+        return new Date(fecha + 'T00:00:00').toLocaleDateString('es-PY', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+    }
+    return new Date(fecha).toLocaleDateString('es-PY', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
 
+function generarId() {
+    try {
+        // Intentar usar el generador nativo de UUID del navegador
+        return crypto.randomUUID();
+    } catch (e) {
+        // Fallback para contextos no seguros o navegadores antiguos
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+}
+
+function getLocalOffset() {
+    const offsetMinutes = -new Date().getTimezoneOffset();
+    const sign = offsetMinutes >= 0 ? '+' : '-';
+    const absOffset = Math.abs(offsetMinutes);
+    const hours = Math.floor(absOffset / 60).toString().padStart(2, '0');
+    const minutes = (absOffset % 60).toString().padStart(2, '0');
+    return `${sign}${hours}:${minutes}`;
+}
+
+function obtenerFechaHoraLocalISO() {
+    const ahora = new Date();
+    // Valor local sin offset para inputs datetime-local
+    const offset = ahora.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(ahora.getTime() - offset).toISOString().slice(0, 16);
+    return localISOTime;
+}
+
+function formatearFechaParaSupa(valorInput) {
+    if (!valorInput) {
+        const ahora = new Date();
+        // Generar ISO local literal sin offset para TIMESTAMP sin zona horaria
+        const offset = ahora.getTimezoneOffset() * 60000;
+        return new Date(ahora.getTime() - offset).toISOString().slice(0, 19);
+    }
+    // Si ya es un string ISO con offset o Z, lo limpiamos para dejarlo literal local
+    if (valorInput.includes('T')) {
+        // Retornar solo YYYY-MM-DDTHH:mm:ss
+        let localISO = valorInput.split('.')[0].replace('Z', '');
+        if (localISO.includes('+')) localISO = localISO.split('+')[0];
+        if (localISO.length === 16) localISO += ':00';
+        return localISO.slice(0, 19);
+    }
+    return valorInput;
+}
+
+function obtenerFechaLocalISO(date) {
+    const d = date || new Date();
+    const offset = d.getTimezoneOffset() * 60000;
+    return new Date(d.getTime() - offset).toISOString().slice(0, 10);
+}
 
 // Inicializar formulario de arqueo
 function inicializarFormularioArqueo() {
@@ -1349,6 +1416,7 @@ function calcularTotalesArqueo(movimientosParaArqueo) {
         ventasCredito: 0,
         pedidosYa: 0,
         ventasTransferencia: 0,
+        totalIngresosTienda: 0, // **NUEVO:** Para sumar solo ingresos de tienda (no servicios)
         servicios: {
             apLote: { lotes: [], monto: 0, tarjeta: 0 },
             aquiPago: { lotes: [], monto: 0, tarjeta: 0 },
@@ -1367,7 +1435,26 @@ function calcularTotalesArqueo(movimientosParaArqueo) {
     });
 
     movimientosParaArqueo.forEach(mov => {
+        // **NUEVA LÓGICA:** Identificar si es un ingreso de tienda
+        if (mov.tipoMovimiento === 'ingreso') {
+            let esServicio = false;
+            if (mov.servicios) {
+                for (const key in mov.servicios) {
+                    if (mov.servicios[key].monto > 0) esServicio = true;
+                }
+            }
+            if (mov.otrosServicios && mov.otrosServicios.length > 0) {
+                if (mov.otrosServicios.some(s => s.monto > 0)) esServicio = true;
+            }
+
+            if (!esServicio) {
+                const montoEfectivo = mov.efectivo ? Object.entries(mov.efectivo).reduce((sum, [denom, cant]) => sum + (parseInt(denom) * cant), 0) : 0;
+                totales.totalIngresosTienda += mov.valorVenta > 0 ? mov.valorVenta : montoEfectivo;
+            }
+        }
         // Sumar/Restar efectivo por denominación
+
+
         if (mov.efectivo && mov.tipoMovimiento === 'ingreso') {
             for (const [denominacion, cantidad] of Object.entries(mov.efectivo)) {
                 if (!totales.efectivo[denominacion]) totales.efectivo[denominacion] = { ingreso: 0, egreso: 0, neto: 0 };
@@ -1506,20 +1593,17 @@ function renderizarVistaArqueoFinal(totales, todosLosEgresos = []) {
     }
 
     const totalEfectivoBruto = totalEfectivoFinal + totalMonedasExtranjerasGs;
-    // const totalAEntregar = totalEfectivoBruto; // Esta variable ya no se usa directamente en el resumen final como "a entregar"
-    const totalAEntregarGs = totalEfectivoFinal - fondoFijo; // Esto sigue siendo el efectivo Gs a entregar después del fondo fijo
+    const totalAEntregar = totalEfectivoBruto;
+    const totalAEntregarGs = totalEfectivoFinal - fondoFijo;
     const totalIngresoEfectivo = totalServiciosEfectivo;
 
     // Calcular totales de egresos usando el array pasado como argumento
     const totalEgresosCaja = todosLosEgresos.reduce((sum, e) => sum + e.monto, 0);
 
-    const totalADeclarar = totalEgresosCaja + totalEfectivoBruto; // Total que el sistema calcula que debería haber
-    const totalIngresosTiendaCalculado = (totalEfectivoBruto + totalEgresosCaja) - totalServiciosEfectivo - fondoFijo;
+    const totalADeclarar = totalEgresosCaja + totalEfectivoBruto;
+    const totalIngresosTiendaCalculado = totalADeclarar - totalIngresoEfectivo - fondoFijo;
 
-    // **NUEVO:** Cálculos para el arqueo manual
-    const totalADeclararManual = totalEfectivoBruto + totalEgresosCaja; // Suma del efectivo contado + egresos
-    const diferenciaArqueo = totalADeclararManual - totalADeclarar;
-    const claseDiferencia = diferenciaArqueo < 0 ? 'negativo' : (diferenciaArqueo > 0 ? 'positivo' : '');
+    const totalNeto = (totales.totalIngresosTienda + totalIngresoEfectivo) - totalEgresosCaja;
 
     let totalesMonedasHTML = '';
     if (totales.monedasExtranjeras.usd.cantidad > 0) {
@@ -2014,6 +2098,7 @@ async function guardarArqueo() {
             arqueo.efectivo[denom] = totales.efectivo[denom].neto;
         }
     }
+    arqueo.monedasExtranjeras = totales.monedasExtranjeras;
     arqueo.pagosTarjeta = totales.pagosTarjeta;
     arqueo.ventasCredito = totales.ventasCredito;
     arqueo.pedidosYa = totales.pedidosYa;
@@ -2079,41 +2164,51 @@ async function guardarArqueo() {
     };
 
 
-    // Calcular "Total Ingresos Tienda" (Efectivo Bruto + Egresos - Servicios Efectivo - Fondo Fijo)
-    const totalServiciosEfectivoParaResumen = Object.values(totales.servicios).flat().reduce((sum, s) => sum + (s.monto || 0), 0);
-    const totalEgresosSumaParaResumen = todosLosEgresos.reduce((sum, e) => sum + (e.monto || 0), 0);
-    const totalIngresosTiendaCalculadoFinal = (totalEfectivoBruto + totalEgresosSumaParaResumen) - totalServiciosEfectivoParaResumen - arqueo.fondoFijo;
-
     if (window.db) {
         let resultado;
         if (esEdicion) {
+            // **CASO EDICIÓN:** Usar actualizarArqueo
+            // Asegurar de pasar el ID existente
             resultado = await window.db.actualizarArqueo(arqueo.id, datosParaBD);
         } else if (window.db.guardarArqueo) {
+            // **CASO CREACIÓN:** Usar guardarArqueo
             resultado = await window.db.guardarArqueo(datosParaBD);
         }
 
+        console.log('[DEBUG GUARDAR ARQUEO] Resultado de Supabase:', resultado);
         if (resultado && !resultado.success) {
-            console.error('Error al guardar/actualizar arqueo:', resultado.error);
-            mostrarMensaje('Error al guardar: ' + resultado.error, 'peligro');
-            return;
-        }
+            console.error('Error al guardar/actualizar arqueo en base de datos:', resultado.error);
+            mostrarMensaje('Error al guardar en base de datos: ' + resultado.error, 'peligro');
+            return; // Detener si hay error
+        } else {
+            console.log('✅ Arqueo guardado/actualizado exitosamente en Supabase');
+            
+            // **NUEVO:** Sincronizar con la tabla de Recaudación (Resumen Tesorería)
+            if (window.db && window.db.guardarRecaudacion) {
+                const soloFecha = (arqueo.fecha || '').slice(0, 10);
+                
+                // Calcular "Total Ingresos Tienda" (Efectivo Bruto + Egresos - Servicios Efectivo - Fondo Fijo)
+                // para que coincida exactamente con lo que muestra la UI del Arqueo
+                const totalServiciosEfectivo = Object.values(totales.servicios).flat().reduce((sum, s) => sum + (s.monto || 0), 0);
+                const totalEgresosSuma = todosLosEgresos.reduce((sum, e) => sum + (e.monto || 0), 0);
+                const totalADeclararSistema = totalEgresosSuma + totalEfectivoBruto;
+                const totalIngresosTiendaRecaudacion = totalADeclararSistema - totalServiciosEfectivo - arqueo.fondoFijo;
 
-        // Sincronizar con Recaudación
-        if (window.db.guardarRecaudacion) {
-            const soloFecha = (arqueo.fecha || '').slice(0, 10);
-            window.db.guardarRecaudacion(soloFecha, arqueo.cajero, arqueo.caja, totalIngresosTiendaCalculadoFinal);
+                console.log(`Sincronizando Recaudación: Fecha=${soloFecha}, Monto=${totalIngresosTiendaRecaudacion}`);
+
+                window.db.guardarRecaudacion(soloFecha, arqueo.cajero, arqueo.caja, totalIngresosTiendaRecaudacion)
+                    .then(success => {
+                        if (success) {
+                            console.log('✓ Recaudación sincronizada automáticamente con el arqueo.');
+                        } else {
+                            console.warn('⚠️ No se pudo sincronizar la recaudación automáticamente.');
+                        }
+                    });
+            }
         }
+    } else {
+        console.warn('⚠️ window.db.guardarArqueo/actualizarArqueo no disponible');
     }
-
-    // Poblar arqueo.resumen para el PDF
-    arqueo.resumen = {
-        totalEfectivo: arqueo.totalEfectivo,
-        totalIngresos: totalIngresosParaGuardar,
-        totalEgresosCaja: totalEgresosSumaParaResumen,
-        totalADeclarar: parsearMoneda(document.getElementById('totalDeclararSistemaArqueo')?.textContent || '0'),
-        totalIngresosTienda: totalIngresosTiendaCalculadoFinal,
-        diferencia: parsearMoneda(document.getElementById('diferenciaArqueoFinal')?.textContent || '0')
-    };
 
     // Guardar en el estado local
     if (esEdicion) {

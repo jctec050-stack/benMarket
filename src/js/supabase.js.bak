@@ -800,24 +800,15 @@ const db = {
 };
 
 // Función para migrar datos de localStorage a Supabase
-// Variable para evitar sincronizaciones simultáneas
-let isSyncing = false;
-
+// Función ROBUSTA para sincronizar datos offline
 window.sincronizarDatosOffline = async function () {
-    if (isSyncing) {
-        console.log('Sincronización en curso, omitiendo...');
-        return;
-    }
-
     if (!supabaseClient || !navigator.onLine) {
         console.log('No se puede sincronizar: Offline o Supabase no listo.');
         return;
     }
 
-    isSyncing = true;
-    try {
-        console.log('🔄 Iniciando sincronización de datos...');
-        let cambiosRealizados = false;
+    console.log('🔄 Iniciando sincronización de datos...');
+    let cambiosRealizados = false;
 
     // Helper para sincronizar una colección específica
     const sincronizarColeccion = async (keyStorage, tablaSupabase, idField = 'id') => {
@@ -889,13 +880,9 @@ window.sincronizarDatosOffline = async function () {
         showNotification(`${totalSync} registros sincronizados con la nube.`, 'success');
 
         // Opcional: Recargar datos desde la nube para asegurar consistencia total
-        } else {
-            console.log('Todo está actualizado.');
-        }
-    } catch (error) {
-        console.error('Error durante la sincronización:', error);
-    } finally {
-        isSyncing = false;
+        // if (window.initSupabaseData) window.initSupabaseData(); 
+    } else {
+        console.log('Todo está actualizado.');
     }
 };
 
