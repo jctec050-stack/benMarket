@@ -4719,12 +4719,19 @@ function configurarVistaPorRol(rol, caja, usuario) {
         });
 
     } else if (rol === 'cajero') {
-        // Cajero usa la caja asignada en el login y no puede cambiarla.
+        // Cajero usa la caja asignada en el login y no puede cambiarla por defecto.
         selectoresCaja.forEach(id => {
             const select = document.getElementById(id);
             if (select) {
-                select.value = caja; // 'caja' viene de sessionStorage
-                select.disabled = true;
+                // **NUEVO:** Permitir al cajero cambiar la caja SOLO en la página de Arqueos para consultar históricos
+                if (window.location.pathname.includes('arqueo.html') && id === 'caja') {
+                    // Inicializar con su caja actual si no tiene un valor previo válido, pero no bloquear
+                    if (!select.value) select.value = caja;
+                    select.disabled = false;
+                } else {
+                    select.value = caja; // 'caja' viene de sessionStorage
+                    select.disabled = true;
+                }
             }
         });
     }
