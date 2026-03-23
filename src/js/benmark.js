@@ -1733,7 +1733,11 @@ function actualizarArqueoFinal() {
     const fechaArqueo = (fechaInput.value || '').slice(0, 10);
     const cajaFiltro = cajaInput.value;
     const userRole = sessionStorage.getItem('userRole');
-    const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria';
+    
+    // **NUEVO:** Los cajeros deben poder ver los movimientos ya arqueados si están consultando una fecha anterior
+    const hoy = obtenerFechaLocalISO();
+    const esFechaPasada = fechaArqueo !== hoy;
+    const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria' || esFechaPasada;
 
     // **NUEVO:** Segregación por usuario para no mezclar cajas de diferentes cajeros
     const usuarioActual = sessionStorage.getItem('usuarioActual');
@@ -1829,7 +1833,9 @@ function actualizarArqueoFinal() {
 
     // Configurar filtro de usuario
     const userRole = sessionStorage.getItem('userRole');
-    const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria';
+    const hoyParaHistorial = obtenerFechaLocalISO();
+    const esFechaPasadaHistorial = fechaFiltro !== hoyParaHistorial;
+    const mostrarTodo = userRole === 'admin' || userRole === 'tesoreria' || esFechaPasadaHistorial;
 
     // **CAMBIO:** Ya no filtramos por usuario específico, sino estrictamente por caja.
     /*
