@@ -4694,9 +4694,7 @@ function configurarVistaPorRol(rol, caja, usuario) {
         if (navOperaciones) navOperaciones.style.display = 'none';
         if (navResumen) navResumen.style.display = 'none';
 
-        // **NUEVO:** Mostrar botón de resumen personal en Arqueo
-        const btnResumen = document.getElementById('btnVerResumenPersonal');
-        if (btnResumen) btnResumen.style.display = 'block';
+
     } else if (rol === 'tesoreria') {
         // Tesorería ve todo excepto Usuarios
         if (navOperaciones) navOperaciones.style.display = '';
