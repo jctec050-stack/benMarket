@@ -1676,6 +1676,25 @@ function actualizarArqueoFinal() {
     // **NUEVO:** Obtener filtro manual de cajero (para Arqueo)
     const filtroCajeroValue = document.getElementById('filtroCajeroArqueo')?.value || '';
 
+    // **NUEVO:** Detectar si ya existe un arqueo guardado para esta fecha/caja/cajero
+    const inputIdEditar = document.getElementById('idArqueoEditar');
+    if (inputIdEditar) inputIdEditar.value = ''; // Reset por defecto
+
+    if (estado.arqueos && estado.arqueos.length > 0) {
+        const nombreCajeroActual = (userRole === 'cajero') ? (sessionStorage.getItem('usuarioActual') || '') : filtroCajeroValue;
+        
+        const arqueoExistente = estado.arqueos.find(a => 
+            (a.fecha || '').slice(0, 10) === fechaArqueo && 
+            a.caja === cajaFiltro && 
+            (a.cajero === nombreCajeroActual || (!nombreCajeroActual && a.cajero === 'Todos los cajeros'))
+        );
+
+        if (arqueoExistente && inputIdEditar) {
+            console.log(`[Arqueo] Detectado arqueo existente ID: ${arqueoExistente.id}. Vinculando para actualización.`);
+            inputIdEditar.value = arqueoExistente.id;
+        }
+    }
+
     // 1. Obtener ingresos del día
     let ingresosParaArqueo = estado.movimientosTemporales.filter(m => {
         // **CORRECCIÓN:** Usar slice(0, 10) para manejar formatos con 'T' o espacio
@@ -1980,16 +1999,16 @@ async function guardarArqueo() {
     // **NUEVO:** Excluir movimientos ya arqueados Y filtrar por cajero
     const ingresosParaArqueo = estado.movimientosTemporales.filter(m =>
         m.caja === cajaFiltro &&
-        m.cajero === cajeroFiltro && // **NUEVO:** Filtrar por cajero
+        m.cajero === cajeroFiltro &&
         (m.fecha || '').slice(0, 10) === fechaArqueo &&
-        m.arqueado !== true
+        (m.arqueado !== true || esEdicion) // **MODIFICADO:** Incluir arqueados si es edición
     );
     // **NUEVO:** Excluir egresos ya arqueados Y filtrar por cajero
     const egresosDeCaja = estado.egresosCaja.filter(e =>
         (e.fecha || '').slice(0, 10) === fechaArqueo &&
         e.caja === cajaFiltro &&
-        (e.cajero === cajeroFiltro || e.usuario === cajeroFiltro) && // **NUEVO:** Filtrar por cajero
-        e.arqueado !== true
+        (e.cajero === cajeroFiltro || e.usuario === cajeroFiltro) &&
+        (e.arqueado !== true || esEdicion) // **MODIFICADO:** Incluir arqueados si es edición
     );
     const egresosDeOperaciones = estado.movimientos.filter(m =>
         (m.fecha || '').slice(0, 10) === fechaArqueo &&
