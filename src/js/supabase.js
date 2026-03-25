@@ -104,6 +104,22 @@ function inicializarSupabase() {
 
 // Funciones de base de datos (se usarán cuando Supabase esté configurado)
 const db = {
+    /**
+     * Helper interno para asegurar que hay una sesión activa y obtener el usuario.
+     * Crucial para que las políticas RLS de Supabase funcionen.
+     */
+    async _ensureAuth() {
+        if (!supabaseClient) {
+            throw new Error('Supabase no está disponible o no se pudo inicializar.');
+        }
+        const { data: { session }, error } = await supabaseClient.auth.getSession();
+        if (error) throw error;
+        if (!session) {
+            throw new Error('No hay una sesión activa de Supabase. Por favor, inicie sesión nuevamente.');
+        }
+        return session.user;
+    },
+
     // ===== AUTENTICACIÓN =====
     async registrarUsuario(email, password, username, rol = 'cajero') {
         if (supabaseClient) {
@@ -267,39 +283,40 @@ const db = {
 
     // ===== GESTIÓN DE USUARIOS =====
     async guardarEgresoCaja(egreso) {
-        if (supabaseClient) {
-            try {
-                // Preparar objeto para Supabase (mapear nombres de columnas si es necesario)
-                const payload = {
-                    id: egreso.id,
-                    fecha: egreso.fecha,
-                    caja: egreso.caja,
-                    cajero: egreso.cajero || egreso.usuario, // Soportar ambos nombres por si acaso
-                    categoria: egreso.categoria,
-                    descripcion: egreso.descripcion,
-                    monto: egreso.monto,
-                    referencia: egreso.referencia,
-                    receptor: egreso.receptor,
-                    numero_recibo: egreso.numeroRecibo,
-                    arqueado: egreso.arqueado || false,
-                    moneda: egreso.moneda || 'gs',
-                    efectivo: egreso.efectivo
-                };
+        try {
+            const usuario = await this._ensureAuth();
+            
+            // Preparar objeto para Supabase (mapear nombres de columnas si es necesario)
+            const payload = {
+                id: egreso.id,
+                fecha: egreso.fecha,
+                caja: egreso.caja,
+                cajero: egreso.cajero || egreso.usuario,
+                categoria: egreso.categoria,
+                descripcion: egreso.descripcion,
+                monto: egreso.monto,
+                referencia: egreso.referencia,
+                receptor: egreso.receptor,
+                numero_recibo: egreso.numeroRecibo,
+                arqueado: egreso.arqueado || false,
+                moneda: egreso.moneda || 'gs',
+                efectivo: egreso.efectivo,
+                usuario_id: usuario.id // **CRUCIAL:** Para RLS
+            };
 
-                const { data, error } = await supabaseClient
-                    .from('egresos_caja')
-                    .upsert([payload]);
+            console.log('[Supabase] Guardando Egreso Caja:', payload.id);
 
-                if (error) throw error;
-                return { success: true, data };
-            } catch (error) {
-                console.error('Error completo al guardar egreso (Offline Fallback):', error);
-                const itemOffline = { ...egreso, pending_sync: true };
-                this.guardarEnLocalStorage('egresosCaja', itemOffline);
-                return { success: true, offline: true, error };
-            }
-        } else {
-            return this.guardarEnLocalStorage('egresosCaja', egreso);
+            const { data, error } = await supabaseClient
+                .from('egresos_caja')
+                .upsert([payload]);
+
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            console.error('Error al guardar egreso (Offline Fallback):', error);
+            const itemOffline = { ...egreso, pending_sync: true };
+            this.guardarEnLocalStorage('egresosCaja', itemOffline);
+            return { success: true, offline: true, error: error.message || error };
         }
     },
     async guardarEgresoCajaV5(egreso) {
@@ -448,24 +465,37 @@ const db = {
 
     // Guardar movimiento
     async guardarMovimiento(movimiento) {
-        if (supabaseClient) {
-            try {
-                const { user_id, ...movimientoLimpio } = movimiento;
-                const { data, error } = await supabaseClient
-                    .from('movimientos')
-                    .upsert([movimientoLimpio]);
-                if (error) {
-                    console.error('Error de Supabase al guardar movimiento:', error);
-                    console.error('Datos del movimiento:', movimiento);
-                    throw error;
-                }
-                return { success: true, data };
-            } catch (error) {
-                console.error('Error completo:', error);
-                return { success: false, error };
-            }
-        } else {
-            return this.guardarEnLocalStorage('movimientos', movimiento);
+        try {
+            const usuario = await this._ensureAuth();
+            
+            // **NUEVO:** No eliminar usuario_id ni user_id si lo necesitamos para RLS
+            const payload = {
+                ...movimiento,
+                usuario_id: usuario.id,
+                // Asegurar snake_case para columnas críticas si vienen en camelCase
+                pagos_tarjeta: movimiento.pagosTarjeta,
+                ventas_credito: movimiento.ventasCredito,
+                pedidos_ya: movimiento.pedidosYa,
+                ventas_transferencia: movimiento.ventasTransferencia
+            };
+
+            // Limpiar campos que no van en la tabla movimientos
+            delete payload.pagosTarjeta;
+            delete payload.ventasCredito;
+            delete payload.pedidosYa;
+            delete payload.ventasTransferencia;
+
+            const { data, error } = await supabaseClient
+                .from('movimientos')
+                .upsert([payload]);
+
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            console.error('Error al guardar movimiento (Offline Fallback):', error);
+            const itemOffline = { ...movimiento, pending_sync: true };
+            this.guardarEnLocalStorage('movimientos', itemOffline);
+            return { success: true, offline: true, error: error.message || error };
         }
     },
 
@@ -684,39 +714,26 @@ const db = {
         }
     },
     async guardarMovimientoTemporal(item) {
-        if (supabaseClient) {
-            try {
-                // **NUEVO:** Asegurar que el campo arqueado esté presente y eliminar user_id
-                const { user_id, ...itemLimpio } = item;
-                const itemConEstado = { ...itemLimpio, arqueado: item.arqueado !== undefined ? item.arqueado : false };
+        try {
+            const usuario = await this._ensureAuth();
+            
+            const payload = {
+                ...item,
+                usuario_id: usuario.id,
+                arqueado: item.arqueado !== undefined ? item.arqueado : false
+            };
 
-                // **DEBUG:** Log para verificar qué se está guardando
-                console.log('=== GUARDANDO EN SUPABASE ===');
-                console.log('Item completo:', itemConEstado);
-                console.log('Efectivo a guardar:', itemConEstado.efectivo);
-                console.log('Keys de efectivo:', Object.keys(itemConEstado.efectivo || {}));
+            const { data, error } = await supabaseClient
+                .from('movimientos_temporales')
+                .upsert([payload]);
 
-                const { data, error } = await supabaseClient
-                    .from('movimientos_temporales')
-                    .upsert([itemConEstado]);
-
-                if (error) {
-                    console.error('Error de Supabase:', error);
-                    throw error;
-                }
-
-                console.log('Guardado exitoso. Data devuelta:', data);
-                return { success: true, data };
-            } catch (error) {
-                console.error('Error completo al guardar (Offline Fallback):', error);
-                // Fallback: Guardar en localStorage si falla Supabase
-                const itemOffline = { ...item, arqueado: item.arqueado !== undefined ? item.arqueado : false, pending_sync: true };
-                this.guardarEnLocalStorage('movimientosTemporales', itemOffline);
-                console.warn('Datos guardados localmente por error de red.');
-                return { success: true, offline: true, error: error };
-            }
-        } else {
-            return this.guardarEnLocalStorage('movimientosTemporales', item);
+            if (error) throw error;
+            return { success: true, data };
+        } catch (error) {
+            console.error('Error al guardar movimiento temporal (Offline Fallback):', error);
+            const itemOffline = { ...item, pending_sync: true };
+            this.guardarEnLocalStorage('movimientosTemporales', itemOffline);
+            return { success: true, offline: true, error: error.message || error };
         }
     },
     async obtenerMovimientosTemporales() {
@@ -1036,18 +1053,7 @@ const ESQUEMA_TABLAS = {
  */
 async function guardarArqueo(datosArqueo) {
     try {
-        if (!supabaseClient) {
-            throw new Error('Supabase no está inicializado');
-        }
-
-        // CORRECCIÓN: Usar getSession() que es asíncrono en Supabase v2
-        const { data: { session }, error: sessionError } = await supabaseClient.auth.getSession();
-        if (sessionError) throw sessionError;
-
-        const usuario = session?.user;
-        if (!usuario) {
-            throw new Error('Usuario no autenticado');
-        }
+        const usuario = await db._ensureAuth();
 
         // Añadir el usuario_id a los datos del arqueo
         const { user_id, ...datosLimpios } = datosArqueo;
@@ -1056,10 +1062,9 @@ async function guardarArqueo(datosArqueo) {
         const { data, error } = await supabaseClient
             .from('arqueos')
             .insert([datosCompletos])
-            .select(); // CORRECCIÓN: Pedir que devuelva los datos insertados.
+            .select();
 
         if (error) throw error;
-
         return { success: true, data: data ? data[0] : null };
     } catch (error) {
         console.error('Error al guardar arqueo (Offline Fallback):', error);
@@ -1518,32 +1523,28 @@ db.obtenerRecaudacionPorRango = obtenerRecaudacionPorRango;
  * @param {number} total - El Total General calculado
  */
 db.guardarTotalGeneral = async function (fecha, caja, total) {
-    if (supabaseClient) {
-        try {
-            const dataToUpsert = {
-                fecha: fecha,
-                caja: caja || 'Todas las Cajas',
-                total: parseFloat(total)
-            };
+    try {
+        await this._ensureAuth();
+        
+        const dataToUpsert = {
+            fecha: fecha,
+            caja: caja || 'Todas las Cajas',
+            total: parseFloat(total)
+        };
 
-            const { data, error } = await supabaseClient
-                .from('total_general')
-                .upsert(dataToUpsert, { onConflict: 'fecha,caja' });
+        const { data, error } = await supabaseClient
+            .from('total_general')
+            .upsert(dataToUpsert, { onConflict: 'fecha,caja' });
 
-            if (error) throw error;
-            console.log(`[Supabase DB] Total Gral guardado para ${fecha} (${caja}): ${total}`);
-            return { success: true, data };
-        } catch (error) {
-            console.error('[Supabase DB] Error guardando Total General:', error);
-            // Fallback a localStorage
-            const clave = `totalGeneral_${fecha}_${caja || 'Todas las Cajas'}`;
-            localStorage.setItem(clave, total);
-            return { success: false, error };
-        }
-    } else {
+        if (error) throw error;
+        console.log(`[Supabase DB] Total Gral guardado para ${fecha} (${caja}): ${total}`);
+        return { success: true, data };
+    } catch (error) {
+        console.error('[Supabase DB] Error guardando Total General:', error);
+        // Fallback a localStorage
         const clave = `totalGeneral_${fecha}_${caja || 'Todas las Cajas'}`;
         localStorage.setItem(clave, total);
-        return { success: true };
+        return { success: false, error };
     }
 };
 
