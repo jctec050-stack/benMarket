@@ -308,15 +308,34 @@ const db = {
 
             const { data, error } = await supabaseClient
                 .from('egresos_caja')
-                .upsert([payload]);
+                .upsert([payload])
+                .select();
 
-            if (error) throw error;
-            return { success: true, data };
+            if (error) {
+                console.error('[Supabase] Error en upsert egresos_caja:', error);
+                throw error;
+            }
+            
+            // Verificación inmediata: Intentar leerlo de nuevo
+            const { data: verifData } = await supabaseClient
+                .from('egresos_caja')
+                .select('id')
+                .eq('id', payload.id)
+                .maybeSingle();
+
+            if (verifData) {
+                console.log('[Supabase] ✅ Guardado y VERIFICADO en egresos_caja:', payload.id);
+                return { success: true, data, verified: true };
+            } else {
+                console.warn('[Supabase] ⚠️ El upsert no reportó error pero el dato NO se encuentra al re-consultar:', payload.id);
+                return { success: true, data, verified: false };
+            }
         } catch (error) {
             console.error('Error al guardar egreso (Offline Fallback):', error);
             const itemOffline = { ...egreso, pending_sync: true };
             this.guardarEnLocalStorage('egresosCaja', itemOffline);
-            return { success: true, offline: true, error: error.message || error };
+            // IMPORTANTE: Devolvemos success: false para que la UI sepa que NO llegó a la nube
+            return { success: false, offline: true, error: error.message || error };
         }
     },
     async guardarEgresoCajaV5(egreso) {
@@ -485,17 +504,37 @@ const db = {
             delete payload.pedidosYa;
             delete payload.ventasTransferencia;
 
+            console.log('[Supabase] Guardando Movimiento:', payload.id);
+
             const { data, error } = await supabaseClient
                 .from('movimientos')
-                .upsert([payload]);
+                .upsert([payload])
+                .select();
 
-            if (error) throw error;
-            return { success: true, data };
+            if (error) {
+                console.error('[Supabase] Error en upsert movimientos:', error);
+                throw error;
+            }
+            
+            // Verificación inmediata
+            const { data: verifData } = await supabaseClient
+                .from('movimientos')
+                .select('id')
+                .eq('id', payload.id)
+                .maybeSingle();
+
+            if (verifData) {
+                console.log('[Supabase] ✅ Guardado y VERIFICADO en movimientos:', payload.id);
+                return { success: true, data, verified: true };
+            } else {
+                console.warn('[Supabase] ⚠️ El upsert no reportó error pero el dato NO se encuentra:', payload.id);
+                return { success: true, data, verified: false };
+            }
         } catch (error) {
             console.error('Error al guardar movimiento (Offline Fallback):', error);
             const itemOffline = { ...movimiento, pending_sync: true };
             this.guardarEnLocalStorage('movimientos', itemOffline);
-            return { success: true, offline: true, error: error.message || error };
+            return { success: false, offline: true, error: error.message || error };
         }
     },
 
@@ -723,17 +762,37 @@ const db = {
                 arqueado: item.arqueado !== undefined ? item.arqueado : false
             };
 
+            console.log('[Supabase] Guardando Movimiento Temporal:', payload.id);
+
             const { data, error } = await supabaseClient
                 .from('movimientos_temporales')
-                .upsert([payload]);
+                .upsert([payload])
+                .select();
 
-            if (error) throw error;
-            return { success: true, data };
+            if (error) {
+                console.error('[Supabase] Error en upsert movimientos_temporales:', error);
+                throw error;
+            }
+            
+            // Verificación inmediata
+            const { data: verifData } = await supabaseClient
+                .from('movimientos_temporales')
+                .select('id')
+                .eq('id', payload.id)
+                .maybeSingle();
+
+            if (verifData) {
+                console.log('[Supabase] ✅ Guardado y VERIFICADO en movimientos_temporales:', payload.id);
+                return { success: true, data, verified: true };
+            } else {
+                console.warn('[Supabase] ⚠️ El upsert no reportó error pero el dato NO se encuentra:', payload.id);
+                return { success: true, data, verified: false };
+            }
         } catch (error) {
             console.error('Error al guardar movimiento temporal (Offline Fallback):', error);
             const itemOffline = { ...item, pending_sync: true };
             this.guardarEnLocalStorage('movimientosTemporales', itemOffline);
-            return { success: true, offline: true, error: error.message || error };
+            return { success: false, offline: true, error: error.message || error };
         }
     },
     async obtenerMovimientosTemporales() {
@@ -1059,13 +1118,29 @@ async function guardarArqueo(datosArqueo) {
         const { user_id, ...datosLimpios } = datosArqueo;
         const datosCompletos = { ...datosLimpios, usuario_id: usuario.id };
 
+        console.log('[Supabase] Guardando Arqueo:', datosArqueo.id);
+
         const { data, error } = await supabaseClient
             .from('arqueos')
-            .insert([datosCompletos])
+            .upsert([datosCompletos])
             .select();
 
         if (error) throw error;
-        return { success: true, data: data ? data[0] : null };
+        
+        // Verificación inmediata
+        const { data: verifData } = await supabaseClient
+            .from('arqueos')
+            .select('id')
+            .eq('id', datosArqueo.id)
+            .maybeSingle();
+
+        if (verifData) {
+            console.log('[Supabase] ✅ Guardado y VERIFICADO en arqueos:', datosArqueo.id);
+            return { success: true, data: data ? data[0] : null, verified: true };
+        } else {
+            console.warn('[Supabase] ⚠️ El upsert de arqueo no reportó error pero el dato NO se encuentra:', datosArqueo.id);
+            return { success: true, data: data ? data[0] : null, verified: false };
+        }
     } catch (error) {
         console.error('Error al guardar arqueo (Offline Fallback):', error);
 
@@ -1080,7 +1155,7 @@ async function guardarArqueo(datosArqueo) {
         if (window.db && window.db.guardarEnLocalStorage) {
             window.db.guardarEnLocalStorage('arqueos', datosCompletosOffline);
             console.warn('Arqueo guardado localmente por error de red.');
-            return { success: true, offline: true, error: error.message };
+            return { success: false, offline: true, error: error.message };
         }
 
         return { success: false, error: error.message };
@@ -1532,19 +1607,36 @@ db.guardarTotalGeneral = async function (fecha, caja, total) {
             total: parseFloat(total)
         };
 
+        console.log('[Supabase] Guardando Total General:', fecha, caja);
+
         const { data, error } = await supabaseClient
             .from('total_general')
-            .upsert(dataToUpsert, { onConflict: 'fecha,caja' });
+            .upsert(dataToUpsert, { onConflict: 'fecha,caja' })
+            .select();
 
         if (error) throw error;
-        console.log(`[Supabase DB] Total Gral guardado para ${fecha} (${caja}): ${total}`);
-        return { success: true, data };
+        
+        // Verificación inmediata
+        const { data: verifData } = await supabaseClient
+            .from('total_general')
+            .select('total')
+            .eq('fecha', fecha)
+            .eq('caja', caja || 'Todas las Cajas')
+            .maybeSingle();
+
+        if (verifData) {
+            console.log(`[Supabase DB] ✅ Total Gral guardado y VERIFICADO para ${fecha} (${caja}): ${total}`);
+            return { success: true, data, verified: true };
+        } else {
+            console.warn('[Supabase DB] ⚠️ El upsert de Total Gral no reportó error pero el dato NO se encuentra:', fecha, caja);
+            return { success: true, data, verified: false };
+        }
     } catch (error) {
-        console.error('[Supabase DB] Error guardando Total General:', error);
+        console.error('[Supabase DB] Error guardando Total General (Offline Fallback):', error);
         // Fallback a localStorage
         const clave = `totalGeneral_${fecha}_${caja || 'Todas las Cajas'}`;
         localStorage.setItem(clave, total);
-        return { success: false, error };
+        return { success: false, offline: true, error: error.message };
     }
 };
 

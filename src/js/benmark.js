@@ -839,11 +839,36 @@ async function agregarMovimiento() {
         // --- FIN DE DEPURACIÓN ---
 
         const actualizado = { ...original, ...movimiento };
-        await window.db.guardarMovimientoTemporal(actualizado);
+        console.log('[UI] Iniciando actualización de Movimiento en Supabase...');
+        const resultado = await window.db.guardarMovimientoTemporal(actualizado);
+        
+        if (resultado.success) {
+            if (resultado.verified) {
+                showNotification('✅ Movimiento actualizado en la Nube', 'success');
+            } else {
+                showNotification('⚠️ Actualizado (Sin verificación inmediata)', 'warning');
+            }
+            mostrarMensaje('Movimiento actualizado con éxito.', 'exito');
+        } else if (resultado.offline) {
+            showNotification('📂 Actualización local (Offline)', 'info');
+            mostrarMensaje('Guardado localmente por falta de conexión.', 'advertencia');
+        }
+
         estado.movimientosTemporales[indiceEditar] = actualizado;
-        mostrarMensaje('Movimiento actualizado con éxito.', 'exito');
     } else {
-        await window.db.guardarMovimientoTemporal(movimiento);
+        console.log('[UI] Iniciando guardado de nuevo Movimiento en Supabase...');
+        const resultado = await window.db.guardarMovimientoTemporal(movimiento);
+        
+        if (resultado.success) {
+            if (resultado.verified) {
+                showNotification('✅ Ingreso guardado en la Nube', 'success');
+            } else {
+                showNotification('⚠️ Ingreso guardado (Sin verificación)', 'warning');
+            }
+        } else if (resultado.offline) {
+            showNotification('📂 Ingreso guardado localmente (Offline)', 'info');
+        }
+
         estado.movimientosTemporales.push(movimiento);
         mostrarMensaje('Movimiento agregado. ' + `Total: ${estado.movimientosTemporales.length}`, 'exito');
     }
@@ -2103,6 +2128,7 @@ async function guardarArqueo() {
     const totalIngresosTiendaCalculadoFinal = (totalEfectivoBruto + totalEgresosSumaParaResumen) - totalServiciosEfectivoParaResumen - arqueo.fondoFijo;
 
     if (window.db) {
+        console.log('[UI] Iniciando guardado de Arqueo en Supabase...');
         let resultado;
         if (esEdicion) {
             resultado = await window.db.actualizarArqueo(arqueo.id, datosParaBD);
@@ -2110,16 +2136,27 @@ async function guardarArqueo() {
             resultado = await window.db.guardarArqueo(datosParaBD);
         }
 
-        if (resultado && !resultado.success) {
-            console.error('Error al guardar/actualizar arqueo:', resultado.error);
-            mostrarMensaje('Error al guardar: ' + resultado.error, 'peligro');
-            return;
+        if (resultado) {
+            if (resultado.success) {
+                if (resultado.verified) {
+                    showNotification('✅ Arqueo guardado en la Nube', 'success');
+                } else {
+                    showNotification('⚠️ Arqueo guardado (Sin verificación)', 'warning');
+                }
+            } else if (resultado.offline) {
+                showNotification('📂 Arqueo guardado localmente (Offline)', 'info');
+                mostrarMensaje('Arqueo guardado localmente. Se sincronizará en la nube al detectar conexión.', 'advertencia');
+            } else {
+                console.error('Error al guardar/actualizar arqueo:', resultado.error);
+                mostrarMensaje('Error al guardar en Supabase: ' + resultado.error, 'peligro');
+                return;
+            }
         }
 
-        // Sincronizar con Recaudación
+        // Sincronizar con Recaudación (También requiere await!)
         if (window.db.guardarRecaudacion) {
             const soloFecha = (arqueo.fecha || '').slice(0, 10);
-            window.db.guardarRecaudacion(soloFecha, arqueo.cajero, arqueo.caja, totalIngresosTiendaCalculadoFinal);
+            await window.db.guardarRecaudacion(soloFecha, arqueo.cajero, arqueo.caja, totalIngresosTiendaCalculadoFinal);
         }
     }
 
@@ -2687,10 +2724,28 @@ async function guardarEgresoCaja(event) {
     await verificarYActualizarArqueo(egreso.fecha, egreso.caja);
 
     if (window.db && window.db.guardarEgresoCaja) {
-        await window.db.guardarEgresoCaja(egreso);
+        console.log('[UI] Iniciando guardado de Egreso en Supabase...');
+        const resultado = await window.db.guardarEgresoCaja(egreso);
+        
+        if (resultado.success) {
+            if (resultado.verified) {
+                showNotification('✅ Egreso guardado en la Nube', 'success');
+            } else {
+                showNotification('⚠️ Egreso guardado (Sin verificación)', 'warning');
+            }
+            mostrarMensaje('Egreso guardado con éxito.', 'exito');
+        } else if (resultado.offline) {
+            showNotification('📂 Egreso guardado localmente (Offline)', 'info');
+            mostrarMensaje('Guardado localmente. Se sincronizará al recuperar conexión.', 'advertencia');
+            console.warn('[Supabase] Falló guardado en la nube:', resultado.error);
+        } else {
+            showNotification('❌ Error al guardar Egreso en la Nube', 'error');
+            mostrarMensaje('Error al guardar en Supabase. Revisar consola.', 'peligro');
+            console.error('[Supabase] Error crítico en Egreso:', resultado.error);
+        }
     }
 
-    // Guardar en localStorage
+    // Guardar en localStorage (redundante pero asegura estado local inmediato)
     localStorage.setItem('egresosCaja', JSON.stringify(estado.egresosCaja));
 
     // Limpiar formulario y actualizar historial
@@ -3789,7 +3844,21 @@ window.cargarTablaIngresosEgresos = async function () {
         }
 
         if (typeof db !== 'undefined' && db.guardarTotalGeneral) {
-            await db.guardarTotalGeneral(fechaDesde, cajaFiltro || 'Todas las Cajas', valorParaGuardar);
+            console.log('[UI] Iniciando guardado de Total General en Supabase...');
+            const resultado = await db.guardarTotalGeneral(fechaDesde, cajaFiltro || 'Todas las Cajas', valorParaGuardar);
+            
+            if (resultado.success) {
+                if (resultado.verified) {
+                    showNotification('✅ Total General guardado en la Nube', 'success');
+                } else {
+                    showNotification('⚠️ Total General guardado (Sin verificación)', 'warning');
+                }
+            } else if (resultado.offline) {
+                showNotification('📂 Total General guardado localmente (Offline)', 'info');
+            } else {
+                console.error('[Supabase DB] Error guardando Total General:', resultado.error);
+                showNotification('❌ Error al guardar Total General en la Nube', 'error');
+            }
         } else {
             const claveTotal = `totalGeneral_${fechaDesde}_${cajaFiltro || 'Todas las Cajas'}`;
             localStorage.setItem(claveTotal, valorParaGuardar);
