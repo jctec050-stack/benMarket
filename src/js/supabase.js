@@ -269,11 +269,27 @@ const db = {
     async guardarEgresoCaja(egreso) {
         if (supabaseClient) {
             try {
-                // Strip fields that are not in the Supabase schema to avoid PGRST204 errors
-                const { user_id, moneda, receptor, numeroRecibo, ...egresoLimpio } = egreso;
+                // Preparar objeto para Supabase (mapear nombres de columnas si es necesario)
+                const payload = {
+                    id: egreso.id,
+                    fecha: egreso.fecha,
+                    caja: egreso.caja,
+                    cajero: egreso.cajero || egreso.usuario, // Soportar ambos nombres por si acaso
+                    categoria: egreso.categoria,
+                    descripcion: egreso.descripcion,
+                    monto: egreso.monto,
+                    referencia: egreso.referencia,
+                    receptor: egreso.receptor,
+                    numero_recibo: egreso.numeroRecibo,
+                    arqueado: egreso.arqueado || false,
+                    moneda: egreso.moneda || 'gs',
+                    efectivo: egreso.efectivo
+                };
+
                 const { data, error } = await supabaseClient
                     .from('egresos_caja')
-                    .upsert([egresoLimpio]);
+                    .upsert([payload]);
+
                 if (error) throw error;
                 return { success: true, data };
             } catch (error) {
@@ -331,7 +347,14 @@ const db = {
                     .select('*')
                     .order('fecha', { ascending: false });
                 if (error) throw error;
-                return { success: true, data };
+                
+                // Mapear campos de BD a JS
+                const mappedData = (data || []).map(e => ({
+                    ...e,
+                    numeroRecibo: e.numero_recibo
+                }));
+                
+                return { success: true, data: mappedData };
             } catch (error) {
                 console.error('Error obteniendo egresos caja:', error);
                 return { success: false, error };
@@ -352,7 +375,14 @@ const db = {
                     .lte('fecha', `${fecha}T23:59:59`)
                     .order('fecha', { ascending: false });
                 if (error) throw error;
-                return { success: true, data };
+                
+                // Mapear campos de BD a JS
+                const mappedData = (data || []).map(e => ({
+                    ...e,
+                    numeroRecibo: e.numero_recibo
+                }));
+                
+                return { success: true, data: mappedData };
             } catch (error) {
                 return { success: false, error };
             }
