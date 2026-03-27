@@ -5015,11 +5015,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 const dateFieldId = fields[formId];
                 const dateField = document.getElementById(dateFieldId);
                 if (dateField) {
-                    if (dateField.type === 'date') {
-                        dateField.value = obtenerFechaHoraLocalISO().split('T')[0];
-                    } else {
-                        dateField.value = obtenerFechaHoraLocalISO();
-                    }
+                    dateField.value = obtenerFechaLocalISO();
                 }
             }
         }
@@ -6304,7 +6300,7 @@ function guardarServicioEfectivo() {
     // Crear el objeto de movimiento
     const nuevoMovimiento = {
         id: generarId(),
-        fecha: obtenerFechaHoraLocalISO(),
+        fecha: obtenerFechaLocalISO(),
         cajero: sessionStorage.getItem('usuarioActual') || 'N/A',
         caja: sessionStorage.getItem('cajaSeleccionada') || (sessionStorage.getItem('userRole') === 'tesoreria' ? 'Caja Tesoreria' : 'Caja 1'),
         descripcion: `Ingreso por servicio: ${servicioSeleccionado}`,
@@ -6698,13 +6694,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inicializar fecha con datetime-local compatible
     const fechaInput = document.getElementById('fechaEgresoCaja');
     if (fechaInput) {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        fechaInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        fechaInput.value = obtenerFechaLocalISO();
     }
 
     // **NUEVO:** Lógica para sincronizar la Caja Activa (igual que Ingresos)
@@ -6816,14 +6806,10 @@ async function inicializarResumenServicios() {
     const fechaDesde = document.getElementById('fechaServiciosDesde');
     const fechaHasta = document.getElementById('fechaServiciosHasta');
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hoy = `${year}-${month}-${day}`;
+    const hoy = obtenerFechaLocalISO();
 
-    if (fechaDesde && !fechaDesde.value) fechaDesde.value = `${hoy}T00:00`;
-    if (fechaHasta && !fechaHasta.value) fechaHasta.value = `${hoy}T23:59`;
+    if (fechaDesde && !fechaDesde.value) fechaDesde.value = hoy;
+    if (fechaHasta && !fechaHasta.value) fechaHasta.value = hoy;
 
     renderizarResumenServicios();
 }
