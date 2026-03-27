@@ -1018,6 +1018,12 @@ async function limpiarFormularioMovimiento() {
     // **NUEVO:** Limpiar campos de Ventas a Crédito
     document.getElementById('clienteVentaCredito').value = '';
     document.getElementById('descripcionVentaCredito').value = '';
+
+    // **CORRECCIÓN:** Asegurar que la fecha se resetee a hoy (Formato date-only)
+    const fechaMovInput = document.getElementById('fechaMovimiento');
+    if (fechaMovInput) {
+        fechaMovInput.value = obtenerFechaLocalISO();
+    }
 }
 
 function renderizarIngresosAgregados() {
@@ -2601,7 +2607,7 @@ function limpiarFormularioGastos() {
     document.getElementById('montoGasto').value = '0';
     toggleReceptorField(); // Ocultar el campo al limpiar
     document.querySelector('#formularioGastos button[type="submit"]').textContent = 'Guardar Movimiento';
-    document.getElementById('fechaGasto').value = obtenerFechaHoraLocalISO();
+    document.getElementById('fechaGasto').value = obtenerFechaLocalISO();
 }
 
 // ============================================
@@ -2914,18 +2920,31 @@ function iniciarEdicionEgresoCaja(id) {
  * Limpia el formulario de egresos de caja
  */
 function limpiarFormularioEgresoCaja() {
+    const formulario = document.getElementById('formularioEgresoCaja');
+    if (!formulario) return;
+
     // **CORRECCIÓN:** Guardar la caja seleccionada antes de resetear
     const cajaSeleccionada = document.getElementById('cajaEgreso').value;
 
-    document.getElementById('formularioEgresoCaja').reset();
+    formulario.reset();
 
     // **CORRECCIÓN:** Restaurar la caja seleccionada
     if (cajaSeleccionada) {
         document.getElementById('cajaEgreso').value = cajaSeleccionada;
     }
 
+    // Restaurar fecha actual (Formato date-only)
+    const fechaInput = document.getElementById('fechaEgresoCaja');
+    if (fechaInput) {
+        fechaInput.value = obtenerFechaLocalISO();
+    }
+
     document.getElementById('idEgresoCajaEditar').value = '';
     document.getElementById('montoEgresoCaja').value = '0';
+
+    // Reset manual de visibilidad de proveedor
+    const grupoProveedor = document.getElementById('grupoProveedorEgreso');
+    if (grupoProveedor) grupoProveedor.style.display = 'none';
 
     // Limpiar tabla de denominaciones
     document.querySelectorAll('#tablaDenominacionesEgresoCaja .cantidad-denominacion-egreso').forEach(input => {
@@ -2942,10 +2961,8 @@ function limpiarFormularioEgresoCaja() {
     }
 
     // Cambiar texto del botón
-    document.querySelector('#formularioEgresoCaja button[type="submit"]').textContent = 'Guardar Egreso';
-
-    // Establecer fecha actual
-    document.getElementById('fechaEgresoCaja').value = obtenerFechaHoraLocalISO();
+    const btnSubmit = document.querySelector('#formularioEgresoCaja button[type="submit"]');
+    if (btnSubmit) btnSubmit.textContent = 'Guardar Egreso';
 }
 
 async function eliminarEgresoCaja(id) {
@@ -6754,34 +6771,6 @@ document.addEventListener('DOMContentLoaded', () => {
         */
     }
 });
-
-// Función global para limpiar el formulario
-window.limpiarFormularioEgresoCaja = function () {
-    const formulario = document.getElementById('formularioEgresoCaja');
-    if (formulario) {
-        formulario.reset();
-        // Restaurar fecha actual
-        const fechaInput = document.getElementById('fechaEgresoCaja');
-        if (fechaInput) {
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0');
-            const day = String(now.getDate()).padStart(2, '0');
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            fechaInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
-        }
-        // Reset manual de visibilidad
-        const grupoProveedor = document.getElementById('grupoProveedorEgreso');
-        if (grupoProveedor) grupoProveedor.style.display = 'none';
-
-        // Limpiar estilos de validación si los hubiera
-        document.getElementById('montoEgresoCaja').value = '';
-    }
-};
-
-// Duplicate function code deleted to use the main definition around line 2500
-
 
 // Cargar historial al inicio si estamos en la página correcta
 if (document.getElementById('listaEgresosCaja')) {
