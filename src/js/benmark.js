@@ -314,13 +314,11 @@ function inicializarFormularioArqueo() {
 
 
 
-    // Establecer fecha y hora actual
+    // Establecer fecha actual
     const fechaArqueoInput = document.getElementById('fecha');
     if (fechaArqueoInput) {
-        // Obtener fecha y hora en formato ISO y convertir al formato datetime-local (sin segundos)
-        const fechaHoraISO = obtenerFechaHoraLocalISO();
-        const fechaHoraLocal = fechaHoraISO.substring(0, 16); // yyyy-MM-ddThh:mm
-        fechaArqueoInput.value = fechaHoraLocal;
+        // Obtener fecha actual en formato ISO (yyyy-MM-dd)
+        fechaArqueoInput.value = obtenerFechaLocalISO();
     }
 
     // Formatear input de Fondo Fijo
@@ -5066,19 +5064,31 @@ document.addEventListener('DOMContentLoaded', function () {
         cargarFondoFijoEnArqueo(); // **NUEVO:** Cargar fondo fijo al inicializar la página de arqueo
         // **NUEVO:** Asegurar que la fecha y hora se establezcan al cargar la página de arqueo.
         const fechaArqueoInput = document.getElementById('fecha');
-        if (fechaArqueoInput) fechaArqueoInput.value = obtenerFechaHoraLocalISO();
+        if (fechaArqueoInput) fechaArqueoInput.value = obtenerFechaLocalISO();
 
     }
     // **NUEVO:** Inicializar la página de Resumen
     if (document.getElementById('resumen')) {
         const fechaDesdeInput = document.getElementById('fechaResumenDesde');
         const fechaHastaInput = document.getElementById('fechaResumenHasta');
-        const hoy = obtenerFechaHoraLocalISO().split('T')[0];
+        const hoy = obtenerFechaLocalISO();
 
-        fechaDesdeInput.value = hoy;
-        fechaHastaInput.value = hoy;
+        if (fechaDesdeInput) fechaDesdeInput.value = hoy;
+        if (fechaHastaInput) fechaHastaInput.value = hoy;
 
         cargarResumenDiario(); // Cargar el resumen del día actual al entrar a la página
+    }
+
+    // **NUEVO:** Inicializar la página de Resumen de Servicios
+    if (document.getElementById('page-resumen-servicios')) {
+        const fechaDesdeInput = document.getElementById('fechaServiciosDesde');
+        const fechaHastaInput = document.getElementById('fechaServiciosHasta');
+        const hoy = obtenerFechaLocalISO();
+
+        if (fechaDesdeInput) fechaDesdeInput.value = hoy;
+        if (fechaHastaInput) fechaHastaInput.value = hoy;
+
+        if (typeof renderizarResumenServicios === 'function') renderizarResumenServicios();
     }
     // ... y así sucesivamente para las otras páginas.
 });
@@ -6845,10 +6855,10 @@ function renderizarResumenServicios() {
 
     // Aplicar filtros
     if (fechaDesde) {
-        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha >= fechaDesde);
+        todosLosMovimientos = todosLosMovimientos.filter(m => (m.fecha || '').slice(0, 10) >= fechaDesde);
     }
     if (fechaHasta) {
-        todosLosMovimientos = todosLosMovimientos.filter(m => m.fecha <= fechaHasta);
+        todosLosMovimientos = todosLosMovimientos.filter(m => (m.fecha || '').slice(0, 10) <= fechaHasta);
     }
     if (cajaFiltro && cajaFiltro !== 'Todas las Cajas') {
         todosLosMovimientos = todosLosMovimientos.filter(m => m.caja === cajaFiltro);

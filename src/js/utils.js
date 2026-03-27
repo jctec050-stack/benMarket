@@ -113,11 +113,16 @@ window.formatearFechaParaSupa = function (valorInput) {
         const offset = ahora.getTimezoneOffset() * 60000;
         return new Date(ahora.getTime() - offset).toISOString().slice(0, 19);
     }
+    // Si ya es un ISO completo o tiene T, normalizar a 19 caracteres
     if (valorInput.includes('T')) {
         let localISO = valorInput.split('.')[0].replace('Z', '');
         if (localISO.includes('+')) localISO = localISO.split('+')[0];
         if (localISO.length === 16) localISO += ':00';
         return localISO.slice(0, 19);
+    }
+    // Si es solo fecha (YYYY-MM-DD), agregar hora 00:00:00
+    if (valorInput.length === 10) {
+        return valorInput + 'T00:00:00';
     }
     return valorInput;
 };
