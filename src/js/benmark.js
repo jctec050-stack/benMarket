@@ -1824,31 +1824,33 @@ function actualizarArqueoFinal() {
     }
     */
 
+    const usuarioHistorial = sessionStorage.getItem('usuarioActual');
+    const esCajeroHistorial = userRole === 'cajero';
+
     const ingresos = estado.movimientosTemporales.filter(m => {
-        // **CORRECCIÓN:** Usar slice(0, 10) y manejar nulos
         const coincideFecha = (m.fecha || '').slice(0, 10) === fechaFiltro;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
-        // const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
-        // **NUEVO:** Ocultar ingresos arqueados para cajeros
         const noEstaArqueado = mostrarTodo || !m.arqueado;
-        return coincideFecha && coincideCaja && noEstaArqueado;
+        // Aislamiento: cajero solo ve sus propios movimientos
+        const coincideUsuario = !esCajeroHistorial || !usuarioHistorial || m.cajero === usuarioHistorial;
+        return coincideFecha && coincideCaja && noEstaArqueado && coincideUsuario;
     }).map(m => ({ ...m, tipoMovimiento: 'ingreso' }));
 
 
 
     const egresosCaja = estado.egresosCaja.filter(e => {
-        // **CORRECCIÓN:** Usar slice(0, 10)
         const coincideFecha = (e.fecha || '').slice(0, 10) === fechaFiltro;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
-        // const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
-        // **NUEVO:** Ocultar egresos arqueados para cajeros
         const noEstaArqueado = mostrarTodo || !e.arqueado;
+        // Aislamiento: cajero solo ve sus propios egresos
+        const cajeroEgreso = e.cajero || e.usuario;
+        const coincideUsuario = !esCajeroHistorial || !usuarioHistorial || cajeroEgreso === usuarioHistorial;
 
         if (!noEstaArqueado) {
             console.log('[DEBUG] Egreso filtrado por arqueado:', e.id, e.categoria, 'arqueado:', e.arqueado);
         }
 
-        return coincideFecha && coincideCaja && noEstaArqueado;
+        return coincideFecha && coincideCaja && noEstaArqueado && coincideUsuario;
     }).map(e => ({ ...e, tipoMovimiento: 'egreso' }));
 
     console.log('[DEBUG] Egresos después de filtrar:', egresosCaja.length);
@@ -1858,9 +1860,9 @@ function actualizarArqueoFinal() {
         const coincideFecha = (m.fecha || '').slice(0, 10) === fechaFiltro;
         const esEgreso = (m.tipo === 'gasto' || m.tipo === 'egreso');
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
-        // const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
-        return coincideFecha && esEgreso && coincideCaja;
-
+        // Aislamiento: cajero solo ve sus propios movimientos de operaciones
+        const coincideUsuario = !esCajeroHistorial || !usuarioHistorial || m.cajero === usuarioHistorial;
+        return coincideFecha && esEgreso && coincideCaja && coincideUsuario;
     }).map(m => ({ ...m, tipoMovimiento: 'egreso' }));
 
 
@@ -5070,12 +5072,35 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     if (document.getElementById('controlesArqueo')) {
         inicializarFormularioArqueo();
+
+        // === AISLAMIENTO POR ROL: CAJERO ===
+        const _roleArqueo = sessionStorage.getItem('userRole');
+        const _usuarioArqueo = sessionStorage.getItem('usuarioActual');
+        const _cajaArqueo = sessionStorage.getItem('cajaSeleccionada');
+
+        if (_roleArqueo === 'cajero') {
+            // 1. Fijar y deshabilitar el selector de caja
+            const cajaSelect = document.getElementById('caja');
+            if (cajaSelect && _cajaArqueo) {
+                cajaSelect.value = _cajaArqueo;
+                cajaSelect.disabled = true;
+            }
+
+            // 2. Ocultar el filtro de cajero (solo admin/tesorería lo necesitan)
+            const filtroCajeroContainer = document.getElementById('filtroCajeroArqueoContainer');
+            if (filtroCajeroContainer) filtroCajeroContainer.style.display = 'none';
+
+            // 3. Pre-fijar el campo oculto de cajero con el usuario actual
+            const campoCajero = document.getElementById('cajero');
+            if (campoCajero && _usuarioArqueo) campoCajero.value = _usuarioArqueo;
+        }
+        // === FIN AISLAMIENTO ===
+
         document.getElementById('caja').addEventListener('change', actualizarArqueoFinal);
-        document.getElementById('fecha').addEventListener('change', actualizarArqueoFinal); // **CORRECCIÓN:** Añadir listener para la fecha.
+        document.getElementById('fecha').addEventListener('change', actualizarArqueoFinal);
         document.getElementById('fondoFijo').addEventListener('input', actualizarArqueoFinal);
         actualizarArqueoFinal();
-        cargarFondoFijoEnArqueo(); // **NUEVO:** Cargar fondo fijo al inicializar la página de arqueo
-        // **NUEVO:** Asegurar que la fecha y hora se establezcan al cargar la página de arqueo.
+        cargarFondoFijoEnArqueo();
         const fechaArqueoInput = document.getElementById('fecha');
         if (fechaArqueoInput) fechaArqueoInput.value = obtenerFechaLocalISO();
 
