@@ -2003,9 +2003,15 @@ async function guardarArqueo() {
         
         if (arqueoExistente) {
             console.log(`[Arqueo] Detectado arqueo existente para ${soloFecha} - ${arqueo.caja} (${arqueo.cajero}). Cambiando a modo actualización para evitar duplicados.`);
-            idEdicion = arqueoExistente.id;
-            arqueo.id = idEdicion;
-            esEdicion = true;
+            // **CORRECCIÓN:** Verificar que el ID existente sea válido antes de asignar
+            if (arqueoExistente.id) {
+                idEdicion = arqueoExistente.id;
+                arqueo.id = idEdicion;
+                esEdicion = true;
+            } else {
+                console.warn('[Arqueo] arqueoExistente.id es inválido (undefined/null). Se tratará como inserción nueva.');
+                // Mantener esEdicion = false y el id generado previamente
+            }
         }
     }
 
@@ -2094,6 +2100,7 @@ async function guardarArqueo() {
 
     // Preparar datos para guardar en la base de datos
     const datosParaBD = {
+        id: arqueo.id, // **CORRECCIÓN:** Incluir ID para que el upsert funcione correctamente
         fecha: formatearFechaParaSupa(arqueo.fecha),
         caja: arqueo.caja,
         cajero: arqueo.cajero,
