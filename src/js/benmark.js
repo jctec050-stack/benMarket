@@ -5374,23 +5374,37 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
     const fechaArqueo = document.getElementById('fecha').value.split('T')[0];
     const cajaFiltro = document.getElementById('caja').value;
 
-    // 1. Obtener Igresos y Egresos filtrados para re-calcular todo
-    // Esto asegura que lo que se imprime es EXACTAMENTE lo que se calculó para la vista,
-    // respetando los mismos filtros de caja y (si aplica) usuario.
+    // **CORRECCIÓN:** Respetar el mismo filtro de cajero que usa actualizarArqueoFinal en pantalla
     const userRole = sessionStorage.getItem('userRole');
-    // Al guardar el PDF final, incluir todos los movimientos (arqueados o no) sin filtrar por usuario
-    const mostrarArqueados = esGuardadoFinal || userRole === 'admin' || userRole === 'tesoreria';
-    let usuarioActualNombre = null;
-    if (!esGuardadoFinal && !mostrarArqueados && usuarioPerfil && usuarioPerfil.username) {
-        usuarioActualNombre = usuarioPerfil.username;
+    const hoy = obtenerFechaLocalISO();
+    const esFechaPasada = fechaArqueo !== hoy;
+    const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria' || esFechaPasada || userRole === 'cajero';
+    const usuarioActual = sessionStorage.getItem('usuarioActual');
+
+    // **CORRECCIÓN:** Obtener el mismo filtro de cajero que usa la pantalla
+    const filtroCajeroValue = document.getElementById('filtroCajeroArqueo')?.value || '';
+
+    // **CORRECCIÓN:** Obtener nombre del cajero igual que en pantalla (renderizarVistaArqueoFinal)
+    const filtroCajeroSelect = document.getElementById('filtroCajeroArqueo');
+    let nombreCajeroParaPDF = document.getElementById('cajero')?.value || '';
+    if (filtroCajeroSelect) {
+        if (filtroCajeroSelect.value !== '') {
+            nombreCajeroParaPDF = filtroCajeroSelect.options[filtroCajeroSelect.selectedIndex].text;
+        } else if (userRole === 'admin' || userRole === 'tesoreria') {
+            nombreCajeroParaPDF = 'Todos los cajeros';
+        } else {
+            nombreCajeroParaPDF = usuarioActual || 'No especificado';
+        }
     }
 
-    // Filtros de lógica base (mismos que actualizarArqueoFinal)
+    // Filtros IDÉNTICOS a actualizarArqueoFinal (pantalla)
     let ingresosParaArqueo = estado.movimientosTemporales.filter(m => {
         const coincideFecha = (m.fecha || '').slice(0, 10) === fechaArqueo;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
         const visible = mostrarArqueados || !m.arqueado;
-        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+        // Mismo criterio de usuario que en actualizarArqueoFinal
+        const coincideUsuario = (userRole !== 'cajero' || (!usuarioActual || m.cajero === usuarioActual)) &&
+            (!filtroCajeroValue || m.cajero === filtroCajeroValue);
         return coincideFecha && coincideCaja && visible && coincideUsuario;
     });
 
@@ -5398,7 +5412,9 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
         const coincideFecha = (e.fecha || '').slice(0, 10) === fechaArqueo;
         const coincideCaja = (!cajaFiltro || cajaFiltro === 'Todas las cajas' || e.caja === cajaFiltro);
         const visible = mostrarArqueados || !e.arqueado;
-        const coincideUsuario = !usuarioActualNombre || !e.cajero || e.cajero === usuarioActualNombre;
+        const cajeroEgreso = e.cajero || e.usuario;
+        const coincideUsuario = (userRole !== 'cajero' || (!usuarioActual || cajeroEgreso === usuarioActual)) &&
+            (!filtroCajeroValue || cajeroEgreso === filtroCajeroValue);
         return coincideFecha && coincideCaja && visible && coincideUsuario;
     });
 
@@ -5407,7 +5423,8 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
         const coincideFecha = (m.fecha || '').slice(0, 10) === fechaArqueo;
         const coincideCaja = m.caja && (!cajaFiltro || cajaFiltro === 'Todas las cajas' || m.caja === cajaFiltro);
         const visible = mostrarArqueados || !m.arqueado;
-        const coincideUsuario = !usuarioActualNombre || m.cajero === usuarioActualNombre;
+        const coincideUsuario = (userRole !== 'cajero' || (!usuarioActual || m.cajero === usuarioActual)) &&
+            (!filtroCajeroValue || m.cajero === filtroCajeroValue);
         return esEgreso && coincideFecha && coincideCaja && visible && coincideUsuario;
     });
 
@@ -5426,8 +5443,8 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
 
     const totales = calcularTotalesArqueo(movimientosParaArqueo);
 
-    // Cálculos Finales (Mismísima lógica que en renderizarVistaArqueoFinal)
-    // 1. Total Efectivo Servicios (solo efectivo)
+    // Cálculos Finales — IDÉNTICA lógica a renderizarVistaArqueoFinal (pantalla)
+    // 1. Total Efectivo Servicios (solo efectivo) — igual que pantalla
     let totalServiciosEfectivo = 0;
     ['apLote', 'aquiPago', 'expressLote', 'wepa', 'pasajeNsa', 'encomiendaNsa', 'apostala'].forEach(key => {
         if (totales.servicios[key]) totalServiciosEfectivo += totales.servicios[key].monto;
@@ -5439,33 +5456,32 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
     // 2. Total Egresos
     const totalEgresosCaja = todosLosEgresos.reduce((sum, e) => sum + e.monto, 0);
 
-    // 3. Total Efectivo Bruto (Existencia en billetes + Moneda extranjera convertrida)
+    // 3. Total Efectivo Bruto — igual que pantalla: usa data.ingreso
     let totalEfectivoFinal = 0;
     CONFIG.denominaciones.forEach(denom => {
         const data = totales.efectivo[denom.valor];
-        const cantidad = data ? data.ingreso : 0; // Usamos ingreso como existencia
+        const cantidad = data ? data.ingreso : 0; // IDÉNTICO a renderizarVistaArqueoFinal
         totalEfectivoFinal += cantidad * denom.valor;
     });
     let totalMonedasExtranjerasGs = 0;
     Object.values(totales.monedasExtranjeras).forEach(m => totalMonedasExtranjerasGs += m.montoGs);
     const totalEfectivoBruto = totalEfectivoFinal + totalMonedasExtranjerasGs;
 
-    // 4. Totales Finales
+    // 4. Totales Finales — MISMAS fórmulas que renderizarVistaArqueoFinal
     const fondoFijo = parsearMoneda(document.getElementById('fondoFijo').value);
-    const totalADeclarar = totalEgresosCaja + totalEfectivoBruto;
-    const totalIngresosTiendaCalculado = totalADeclarar - totalServiciosEfectivo - fondoFijo;
-    const totalNeto = (totales.totalIngresosTienda + totalServiciosEfectivo) - totalEgresosCaja; // Referencial
+    const totalADeclarar = totalEgresosCaja + totalEfectivoBruto;             // = pantalla
+    const totalIngresosTiendaCalculado = (totalEfectivoBruto + totalEgresosCaja) - totalServiciosEfectivo - fondoFijo; // = pantalla
 
-    // Aplanar efectivo para exportación
+    // Aplanar efectivo para PDF — usando ingreso (igual que pantalla)
     const efectivoPlano = {};
     for (const denom in totales.efectivo) {
-        // En PDF usamos 'ingreso' como la cantidad contada (Existencia)
         efectivoPlano[denom] = totales.efectivo[denom].ingreso;
     }
 
     const arqueoTemporal = {
         fecha: document.getElementById('fecha').value,
-        cajero: document.getElementById('cajero').value,
+        // **CORRECCIÓN:** Usar el mismo nombre de cajero que muestra la pantalla
+        cajero: nombreCajeroParaPDF,
         caja: document.getElementById('caja').value,
         fondoFijo: fondoFijo,
         efectivo: efectivoPlano,
@@ -5475,13 +5491,12 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
         pedidosYa: totales.pedidosYa,
         ventasTransferencia: totales.ventasTransferencia,
         servicios: totales.servicios,
-        egresos: todosLosEgresos, // **IMPORTANTE:** Pasamos la lista de egresos
+        egresos: todosLosEgresos,
         resumen: {
             totalIngresosTienda: totalIngresosTiendaCalculado,
-            totalEfectivoServicios: totalServiciosEfectivo,
+            totalEfectivoServicios: totalServiciosEfectivo,  // **CORRECCIÓN:** siempre definido
             totalEgresosCaja: totalEgresosCaja,
-            totalNeto: totalNeto,
-            totalEfectivoBruto: totalEfectivoBruto, // Pasamos este para el resumen de efectivo
+            totalEfectivoBruto: totalEfectivoBruto,
             totalADeclarar: totalADeclarar
         }
     };
