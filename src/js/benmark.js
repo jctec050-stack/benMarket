@@ -5378,9 +5378,10 @@ function exportarArqueoActualPDF(esGuardadoFinal = false) {
     // Esto asegura que lo que se imprime es EXACTAMENTE lo que se calculó para la vista,
     // respetando los mismos filtros de caja y (si aplica) usuario.
     const userRole = sessionStorage.getItem('userRole');
-    const mostrarArqueados = userRole === 'admin' || userRole === 'tesoreria';
+    // Al guardar el PDF final, incluir todos los movimientos (arqueados o no) sin filtrar por usuario
+    const mostrarArqueados = esGuardadoFinal || userRole === 'admin' || userRole === 'tesoreria';
     let usuarioActualNombre = null;
-    if (!mostrarArqueados && usuarioPerfil && usuarioPerfil.username) {
+    if (!esGuardadoFinal && !mostrarArqueados && usuarioPerfil && usuarioPerfil.username) {
         usuarioActualNombre = usuarioPerfil.username;
     }
 
