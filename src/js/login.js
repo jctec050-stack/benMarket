@@ -86,8 +86,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } else if (perfil.rol === 'tesoreria') {
                     sessionStorage.setItem('cajaSeleccionada', 'Tesoreria');
                 } else if (perfil.rol === 'admin') {
-                    // Admin no tiene caja específica (tiene acceso a todas)
-                    sessionStorage.removeItem('cajaSeleccionada');
+                    // Admin guarda su caja seleccionada para que sus movimientos 
+                    // tengan esta caja por defecto, pero mantendrá la vista global.
+                    sessionStorage.setItem('cajaSeleccionada', caja);
                 }
 
                 // Redirigir a página principal
