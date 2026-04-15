@@ -490,12 +490,7 @@ const db = {
             // **NUEVO:** No eliminar usuario_id ni user_id si lo necesitamos para RLS
             const payload = {
                 ...movimiento,
-                usuario_id: usuario.id,
-                // Asegurar snake_case para columnas críticas si vienen en camelCase
-                pagos_tarjeta: movimiento.pagosTarjeta,
-                ventas_credito: movimiento.ventasCredito,
-                pedidos_ya: movimiento.pedidosYa,
-                ventas_transferencia: movimiento.ventasTransferencia
+                usuario_id: usuario.id
             };
 
             // Limpiar campos que no van en la tabla movimientos o que causan error
@@ -503,6 +498,10 @@ const db = {
             delete payload.ventasCredito;
             delete payload.pedidosYa;
             delete payload.ventasTransferencia;
+            delete payload.pagos_tarjeta;
+            delete payload.ventas_credito;
+            delete payload.pedidos_ya;
+            delete payload.ventas_transferencia;
             delete payload.historialEdiciones;
             delete payload.numeroRecibo;
             delete payload.historial_ediciones;
