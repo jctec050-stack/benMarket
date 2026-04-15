@@ -120,9 +120,12 @@ window.formatearFechaParaSupa = function (valorInput) {
         if (localISO.length === 16) localISO += ':00';
         return localISO.slice(0, 19);
     }
-    // Si es solo fecha (YYYY-MM-DD), agregar hora 00:00:00
+    // Si es solo fecha (YYYY-MM-DD), agregar hora actual
     if (valorInput.length === 10) {
-        return valorInput + 'T00:00:00';
+        const ahora = new Date();
+        const offset = ahora.getTimezoneOffset() * 60000;
+        const timeString = new Date(ahora.getTime() - offset).toISOString().slice(11, 19);
+        return valorInput + 'T' + timeString;
     }
     return valorInput;
 };
