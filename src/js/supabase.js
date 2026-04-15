@@ -495,18 +495,18 @@ const db = {
                 pagos_tarjeta: movimiento.pagosTarjeta,
                 ventas_credito: movimiento.ventasCredito,
                 pedidos_ya: movimiento.pedidosYa,
-                ventas_transferencia: movimiento.ventasTransferencia,
-                historial_ediciones: movimiento.historialEdiciones,
-                numero_recibo: movimiento.numeroRecibo
+                ventas_transferencia: movimiento.ventasTransferencia
             };
 
-            // Limpiar campos que no van en la tabla movimientos
+            // Limpiar campos que no van en la tabla movimientos o que causan error
             delete payload.pagosTarjeta;
             delete payload.ventasCredito;
             delete payload.pedidosYa;
             delete payload.ventasTransferencia;
             delete payload.historialEdiciones;
             delete payload.numeroRecibo;
+            delete payload.historial_ediciones;
+            delete payload.numero_recibo;
 
             console.log('[Supabase] Guardando Movimiento:', payload.id);
 
@@ -575,8 +575,6 @@ const db = {
                 
                 const mappedData = (data || []).map(m => ({
                     ...m,
-                    historialEdiciones: m.historial_ediciones,
-                    numeroRecibo: m.numero_recibo,
                     pagosTarjeta: m.pagos_tarjeta,
                     ventasCredito: m.ventas_credito,
                     pedidosYa: m.pedidos_ya,
@@ -608,8 +606,6 @@ const db = {
                 
                 const mappedData = (data || []).map(m => ({
                     ...m,
-                    historialEdiciones: m.historial_ediciones,
-                    numeroRecibo: m.numero_recibo,
                     pagosTarjeta: m.pagos_tarjeta,
                     ventasCredito: m.ventas_credito,
                     pedidosYa: m.pedidos_ya,
