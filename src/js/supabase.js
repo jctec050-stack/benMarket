@@ -495,7 +495,9 @@ const db = {
                 pagos_tarjeta: movimiento.pagosTarjeta,
                 ventas_credito: movimiento.ventasCredito,
                 pedidos_ya: movimiento.pedidosYa,
-                ventas_transferencia: movimiento.ventasTransferencia
+                ventas_transferencia: movimiento.ventasTransferencia,
+                historial_ediciones: movimiento.historialEdiciones,
+                numero_recibo: movimiento.numeroRecibo
             };
 
             // Limpiar campos que no van en la tabla movimientos
@@ -503,6 +505,8 @@ const db = {
             delete payload.ventasCredito;
             delete payload.pedidosYa;
             delete payload.ventasTransferencia;
+            delete payload.historialEdiciones;
+            delete payload.numeroRecibo;
 
             console.log('[Supabase] Guardando Movimiento:', payload.id);
 
@@ -568,7 +572,18 @@ const db = {
                     .select('*')
                     .order('fecha', { ascending: false });
                 if (error) throw error;
-                return { success: true, data };
+                
+                const mappedData = (data || []).map(m => ({
+                    ...m,
+                    historialEdiciones: m.historial_ediciones,
+                    numeroRecibo: m.numero_recibo,
+                    pagosTarjeta: m.pagos_tarjeta,
+                    ventasCredito: m.ventas_credito,
+                    pedidosYa: m.pedidos_ya,
+                    ventasTransferencia: m.ventas_transferencia
+                }));
+                
+                return { success: true, data: mappedData };
             } catch (error) {
                 console.error('Error obteniendo movimientos:', error);
                 return { success: false, error };
@@ -590,7 +605,18 @@ const db = {
                     .order('fecha', { ascending: false });
 
                 if (error) throw error;
-                return { success: true, data };
+                
+                const mappedData = (data || []).map(m => ({
+                    ...m,
+                    historialEdiciones: m.historial_ediciones,
+                    numeroRecibo: m.numero_recibo,
+                    pagosTarjeta: m.pagos_tarjeta,
+                    ventasCredito: m.ventas_credito,
+                    pedidosYa: m.pedidos_ya,
+                    ventasTransferencia: m.ventas_transferencia
+                }));
+                
+                return { success: true, data: mappedData };
             } catch (error) {
                 console.error('Error obteniendo movimientos:', error);
                 return { success: false, error };
