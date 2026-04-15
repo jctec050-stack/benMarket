@@ -493,19 +493,11 @@ const db = {
                 usuario_id: usuario.id
             };
 
-            // Limpiar campos que no van en la tabla movimientos o que causan error
+            // Limpiar campos que no van en la tabla movimientos (no existen en BD)
             delete payload.pagosTarjeta;
             delete payload.ventasCredito;
             delete payload.pedidosYa;
             delete payload.ventasTransferencia;
-            delete payload.pagos_tarjeta;
-            delete payload.ventas_credito;
-            delete payload.pedidos_ya;
-            delete payload.ventas_transferencia;
-            delete payload.historialEdiciones;
-            delete payload.numeroRecibo;
-            delete payload.historial_ediciones;
-            delete payload.numero_recibo;
 
             console.log('[Supabase] Guardando Movimiento:', payload.id);
 
