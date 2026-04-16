@@ -318,8 +318,10 @@ async function actualizarTablaRecaudacion(movimientos, fechaDesde, fechaHasta, f
             let egresos = (a.total_egresos !== undefined) ? a.total_egresos : (a.totalEgresos || 0);
             let fondo = (a.fondo_fijo !== undefined) ? a.fondo_fijo : (a.fondoFijo || 0);
 
-            // Recalcular Ingreso Tienda usando los datos del arqueo
-            let ingresoTiendaCalculado = (efectivoFisico + egresos) - serviciosEfectivo - fondo;
+            // Priorizar el Total Ingresos Tienda guardado en BD, de lo contrario recalcular
+            let ingresoTiendaCalculado = (a.total_ingresos_tienda !== undefined && a.total_ingresos_tienda !== null) 
+                ? a.total_ingresos_tienda 
+                : ((efectivoFisico + egresos) - serviciosEfectivo - fondo);
 
             datosPorClave[clave].totalDeclarar = efectivoFisico; // Asumimos que esto es "Total a declarar"
             datosPorClave[clave].egresos = egresos;

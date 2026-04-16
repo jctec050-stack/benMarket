@@ -2098,6 +2098,11 @@ async function guardarArqueo() {
         return; // Detener la ejecución de la función
     }
 
+    // **NUEVO:** Calcular "Total Ingresos Tienda" (Efectivo Bruto + Egresos - Servicios Efectivo - Fondo Fijo)
+    const totalServiciosEfectivoParaResumen = Object.values(totales.servicios).flat().reduce((sum, s) => sum + (s.monto || 0), 0);
+    const totalEgresosSumaParaResumen = todosLosEgresos.reduce((sum, e) => sum + (e.monto || 0), 0);
+    const totalIngresosTiendaCalculadoFinal = (totalEfectivoBruto + totalEgresosSumaParaResumen) - totalServiciosEfectivoParaResumen - arqueo.fondoFijo;
+
     // Preparar datos para guardar en la base de datos
     const datosParaBD = {
         id: arqueo.id, // **CORRECCIÓN:** Incluir ID para que el upsert funcione correctamente
@@ -2105,6 +2110,7 @@ async function guardarArqueo() {
         caja: arqueo.caja,
         cajero: arqueo.cajero,
         fondo_fijo: arqueo.fondoFijo,
+        total_ingresos_tienda: totalIngresosTiendaCalculadoFinal, // **PERSISTENCIA:** Guardar el cálculo directo
 
         // **NUEVO:** Desglose completo de efectivo
         efectivo: arqueo.efectivo,
@@ -2134,11 +2140,6 @@ async function guardarArqueo() {
         observaciones: null
     };
 
-
-    // Calcular "Total Ingresos Tienda" (Efectivo Bruto + Egresos - Servicios Efectivo - Fondo Fijo)
-    const totalServiciosEfectivoParaResumen = Object.values(totales.servicios).flat().reduce((sum, s) => sum + (s.monto || 0), 0);
-    const totalEgresosSumaParaResumen = todosLosEgresos.reduce((sum, e) => sum + (e.monto || 0), 0);
-    const totalIngresosTiendaCalculadoFinal = (totalEfectivoBruto + totalEgresosSumaParaResumen) - totalServiciosEfectivoParaResumen - arqueo.fondoFijo;
 
     if (window.db) {
         console.log('[UI] Iniciando guardado de Arqueo en Supabase...');
