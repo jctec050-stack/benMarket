@@ -1,54 +1,36 @@
-# BenMarket - Sistema de Tesorería
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
-Sistema de gestión de tesorería para BenMarket, con control de ingresos, egresos, arqueo de caja y reportes.
+## Getting Started
 
-## Estructura del Proyecto
+First, run the development server:
 
-```
-benMark/
-├── index.html              # Página principal de la aplicación
-├── server.js               # Servidor local (opcional)
-├── src/                    # Código fuente
-│   ├── js/                 # Archivos JavaScript
-│   │   ├── app.js          # Lógica principal de la aplicación
-│   │   ├── login.js        # Lógica de autenticación
-│   │   └── supabase.js     # Configuración de Supabase (futuro)
-│   ├── css/                # Hojas de estilo
-│   │   ├── styles.css      # Estilos principales
-│   │   └── login.css       # Estilos del login
-│   └── pages/              # Páginas HTML adicionales
-│       └── login.html      # Página de inicio de sesión
-└── docs/                   # Documentación
-    ├── README.md           # Documentación del proyecto
-    └── INSTRUCCIONES.md    # Instrucciones de uso
-
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-## Inicio Rápido
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-1. **Abrir la aplicación**: Abre `src/pages/login.html` en tu navegador
-2. **Iniciar sesión**: 
-   - Usuario: `jpiris` / Contraseña: `123` / Rol: `cajero`
-   - Usuario: `admin` / Contraseña: `admin` / Rol: `admin`
-3. **Usar la aplicación**: Navega por las diferentes secciones usando el menú superior
+You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
-## Funcionalidades
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-- **Ingresos**: Registro de ingresos de caja con desglose de efectivo
-- **Egresos**: Registro de egresos de caja con desglose de billetes
-- **Operaciones**: Gestión de gastos y operaciones
-- **Arqueo de Caja**: Resumen y cierre de caja con exportación a PDF
-- **Resumen**: Vista general de la tesorería del día
+## Learn More
 
-## Tecnologías
+To learn more about Next.js, take a look at the following resources:
 
-- HTML5
-- CSS3
-- JavaScript (Vanilla)
-- jsPDF (para exportación de PDFs)
-- XLSX (para exportación de Excel)
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-## Notas
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-- Los datos se almacenan en `localStorage` del navegador
-- Para producción, se recomienda implementar un backend con Supabase o similar
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

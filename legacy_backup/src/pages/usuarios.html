@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BenMark - Gestión de Usuarios</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../js/supabase.js"></script>
+    <script src="../js/notifications.js"></script>
+    <script src="../js/config.js"></script>
+    <script src="../js/utils.js"></script>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-header">
+                <img src="../images/logo-benmarket.jpg" alt="BenMarket" class="navbar-logo">
+                <button class="hamburger" id="hamburger-btn" aria-label="Abrir menú">
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                    <span class="bar"></span>
+                </button>
+            </div>
+            <ul class="nav-menu" id="nav-menu">
+                <li><a href="index.html" class="nav-link">Ingresos</a></li>
+                <li><a href="egresosCaja.html" class="nav-link">Egresos</a></li>
+                <li><a href="operaciones.html" class="nav-link">Operaciones</a></li>
+                <li><a href="arqueo.html" class="nav-link">Arqueo de Caja</a></li>
+                <li><a href="resumenServicios.html" class="nav-link">Resumen Servicios</a></li>
+                <li><a href="resumen.html" class="nav-link">Resumen Tesoreria</a></li>
+                <li id="nav-usuarios"><a href="usuarios.html" class="nav-link activo">Usuarios</a></li>
+            </ul>
+            <div class="nav-usuario">
+                <span id="nombreUsuarioNav"></span>
+                <a href="#" onclick="event.preventDefault(); cerrarSesion()" class="nav-link-logout">Cerrar Sesión</a>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container">
+        <!-- Sección de Gestión de Usuarios -->
+        <section id="usuarios" class="seccion activa">
+            <h2>Gestión de Usuarios</h2>
+            <form id="formularioUsuario" class="formulario-gastos">
+                <h3>Agregar Nuevo Usuario</h3>
+                <div class="form-grid">
+                    <div class="form-grupo">
+                        <label for="nuevoUsuarioNombre">Email del Usuario:</label>
+                        <input type="email" id="nuevoUsuarioNombre" placeholder="usuario@benmarket.com" required>
+                        <small style="color: var(--color-secundario);">Ingrese un email válido</small>
+                    </div>
+                    <div class="form-grupo">
+                        <label for="nuevoUsuarioPassword">Contraseña:</label>
+                        <input type="password" id="nuevoUsuarioPassword" required>
+                    </div>
+                    <div class="form-grupo">
+                        <label for="nuevoUsuarioRol">Rol:</label>
+                        <select id="nuevoUsuarioRol" required>
+                            <option value="cajero">Cajero</option>
+                            <option value="tesoreria">Tesorería</option>
+                            <option value="admin">Administrador</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-botones">
+                    <button type="submit" class="btn btn-primario">Agregar Usuario</button>
+                </div>
+            </form>
+
+            <div class="historial-gastos">
+                <h3>Usuarios Existentes</h3>
+                <div id="listaUsuarios" class="lista-movimientos"></div>
+            </div>
+        </section>
+    </main>
+
+    <script src="../js/benmark.js"></script>
+    <script>
+        if (window.inicializarSupabase) { window.inicializarSupabase(); }
+        if (window.initSupabaseData) { window.initSupabaseData(); }
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+</body>
+
+</html>
