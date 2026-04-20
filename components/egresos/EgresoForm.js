@@ -7,7 +7,7 @@ import { useData } from '@/context/DataContext'
 import { useNotifications } from '@/context/NotificationContext'
 import { Box } from 'lucide-react'
 
-export default function EgresoForm({ onSubmit }) {
+export default function EgresoForm({ onSubmit, initialData = null, onCancelEdit }) {
   const { selectedCaja, selectedDate } = useData()
   const { error: notifyError } = useNotifications()
   
@@ -23,6 +23,7 @@ export default function EgresoForm({ onSubmit }) {
 
   const [formData, setFormData] = useState(initialFormState)
   const [displayMonto, setDisplayMonto] = useState('')
+  const [motivoEdicion, setMotivoEdicion] = useState('')
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -46,19 +47,42 @@ export default function EgresoForm({ onSubmit }) {
   const handleLimpiar = () => {
     setFormData(initialFormState)
     setDisplayMonto('')
+    setMotivoEdicion('')
+    if (onCancelEdit) onCancelEdit()
   }
 
   useEffect(() => {
-    if (formData.categoria === 'Retiro de Fondos') {
+    if (initialData) {
+      setFormData({
+        id: initialData.id,
+        fecha: initialData.fecha.split('T')[0],
+        categoria: initialData.categoria,
+        descripcion: initialData.descripcion,
+        monto: initialData.monto,
+        referencia: initialData.referencia || '',
+        numeroRecibo: initialData.numeroRecibo || '',
+        receptor: initialData.receptor || ''
+      })
+      setDisplayMonto(formatInputNumber(initialData.monto))
+      setMotivoEdicion('')
+    } else {
+      setFormData(initialFormState)
+      setDisplayMonto('')
+      setMotivoEdicion('')
+    }
+  }, [initialData])
+
+  useEffect(() => {
+    if (!initialData && formData.categoria === 'Retiro de Fondos') {
       const fetchReceipt = async () => {
         const next = await db.getNextReceiptNumber()
         setFormData(prev => ({ ...prev, numeroRecibo: String(next) }))
       }
       fetchReceipt()
-    } else {
+    } else if (!initialData) {
       setFormData(prev => ({ ...prev, numeroRecibo: '' }))
     }
-  }, [formData.categoria])
+  }, [formData.categoria, initialData])
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -73,6 +97,7 @@ export default function EgresoForm({ onSubmit }) {
     const fechaLocal = new Date(yyyy, (mm || 1) - 1, dd || 1, now.getHours(), now.getMinutes(), now.getSeconds())
 
     const egreso = {
+      ...(formData.id ? { id: formData.id } : {}),
       fecha: fechaLocal.toISOString(),
       categoria: formData.categoria,
       descripcion: formData.descripcion,
@@ -80,7 +105,8 @@ export default function EgresoForm({ onSubmit }) {
       referencia: formData.referencia,
       receptor: formData.receptor || null,
       numeroRecibo: formData.numeroRecibo || null,
-      arqueado: false
+      arqueado: false,
+      motivoEdicion: motivoEdicion
     }
 
     onSubmit(egreso)
@@ -189,35 +215,44 @@ export default function EgresoForm({ onSubmit }) {
           </div>
         </div>
 
-        {/* Nro Recibo (Auto para Retiro de Fondos) */}
-        {formData.categoria === 'Retiro de Fondos' && (
-           <div className="form-group animate-fade-in">
-            <label className="block text-sm font-bold text-gray-800 mb-2">
-              Nro Recibo (Automático):
+        {/* Motivo de Edición (Mandatory) */}
+        {initialData?.id && (
+          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 animate-pulse-subtle">
+            <label className="block text-sm font-bold text-yellow-800 mb-2">
+              Motivo de la Edición <span className="text-red-500">* (Obligatorio)</span>
             </label>
-            <input
-              type="text"
-              readOnly
-              className="w-full px-4 py-2 border border-gray-100 bg-gray-50 rounded-lg text-gray-500 font-bold"
-              value={formData.numeroRecibo}
-            />
+            <textarea
+              className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-yellow-500 focus:border-yellow-500 text-sm"
+              rows="2"
+              placeholder="Ej: Corrección de monto por error de carga..."
+              value={motivoEdicion}
+              onChange={(e) => setMotivoEdicion(e.target.value)}
+              required
+            ></textarea>
+            <p className="text-[10px] text-yellow-700 mt-1 font-medium">
+              Este motivo quedará registrado en el historial de auditoría para fines de control interno.
+            </p>
           </div>
         )}
 
-        {/* Botones */}
         <div className="flex items-center gap-4 pt-4">
           <button
             type="submit"
-            className="px-8 py-3 bg-[#c62828] text-white font-bold rounded-lg hover:bg-red-800 transition-colors shadow-sm"
+            disabled={initialData?.id && !motivoEdicion.trim()}
+            className={`px-8 py-3 font-bold rounded-lg transition-all shadow-sm ${
+                initialData?.id && !motivoEdicion.trim() 
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                  : 'bg-[#c62828] text-white hover:bg-red-800'
+            }`}
           >
-            Guardar Egreso
+            {initialData?.id ? 'Guardar Cambios' : 'Guardar Egreso'}
           </button>
           <button
             type="button"
             onClick={handleLimpiar}
             className="px-8 py-3 bg-white border-2 border-[#c62828] text-[#c62828] font-bold rounded-lg hover:bg-red-50 transition-colors"
           >
-            Limpiar
+            {initialData?.id ? 'Cancelar' : 'Limpiar'}
           </button>
         </div>
       </form>

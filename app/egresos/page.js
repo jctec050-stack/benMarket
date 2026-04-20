@@ -26,6 +26,7 @@ export default function EgresosPage() {
     setSelectedCajero
   } = useData()
   const router = useRouter()
+  const [editingEgreso, setEditingEgreso] = useState(null)
 
   // Auth Protection
   useEffect(() => {
@@ -51,6 +52,10 @@ export default function EgresosPage() {
     
     const result = await addEgreso(newEgreso)
     
+    if (result.success) {
+      setEditingEgreso(null)
+    }
+
     // Auto-print only for Retiro de Fondos
     if (result.success && egreso.categoria === 'Retiro de Fondos') {
       const finalItem = result.data || { ...newEgreso, id: 'temp-' + Date.now() }
@@ -68,8 +73,15 @@ export default function EgresosPage() {
 
     if (ok) {
       await deleteEgreso(id)
+      setEditingEgreso(prev => (prev?.id === id ? null : prev))
       success('Egreso Eliminado', 'El registro ha sido borrado.')
     }
+  }
+
+  const handleEditEgreso = (eg) => {
+    setEditingEgreso(eg)
+    // Scroll to form
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   if (authLoading || !user) {
@@ -121,11 +133,16 @@ export default function EgresosPage() {
 
         {/* Content */}
         <div className="space-y-10 animate-fade-in">
-          <EgresoForm onSubmit={handleAddEgreso} />
+          <EgresoForm 
+            onSubmit={handleAddEgreso} 
+            initialData={editingEgreso} 
+            onCancelEdit={() => setEditingEgreso(null)} 
+          />
           
           <EgresosList 
             egresos={egresos} 
             onDelete={handleDeleteEgreso} 
+            onEdit={handleEditEgreso}
             dateFilter={selectedDate}
             setDateFilter={setSelectedDate}
             cajaFilter={selectedCaja}

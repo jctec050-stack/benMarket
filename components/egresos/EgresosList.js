@@ -1,13 +1,14 @@
 'use client'
 
 import { formatCurrency } from '@/lib/utils'
-import { Trash2, Printer, Calendar, Landmark, User, Hash } from 'lucide-react'
+import { Trash2, Printer, Calendar, Landmark, User, Pencil } from 'lucide-react'
 import { exportEgresoReceiptPDF } from '@/lib/pdfExport'
 import { useAuth } from '@/context/AuthContext'
 
 export default function EgresosList({ 
   egresos, 
   onDelete,
+  onEdit,
   dateFilter,
   setDateFilter,
   cajaFilter,
@@ -125,13 +126,20 @@ export default function EgresosList({
                   >
                     <Printer size={18} />
                   </button>
-                    <button
-                      onClick={() => onDelete(egreso.id)}
-                      className="p-2 text-gray-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
-                      title="Eliminar"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                  <button
+                    onClick={() => onDelete && onDelete(egreso.id)}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                    title="Eliminar"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                  <button
+                    onClick={() => onEdit && onEdit(egreso)}
+                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                    title="Editar"
+                  >
+                    <Pencil size={18} />
+                  </button>
                 </div>
               </div>
             </div>

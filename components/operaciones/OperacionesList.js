@@ -1,11 +1,12 @@
 'use client'
 
 import { formatCurrency } from '@/lib/utils'
-import { Trash2 } from 'lucide-react'
+import { Trash2, Pencil } from 'lucide-react'
 
 export default function OperacionesList({ 
   operaciones, 
   onDelete,
+  onEdit,
   dateFilter,
   setDateFilter,
   cajaFilter,
@@ -110,13 +111,22 @@ export default function OperacionesList({
                     <span className={`text-xl font-bold ${isIngreso ? 'text-green-700' : 'text-gray-700'}`}>
                       {signo}{formatCurrency(Math.abs(op.monto), op.moneda)}
                     </span>
-                    <button
-                      onClick={() => onDelete(op.id)}
-                      className="text-gray-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition-colors"
-                      title="Eliminar operación"
-                    >
-                      <Trash2 size={20} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => onDelete(op.id)}
+                        className="text-gray-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-full transition-colors"
+                        title="Eliminar operación"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                      <button
+                        onClick={() => onEdit && onEdit(op)}
+                        className="text-gray-400 hover:text-blue-600 p-2 hover:bg-blue-50 rounded-full transition-colors"
+                        title="Editar operación"
+                      >
+                        <Pencil size={20} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

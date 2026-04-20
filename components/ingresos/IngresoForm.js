@@ -60,6 +60,8 @@ export default function IngresoForm({ onSubmit, initialData = null, onCancelEdit
     serviciosEfectivo: false,
     credito: false
   })
+  
+  const [motivoEdicion, setMotivoEdicion] = useState('')
 
   const computeTotalEfectivo = (efectivoCounts, monedasData) => {
     let totalBilletesCalc = 0
@@ -115,6 +117,7 @@ export default function IngresoForm({ onSubmit, initialData = null, onCancelEdit
       setNoEfectivo({ pagosTarjeta: 0, pedidosYa: 0, ventasTransferencia: 0 })
       setServicios({})
       setCredito({ cliente: '', descripcion: '', monto: 0 })
+      setMotivoEdicion('')
     }
   }, [initialData])
 
@@ -240,7 +243,8 @@ export default function IngresoForm({ onSubmit, initialData = null, onCancelEdit
       creditoDetalles: totalCredito > 0 ? {
         cliente: credito.cliente,
         descripcion: credito.descripcion
-      } : null
+      } : null,
+      motivoEdicion: motivoEdicion
     }
 
     // Pass to parent
@@ -257,6 +261,7 @@ export default function IngresoForm({ onSubmit, initialData = null, onCancelEdit
     setNoEfectivo({ pagosTarjeta: 0, pedidosYa: 0, ventasTransferencia: 0 })
     setServicios({})
     setCredito({ cliente: '', descripcion: '', monto: 0 })
+    setMotivoEdicion('')
 
     if (initialData?.id && onCancelEdit) onCancelEdit()
   }
@@ -356,6 +361,26 @@ export default function IngresoForm({ onSubmit, initialData = null, onCancelEdit
           </button>
         </div>
 
+        {/* Motivo de Edición (Mandatory) */}
+        {initialData?.id && (
+          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 animate-pulse-subtle">
+            <label className="block text-sm font-bold text-yellow-800 mb-2">
+              Motivo de la Edición <span className="text-red-500">* (Obligatorio)</span>
+            </label>
+            <textarea
+              className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-yellow-500 focus:border-yellow-500 text-sm"
+              rows="2"
+              placeholder="Ej: Corrección de monto por error de carga..."
+              value={motivoEdicion}
+              onChange={(e) => setMotivoEdicion(e.target.value)}
+              required
+            ></textarea>
+            <p className="text-[10px] text-yellow-700 mt-1 font-medium">
+              Este motivo quedará registrado en el historial de auditoría de este movimiento.
+            </p>
+          </div>
+        )}
+
         {/* Submit Button (Only visible in Edit Mode) */}
         {initialData?.id && (
           <div className="pt-4 border-t border-gray-100 flex justify-end gap-3">
@@ -368,7 +393,12 @@ export default function IngresoForm({ onSubmit, initialData = null, onCancelEdit
             </button>
             <button
               type="submit"
-              className="px-6 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-md transition-transform transform hover:scale-105"
+              disabled={initialData?.id && !motivoEdicion.trim()}
+              className={`px-6 py-3 text-white font-bold rounded-lg shadow-md transition-all ${
+                initialData?.id && !motivoEdicion.trim() 
+                  ? 'bg-gray-400 cursor-not-allowed grayscale' 
+                  : 'bg-blue-600 hover:bg-blue-700 transform hover:scale-105'
+              }`}
             >
               Guardar Cambios
             </button>

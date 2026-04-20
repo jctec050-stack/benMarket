@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { parseCurrency, formatInputNumber } from '@/lib/utils'
 import { useNotifications } from '@/context/NotificationContext'
 
-export default function OperacionForm({ onSubmit, nextReceiptNumber }) {
+export default function OperacionForm({ onSubmit, nextReceiptNumber, initialData = null, onCancelEdit }) {
   const { error: notifyError, warning } = useNotifications()
   const [formData, setFormData] = useState({
     fecha: (() => {
@@ -20,12 +20,42 @@ export default function OperacionForm({ onSubmit, nextReceiptNumber }) {
     referencia: '',
     numeroRecibo: ''
   })
+  const [motivoEdicion, setMotivoEdicion] = useState('')
 
   useEffect(() => {
-    if (nextReceiptNumber && formData.tipo === 'operacion') {
+    if (nextReceiptNumber && formData.tipo === 'operacion' && !initialData) {
       setFormData(prev => ({ ...prev, numeroRecibo: nextReceiptNumber }))
     }
-  }, [nextReceiptNumber, formData.tipo])
+  }, [nextReceiptNumber, formData.tipo, initialData])
+
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        id: initialData.id,
+        fecha: initialData.fecha.split('T')[0],
+        tipo: initialData.tipo,
+        receptor: initialData.receptor || '',
+        descripcion: initialData.descripcion,
+        monto: Math.abs(initialData.monto),
+        moneda: initialData.moneda || 'gs',
+        referencia: initialData.referencia || '',
+        numeroRecibo: initialData.numeroRecibo || ''
+      })
+      setMotivoEdicion('')
+    } else {
+      setFormData({
+        fecha: new Date().toISOString().slice(0, 10),
+        tipo: 'gasto',
+        receptor: '',
+        descripcion: '',
+        monto: '',
+        moneda: 'gs',
+        referencia: '',
+        numeroRecibo: ''
+      })
+      setMotivoEdicion('')
+    }
+  }, [initialData])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -65,6 +95,7 @@ export default function OperacionForm({ onSubmit, nextReceiptNumber }) {
     const fechaLocal = new Date(yyyy, (mm || 1) - 1, dd || 1, now.getHours(), now.getMinutes(), now.getSeconds())
 
     const operacion = {
+      ...(formData.id ? { id: formData.id } : {}),
       fecha: fechaLocal.toISOString(),
       tipo: formData.tipo,
       receptor: formData.receptor || null,
@@ -73,7 +104,8 @@ export default function OperacionForm({ onSubmit, nextReceiptNumber }) {
       moneda: formData.moneda,
       referencia: formData.referencia || null,
       numeroRecibo: formData.tipo === 'operacion' ? formData.numeroRecibo : null,
-      arqueado: false
+      arqueado: false,
+      motivoEdicion: motivoEdicion
     }
 
     onSubmit(operacion)
@@ -241,13 +273,44 @@ export default function OperacionForm({ onSubmit, nextReceiptNumber }) {
           </div>
         </div>
 
-        {/* Botones */}
-        <div className="flex justify-end pt-4 border-t border-gray-100">
+        {/* Motivo de Edición (Mandatory) */}
+        {initialData?.id && (
+          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200 animate-pulse-subtle">
+            <label className="block text-sm font-bold text-yellow-800 mb-2">
+              Motivo de la Edición <span className="text-red-500">* (Obligatorio)</span>
+            </label>
+            <textarea
+              className="w-full px-3 py-2 border border-yellow-300 rounded-lg focus:ring-yellow-500 focus:border-yellow-500 text-sm"
+              rows="2"
+              placeholder="Ej: Ajuste de descripción / Corrección de categoría..."
+              value={motivoEdicion}
+              onChange={(e) => setMotivoEdicion(e.target.value)}
+              required
+            ></textarea>
+            <p className="text-[10px] text-yellow-700 mt-1 font-medium">
+              Este motivo quedará registrado en el historial de auditoría de la operación.
+            </p>
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+          <button
+            type="button"
+            onClick={() => onCancelEdit && onCancelEdit()}
+            className="px-6 py-3 bg-white text-gray-700 font-bold rounded-lg border border-gray-300 hover:bg-gray-50"
+          >
+            {initialData?.id ? 'Cancelar' : 'Limpiar'}
+          </button>
           <button
             type="submit"
-            className="px-6 py-3 bg-gray-800 text-white font-bold rounded-lg hover:bg-gray-900 shadow-md transition-transform transform hover:scale-105"
+            disabled={initialData?.id && !motivoEdicion.trim()}
+            className={`px-6 py-3 font-bold rounded-lg shadow-md transition-all ${
+                initialData?.id && !motivoEdicion.trim() 
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                  : 'bg-gray-800 text-white hover:bg-gray-900 transform hover:scale-105'
+            }`}
           >
-            Guardar Movimiento
+            {initialData?.id ? 'Guardar Cambios' : 'Guardar Movimiento'}
           </button>
         </div>
       </form>

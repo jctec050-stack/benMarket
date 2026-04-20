@@ -28,6 +28,7 @@ export default function OperacionesPage() {
     setSelectedCajero
   } = useData()
   const router = useRouter()
+  const [editingOperacion, setEditingOperacion] = useState(null)
 
   const [nextReceiptNumber, setNextReceiptNumber] = useState(null)
 
@@ -60,6 +61,7 @@ export default function OperacionesPage() {
     const res = await addMovimiento(newOperacion)
     
     if (res.success) {
+      setEditingOperacion(null)
       success('Operación Guardada', 'El movimiento se registró con éxito.')
       
       // Auto-generate receipt if it's bank operation
@@ -90,8 +92,14 @@ export default function OperacionesPage() {
 
     if (ok) {
       await deleteMovimiento(id)
+      setEditingOperacion(prev => (prev?.id === id ? null : prev))
       success('Eliminado', 'La operación ha sido borrada exitosamente.')
     }
+  }
+
+  const handleEditOperacion = (op) => {
+    setEditingOperacion(op)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   if (authLoading || !user) {
@@ -133,7 +141,12 @@ export default function OperacionesPage() {
           
           {/* Top Section: Form */}
           <div className="space-y-8">
-            <OperacionForm onSubmit={handleAddOperacion} nextReceiptNumber={nextReceiptNumber} />
+            <OperacionForm 
+              onSubmit={handleAddOperacion} 
+              nextReceiptNumber={nextReceiptNumber} 
+              initialData={editingOperacion}
+              onCancelEdit={() => setEditingOperacion(null)}
+            />
           </div>
 
           {/* Bottom Section: History */}
@@ -141,6 +154,7 @@ export default function OperacionesPage() {
              <OperacionesList 
                operaciones={movimientos} 
                onDelete={handleDeleteOperacion} 
+               onEdit={handleEditOperacion}
                dateFilter={selectedDate}
                setDateFilter={setSelectedDate}
                cajaFilter={selectedCaja}
