@@ -13,21 +13,10 @@ export const AuthProvider = ({ children }) => {
   const router = useRouter()
 
   useEffect(() => {
-    // Check active session
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        setUser(session.user)
-        fetchProfile(session.user.id)
-      } else {
-        setLoading(false)
-      }
-    }
-
-    checkSession()
-
-    // Listen for auth changes
+    // Listen for auth changes (this also handles initial session check)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth event:', event)
+      
       if (session) {
         setUser(session.user)
         fetchProfile(session.user.id)
@@ -35,7 +24,11 @@ export const AuthProvider = ({ children }) => {
         setUser(null)
         setProfile(null)
         setLoading(false)
-        router.push('/login')
+        
+        // Only redirect if we are not already on the login page
+        if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+          router.push('/login')
+        }
       }
     })
 
